@@ -1,0 +1,57 @@
+# MemonBook ERP — Git Ignore
+
+# Environment / Secrets — NEVER commit
+.env
+data/keys_backup.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite / SQLCipher databases
+data/db/*.db
+data/db/*.db-shm
+data/db/*.db-wal
+
+# Data directories
+data/backups/
+data/exports/
+data/logs/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+*.pdb
+Cargo.lock
+
+# Node
+node_modules/
+.npm/
+
+# Tauri build output
+src-tauri/WixTools/
+*.msi
+*.dmg
+*.AppImage
+*.deb
+
+# OS
+.DS_Store
+Thumbs.db
+*.~lock.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

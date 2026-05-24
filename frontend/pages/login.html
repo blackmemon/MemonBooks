@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Login — MemonBook ERP</title>
+  <link rel="stylesheet" href="../assets/css/theme.css">
+
+  <style>
+    /* ── Login-specific styles ── */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg-base);
+      padding: var(--space-4);
+    }
+
+    .login-wrapper {
+      display: flex;
+      width: 100%;
+      max-width: 960px;
+      min-height: 560px;
+      border-radius: var(--radius-2xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border-color);
+    }
+
+    /* ── Left panel (brand) ── */
+    .login-brand {
+      flex: 1;
+      background: var(--brand-gradient);
+      padding: var(--space-12) var(--space-10);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-brand::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .login-brand::after {
+      content: '';
+      position: absolute;
+      bottom: -80px; left: -40px;
+      width: 250px; height: 250px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-logo-icon {
+      width: 48px; height: 48px;
+      background: rgba(255,255,255,0.2);
+      border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand-logo-icon svg {
+      width: 26px; height: 26px;
+      color: #fff;
+    }
+
+    .brand-name {
+      font-size: var(--text-xl);
+      font-weight: var(--fw-bold);
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-tagline {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.75);
+      margin-top: 2px;
+    }
+
+    .brand-headline {
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-headline h1 {
+      font-size: var(--text-3xl);
+      font-weight: var(--fw-extrabold);
+      color: #fff;
+      line-height: 1.2;
+      margin-bottom: var(--space-4);
+    }
+
+    .brand-headline p {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.75);
+      line-height: 1.7;
+    }
+
+    .brand-features {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .brand-feature {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.85);
+    }
+
+    .brand-feature svg {
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+      color: rgba(255,255,255,0.9);
+    }
+
+    /* ── Right panel (form) ── */
+    .login-form-panel {
+      width: 420px;
+      flex-shrink: 0;
+      background: var(--card-bg);
+      padding: var(--space-12) var(--space-10);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .login-header {
+      margin-bottom: var(--space-8);
+    }
+
+    .login-header h2 {
+      font-size: var(--text-2xl);
+      font-weight: var(--fw-bold);
+      color: var(--text-primary);
+      margin-bottom: var(--space-1);
+    }
+
+    .login-header p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .form-label {
+      font-size: var(--text-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-secondary);
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input {
+      width: 100%;
+      padding: 0.625rem 0.75rem 0.625rem 2.5rem;
+      font-size: var(--text-sm);
+      color: var(--text-primary);
+      background: var(--input-bg);
+      border: 1.5px solid var(--input-border);
+      border-radius: var(--radius-md);
+      outline: none;
+      transition: var(--transition-base);
+    }
+
+    .input:focus {
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 3px rgba(0,114,183,0.15);
+    }
+
+    .input.error {
+      border-color: var(--brand-danger);
+      box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 0.75rem;
+      width: 16px; height: 16px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .input-toggle {
+      position: absolute;
+      right: 0.75rem;
+      width: 16px; height: 16px;
+      color: var(--text-muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+      transition: color var(--transition-fast);
+    }
+
+    .input-toggle:hover { color: var(--text-primary); }
+
+    .field-error {
+      font-size: var(--text-xs);
+      color: var(--brand-danger);
+      display: none;
+    }
+
+    .field-error.visible { display: block; }
+
+    .login-error {
+      display: none;
+      background: var(--bg-danger);
+      border: 1px solid rgba(220,38,38,0.25);
+      color: var(--brand-danger);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-sm);
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
+
+    .login-error.visible { display: flex; }
+
+    .btn-login {
+      width: 100%;
+      padding: 0.75rem;
+      font-size: var(--text-base);
+      font-weight: var(--fw-semibold);
+      color: #fff;
+      background: var(--brand-primary);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition-base);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+
+    .btn-login:hover:not(:disabled) {
+      background: var(--brand-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-brand);
+    }
+
+    .btn-login:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    .btn-login.loading .spinner { display: block; }
+    .btn-login.loading .btn-text { display: none; }
+
+    .login-footer {
+      margin-top: var(--space-6);
+      text-align: center;
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    .theme-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: var(--space-4);
+    }
+
+    .theme-btn {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: 0.25rem var(--space-3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-full);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .theme-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .theme-btn svg { width: 13px; height: 13px; }
+
+    /* Responsive */
+    @media (max-width: 720px) {
+      .login-brand { display: none; }
+      .login-wrapper { max-width: 420px; }
+      .login-form-panel { width: 100%; }
+    }
+
+    @media (max-width: 440px) {
+      .login-form-panel { padding: var(--space-8) var(--space-6); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrapper">
+
+  <!-- Left Brand Panel -->
+  <div class="login-brand">
+    <div class="brand-logo">
+      <div class="brand-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 3h20v4H2zM4 7v14M20 7v14M4 14h16"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">MemonBook ERP</div>
+        <div class="brand-tagline">Offline Accounting & HR System</div>
+      </div>
+    </div>
+
+    <div class="brand-headline">
+      <h1>Complete Business<br>Accounting Solution</h1>
+      <p>Manage purchases, sales, payments, HR and payroll — fully offline, fully secure.</p>
+    </div>
+
+    <div class="brand-features">
+      <div class="brand-feature">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        AES-256 encrypted database
+      </div>
+      <div class="brand-feature">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Hardware-bound security
+      </div>
+      <div class="brand-feature">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Purchases, Sales, Accounts, HR
+      </div>
+      <div class="brand-feature">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Works completely offline
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Form Panel -->
+  <div class="login-form-panel">
+
+    <div class="theme-row">
+      <button class="theme-btn" id="theme-toggle" title="Toggle theme">
+        <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        </svg>
+        <span id="theme-label">Dark</span>
+      </button>
+    </div>
+
+    <div class="login-header">
+      <h2>Welcome back</h2>
+      <p>Sign in to your MemonBook account</p>
+    </div>
+
+    <div id="login-error" class="login-error" role="alert">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="login-error-text"></span>
+    </div>
+
+    <form class="login-form" id="login-form" novalidate>
+
+      <!-- Username -->
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input class="input" id="username" name="username" type="text"
+                 placeholder="Enter your username"
+                 autocomplete="username" autocapitalize="none"
+                 spellcheck="false" autofocus>
+        </div>
+        <span class="field-error" id="username-error">Username is required.</span>
+      </div>
+
+      <!-- Password -->
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <input class="input" id="password" name="password" type="password"
+                 placeholder="Enter your password"
+                 autocomplete="current-password">
+          <button type="button" class="input-toggle" id="pwd-toggle" aria-label="Show/hide password">
+            <svg id="pwd-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg id="pwd-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <span class="field-error" id="password-error">Password is required.</span>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn-login" id="login-btn">
+        <div class="spinner" id="login-spinner"></div>
+        <span class="btn-text">Sign In</span>
+      </button>
+
+    </form>
+
+    <div class="login-footer">
+      MemonBook ERP v1.0.0 &mdash; &copy; 2025 Memon Enterprises
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  import Auth from '../assets/js/core/auth.js';
+
+  // Apply theme immediately
+  const savedTheme = localStorage.getItem('mb_theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeBtn(savedTheme);
+
+  // If already logged in → go to dashboard
+  if (Auth.isLoggedIn()) {
+    window.location.href = 'dashboard.html';
+  }
+
+  // ── Theme toggle ──
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('mb_theme', next);
+    updateThemeBtn(next);
+  });
+
+  function updateThemeBtn(theme) {
+    document.getElementById('theme-icon-sun').style.display  = theme === 'dark' ? 'block' : 'none';
+    document.getElementById('theme-icon-moon').style.display = theme === 'light' ? 'block' : 'none';
+    document.getElementById('theme-label').textContent = theme === 'dark' ? 'Light' : 'Dark';
+  }
+
+  // ── Password visibility toggle ──
+  const pwdInput = document.getElementById('password');
+  document.getElementById('pwd-toggle').addEventListener('click', () => {
+    const isText = pwdInput.type === 'text';
+    pwdInput.type = isText ? 'password' : 'text';
+    document.getElementById('pwd-eye').style.display     = isText ? 'block' : 'none';
+    document.getElementById('pwd-eye-off').style.display = isText ? 'none'  : 'block';
+  });
+
+  // ── Form validation ──
+  function showFieldError(id, msg) {
+    const input = document.getElementById(id);
+    const error = document.getElementById(`${id}-error`);
+    input.classList.add('error');
+    if (error) { error.textContent = msg; error.classList.add('visible'); }
+  }
+
+  function clearFieldError(id) {
+    const input = document.getElementById(id);
+    const error = document.getElementById(`${id}-error`);
+    input.classList.remove('error');
+    if (error) error.classList.remove('visible');
+  }
+
+  function showLoginError(msg) {
+    const el = document.getElementById('login-error');
+    document.getElementById('login-error-text').textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideLoginError() {
+    document.getElementById('login-error').classList.remove('visible');
+  }
+
+  // Live validation
+  document.getElementById('username').addEventListener('input', () => clearFieldError('username'));
+  document.getElementById('password').addEventListener('input', () => clearFieldError('password'));
+
+  // ── Login submit ──
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideLoginError();
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    let valid = true;
+    if (!username) { showFieldError('username', 'Username is required.'); valid = false; }
+    if (!password) { showFieldError('password', 'Password is required.'); valid = false; }
+    if (!valid) return;
+
+    const btn = document.getElementById('login-btn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      await Auth.login(username, password);
+      // Success → navigate to dashboard
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      const msg = err?.message || 'Login failed. Check credentials and try again.';
+      showLoginError(msg);
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>

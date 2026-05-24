@@ -105,9 +105,10 @@ from backend.routers.purchases import (
     grn_router,
     pi_router,
 )
-app.include_router(po_router.router,  prefix="/api/purchases/po",  tags=["Purchase Orders"])
-app.include_router(grn_router.router, prefix="/api/purchases/grn", tags=["GRN"])
-app.include_router(pi_router.router,  prefix="/api/purchases/pi",  tags=["Purchase Invoices"])
+app.include_router(po_router.router,        prefix="/api/purchases/po",  tags=["Purchase Orders"])
+app.include_router(grn_router.router,       prefix="/api/purchases/grn", tags=["GRN"])
+app.include_router(pi_router.router,        prefix="/api/purchases/pi",  tags=["Purchase Invoices"])
+app.include_router(pi_router.pr_router,     prefix="/api/purchases/pr",  tags=["Purchase Returns"])
 
 # Sales routers
 from backend.routers.sales import (
@@ -115,9 +116,10 @@ from backend.routers.sales import (
     dc_router,
     si_router,
 )
-app.include_router(so_router.router, prefix="/api/sales/so", tags=["Sale Orders"])
-app.include_router(dc_router.router, prefix="/api/sales/dc", tags=["Delivery Challans"])
-app.include_router(si_router.router, prefix="/api/sales/si", tags=["Sale Invoices"])
+app.include_router(so_router.router,       prefix="/api/sales/so", tags=["Sale Orders"])
+app.include_router(dc_router.router,       prefix="/api/sales/dc", tags=["Delivery Challans"])
+app.include_router(si_router.router,       prefix="/api/sales/si", tags=["Sale Invoices"])
+app.include_router(si_router.sr_router,    prefix="/api/sales/sr", tags=["Sale Returns"])
 
 # Payments routers
 from backend.routers.payments import (

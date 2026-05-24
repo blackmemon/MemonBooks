@@ -775,22 +775,25 @@ CREATE TABLE IF NOT EXISTS employee_salary (
 
 -- HR: Payroll Runs
 CREATE TABLE IF NOT EXISTS payroll_runs (
-    id              TEXT PRIMARY KEY,
-    run_number      TEXT NOT NULL UNIQUE,
-    month           INTEGER NOT NULL,
-    year            INTEGER NOT NULL,
-    run_date        TEXT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','processed','approved','posted','cancelled')),
-    total_gross     REAL DEFAULT 0,
+    id               TEXT PRIMARY KEY,
+    run_number       TEXT NOT NULL UNIQUE,
+    month            INTEGER NOT NULL,
+    year             INTEGER NOT NULL,
+    run_date         TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','processed','approved','posted','cancelled')),
+    total_gross      REAL DEFAULT 0,
     total_deductions REAL DEFAULT 0,
-    total_net       REAL DEFAULT 0,
-    jv_id           TEXT,
-    approved_by     TEXT,
-    approved_at     TEXT,
-    posted_by       TEXT,
-    posted_at       TEXT,
-    created_by      TEXT,
-    created_at      TEXT NOT NULL,
+    total_income_tax REAL DEFAULT 0,
+    total_net        REAL DEFAULT 0,
+    jv_id            TEXT,
+    notes            TEXT,
+    approved_by      TEXT,
+    approved_at      TEXT,
+    posted_by        TEXT,
+    posted_at        TEXT,
+    created_by       TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT,
     UNIQUE(month, year)
 );
 
@@ -951,7 +954,7 @@ def _seed_payment_terms(conn) -> None:
 
 def _seed_doc_sequences(conn) -> None:
     year = datetime.now(timezone.utc).year
-    docs = ["PO", "GRN", "PI", "PR", "SO", "DC", "SI", "SR", "CR", "BR", "CP", "BP", "JV", "PAY"]
+    docs = ["PO", "GRN", "PI", "PR", "SO", "DC", "SI", "SR", "CR", "BR", "CP", "BP", "JV", "PAY", "EMP"]
     rows = [(_uuid(), doc, doc, 0, year, _now()) for doc in docs]
     conn.executemany(
         "INSERT OR IGNORE INTO doc_sequences(id,doc_type,prefix,last_number,year,updated_at) VALUES(?,?,?,?,?,?)",

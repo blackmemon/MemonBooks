@@ -1,14 +1,11 @@
 """Staff login screen."""
 from __future__ import annotations
-
 import flet as ft
-
 from components.styles import colors
 from components.styles.buttons import primary_button
 from components.styles.textbox import text_field
 from database.database import open_user_database
 from security import auth
-
 
 def build_view(page: ft.Page) -> ft.View:
     username_f = text_field("Username")

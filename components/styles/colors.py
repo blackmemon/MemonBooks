@@ -2,7 +2,6 @@
 Dashboard Redesign brief. Default theme mode is SYSTEM (spec: 'the app
 will automatically follow the user's device theme')."""
 from __future__ import annotations
-
 import flet as ft
 
 # Primary brand color: deep navy, used for the sidebar/logo/headings.
@@ -41,7 +40,6 @@ DARK_BORDER = "#2A407A"
 DARK_TEXT = "#E7EBF5"
 DARK_TEXT_MUTED = "#9DAAC7"
 
-
 def light_theme() -> ft.Theme:
     return ft.Theme(
         color_scheme_seed=PRIMARY,
@@ -55,7 +53,6 @@ def light_theme() -> ft.Theme:
         ),
         scaffold_bgcolor=LIGHT_BG,
     )
-
 
 def dark_theme() -> ft.Theme:
     return ft.Theme(
@@ -71,7 +68,6 @@ def dark_theme() -> ft.Theme:
         scaffold_bgcolor=DARK_BG,
     )
 
-
 def is_dark(page: ft.Page) -> bool:
     if page.theme_mode == ft.ThemeMode.DARK:
         return True
@@ -79,18 +75,14 @@ def is_dark(page: ft.Page) -> bool:
         return False
     return page.platform_brightness == ft.Brightness.DARK
 
-
 def surface(page: ft.Page) -> str:
     return DARK_SURFACE if is_dark(page) else LIGHT_SURFACE
-
 
 def text_muted(page: ft.Page) -> str:
     return DARK_TEXT_MUTED if is_dark(page) else LIGHT_TEXT_MUTED
 
-
 def border(page: ft.Page) -> str:
     return DARK_BORDER if is_dark(page) else LIGHT_BORDER
-
 
 def accent(page: ft.Page) -> str:
     return ACCENT_DARK if is_dark(page) else ACCENT

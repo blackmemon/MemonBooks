@@ -1,5 +1,4 @@
 """Flet app entry point — login -> dashboard -> Maintain Management pages.
-
 Run `python scripts/generate_keys.py` then `python scripts/setup_db.py`
 once before the first launch (spec section: Setup Sequence).
 """
@@ -42,10 +41,9 @@ PLACEHOLDER_ROUTES = {
     "/reports": "Reports",
 }
 
-
 def main(page: ft.Page) -> None:
     page.title = APP_NAME
-    page.theme_mode = ft.ThemeMode.SYSTEM
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.theme = light_theme()
     page.dark_theme = dark_theme()
 
@@ -68,7 +66,6 @@ def main(page: ft.Page) -> None:
 
     page.on_route_change = route_change
     page.go("/login" if page.route == "/" else page.route)
-
 
 if __name__ == "__main__":
     ft.run(main)

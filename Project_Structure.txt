@@ -19,12 +19,10 @@ E:.
 ¦   ¦   ¦   ¦       aging.rs
 ¦   ¦   ¦   ¦       payables.rs
 ¦   ¦   ¦   ¦       payments.rs
-¦   ¦   ¦   ¦       vendors.rs
 ¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---accounts_receivable
 ¦   ¦   ¦           aging.rs
 ¦   ¦   ¦           collections.rs
-¦   ¦   ¦           customers.rs
 ¦   ¦   ¦           receivables.rs
 ¦   ¦   ¦           
 ¦   ¦   +---audit
@@ -103,14 +101,6 @@ E:.
 ¦   ¦   ¦       payments.rs
 ¦   ¦   ¦       quotations.rs
 ¦   ¦   ¦       
-¦   ¦   +---settings
-¦   ¦   ¦       accounting_settings.rs
-¦   ¦   ¦       company_settings.rs
-¦   ¦   ¦       invoice_settings.rs
-¦   ¦   ¦       localization.rs
-¦   ¦   ¦       numbering.rs
-¦   ¦   ¦       tax_settings.rs
-¦   ¦   ¦       
 ¦   ¦   +---tax
 ¦   ¦           tax_rates.rs
 ¦   ¦           tax_reports.rs
@@ -118,9 +108,15 @@ E:.
 ¦   ¦           vat.rs
 ¦   ¦           
 ¦   +---core
+¦   ¦   ¦   activation.rs
+¦   ¦   ¦   errors.rs
+¦   ¦   ¦   licensing.rs
+¦   ¦   ¦   logging.rs
 ¦   ¦   ¦   permissions.rs
 ¦   ¦   ¦   roles.rs
+¦   ¦   ¦   telemetry.rs
 ¦   ¦   ¦   users.rs
+¦   ¦   ¦   validation.rs
 ¦   ¦   ¦   
 ¦   ¦   +---auth
 ¦   ¦           authentication.rs
@@ -135,11 +131,14 @@ E:.
 ¦   ¦       
 ¦   +---hr
 ¦   ¦       attendance.rs
-¦   ¦       departments.rs
 ¦   ¦       employees.rs
 ¦   ¦       leave.rs
 ¦   ¦       payroll.rs
 ¦   ¦       salary.rs
+¦   ¦       
+¦   +---notifications
+¦   ¦       email.rs
+¦   ¦       whatsapp.rs
 ¦   ¦       
 ¦   +---organization
 ¦   ¦       branches.rs
@@ -153,10 +152,12 @@ E:.
 ¦   ¦       vendors.rs
 ¦   ¦       
 ¦   +---pos
+¦   ¦       barcode.rs
 ¦   ¦       cash_drawer.rs
 ¦   ¦       payments.rs
 ¦   ¦       receipts.rs
 ¦   ¦       sales.rs
+¦   ¦       scanning.rs
 ¦   ¦       sessions.rs
 ¦   ¦       terminals.rs
 ¦   ¦       
@@ -175,7 +176,9 @@ E:.
 ¦   ¦       
 ¦   +---services
 ¦   ¦       accounting_service.rs
+¦   ¦       api.rs
 ¦   ¦       banking_service.rs
+¦   ¦       commands.rs
 ¦   ¦       expense_service.rs
 ¦   ¦       fixed_asset_service.rs
 ¦   ¦       inventory_service.rs
@@ -186,6 +189,15 @@ E:.
 ¦   ¦       sales_service.rs
 ¦   ¦       tax_service.rs
 ¦   ¦       transaction_service.rs
+¦   ¦       
+¦   +---settings
+¦   ¦       accounting_settings.rs
+¦   ¦       company_settings.rs
+¦   ¦       invoice_settings.rs
+¦   ¦       localization.rs
+¦   ¦       numbering.rs
+¦   ¦       sync.rs
+¦   ¦       tax_settings.rs
 ¦   ¦       
 ¦   +---transactions
 ¦           transaction.rs
@@ -238,6 +250,7 @@ E:.
 ¦   ¦       separators.rs
 ¦   ¦       shadows.rs
 ¦   ¦       spacing.rs
+¦   ¦       state.rs
 ¦   ¦       states.rs
 ¦   ¦       statusbar.rs
 ¦   ¦       table.rs
@@ -248,7 +261,8 @@ E:.
 ¦   ¦       tooltip.rs
 ¦   ¦       tree.rs
 ¦   ¦       typography.rs
-¦   ¦       validation.rs
+¦   ¦       viewmodels.rs
+¦   ¦       views.rs
 ¦   ¦       
 ¦   +---uploads
 +---src

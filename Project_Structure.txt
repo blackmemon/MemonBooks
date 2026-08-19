@@ -212,16 +212,43 @@ E:.
 ¦   +---components
 ¦   +---resources
 ¦   +---styles
+¦   ¦       application.rs
+¦   ¦       badges.rs
+¦   ¦       borders.rs
 ¦   ¦       button.rs
 ¦   ¦       checkbox.rs
 ¦   ¦       colors.rs
 ¦   ¦       combobox.rs
+¦   ¦       datepicker.rs
+¦   ¦       dialogs.rs
+¦   ¦       dropdown.rs
 ¦   ¦       fonts.rs
+¦   ¦       forms.rs
 ¦   ¦       frames.rs
+¦   ¦       headers.rs
+¦   ¦       icons.rs
+¦   ¦       inputs.rs
 ¦   ¦       labels.rs
+¦   ¦       list.rs
+¦   ¦       menu.rs
+¦   ¦       modal.rs
+¦   ¦       panels.rs
 ¦   ¦       radiobutton.rs
+¦   ¦       scrollbar.rs
+¦   ¦       separators.rs
+¦   ¦       shadows.rs
+¦   ¦       spacing.rs
+¦   ¦       states.rs
+¦   ¦       statusbar.rs
 ¦   ¦       table.rs
+¦   ¦       tabs.rs
 ¦   ¦       textbox.rs
+¦   ¦       theme.rs
+¦   ¦       toolbar.rs
+¦   ¦       tooltip.rs
+¦   ¦       tree.rs
+¦   ¦       typography.rs
+¦   ¦       validation.rs
 ¦   ¦       
 ¦   +---uploads
 +---src

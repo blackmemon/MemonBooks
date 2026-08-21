@@ -8,6 +8,8 @@ use rust_decimal::Decimal;
 use rusqlite::{params, OptionalExtension, Row};
 
 use crate::backend::accounting::accounting_rules::AccountType;
+use crate::backend::accounting::accounts_payable::payables::Payable;
+use crate::backend::accounting::accounts_receivable::receivables::Receivable;
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::fiscal_periods::{FiscalPeriod, FiscalPeriodStatus};
 use crate::backend::accounting::general_ledger::{self, GeneralLedgerEntry, Posting};
@@ -74,6 +76,37 @@ pub const MIGRATIONS: &[Migration] = &[
                 credit          TEXT NOT NULL,
                 description     TEXT,
                 line_number     INTEGER NOT NULL
+            );
+        ",
+    },
+    Migration {
+        // 901, not 900: receivables/payables reference customers/vendors,
+        // which party_repository's migration (version 900) creates.
+        version: 901,
+        name: "receivables_and_payables_schema",
+        sql: "
+            CREATE TABLE receivables (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id      INTEGER NOT NULL REFERENCES companies(id),
+                customer_id     INTEGER NOT NULL REFERENCES customers(id),
+                reference       TEXT,
+                invoice_date    TEXT NOT NULL,
+                due_date        TEXT NOT NULL,
+                amount          TEXT NOT NULL,
+                amount_paid     TEXT NOT NULL DEFAULT '0',
+                transaction_id  INTEGER REFERENCES transactions(id)
+            );
+
+            CREATE TABLE payables (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id      INTEGER NOT NULL REFERENCES companies(id),
+                vendor_id       INTEGER NOT NULL REFERENCES vendors(id),
+                reference       TEXT,
+                bill_date       TEXT NOT NULL,
+                due_date        TEXT NOT NULL,
+                amount          TEXT NOT NULL,
+                amount_paid     TEXT NOT NULL DEFAULT '0',
+                transaction_id  INTEGER REFERENCES transactions(id)
             );
         ",
     },
@@ -497,6 +530,112 @@ impl AccountingRepository {
         period_closing::can_close(&period, &other_periods)?;
         self.transition_fiscal_period_status(period_id, FiscalPeriodStatus::Closed)
     }
+
+    // -- receivables ------------------------------------------------------
+
+    pub fn create_receivable(&self, receivable: &Receivable) -> AppResult<Receivable> {
+        receivable.validate()?;
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO receivables (company_id, customer_id, reference, invoice_date, due_date, amount, amount_paid, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    receivable.company_id,
+                    receivable.customer_id,
+                    receivable.reference,
+                    receivable.invoice_date,
+                    receivable.due_date,
+                    receivable.amount.to_string(),
+                    receivable.amount_paid.to_string(),
+                    receivable.transaction_id,
+                ],
+            )?;
+            Ok(Receivable {
+                id: Some(conn.last_insert_rowid()),
+                ..receivable.clone()
+            })
+        })
+    }
+
+    pub fn list_open_receivables_for_company(&self, company_id: i64) -> AppResult<Vec<Receivable>> {
+        let all = self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, customer_id, reference, invoice_date, due_date, amount, amount_paid, transaction_id
+                 FROM receivables WHERE company_id = ?1 ORDER BY due_date",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_receivable)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })?;
+        Ok(all.into_iter().filter(|r| !r.is_settled()).collect())
+    }
+
+    /// Applies `(receivable_id, amount)` allocations -- typically from
+    /// `accounts_receivable::collections::allocate_collection` -- as one
+    /// atomic update.
+    pub fn apply_receivable_payments(&self, allocations: &[(i64, Decimal)]) -> AppResult<()> {
+        self.db.with_transaction(|tx| {
+            for (id, amount) in allocations {
+                tx.execute(
+                    "UPDATE receivables SET amount_paid = amount_paid + ?1 WHERE id = ?2",
+                    params![amount.to_string(), id],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    // -- payables -----------------------------------------------------
+
+    pub fn create_payable(&self, payable: &Payable) -> AppResult<Payable> {
+        payable.validate()?;
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO payables (company_id, vendor_id, reference, bill_date, due_date, amount, amount_paid, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    payable.company_id,
+                    payable.vendor_id,
+                    payable.reference,
+                    payable.bill_date,
+                    payable.due_date,
+                    payable.amount.to_string(),
+                    payable.amount_paid.to_string(),
+                    payable.transaction_id,
+                ],
+            )?;
+            Ok(Payable {
+                id: Some(conn.last_insert_rowid()),
+                ..payable.clone()
+            })
+        })
+    }
+
+    pub fn list_open_payables_for_company(&self, company_id: i64) -> AppResult<Vec<Payable>> {
+        let all = self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, vendor_id, reference, bill_date, due_date, amount, amount_paid, transaction_id
+                 FROM payables WHERE company_id = ?1 ORDER BY due_date",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_payable)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })?;
+        Ok(all.into_iter().filter(|p| !p.is_settled()).collect())
+    }
+
+    /// Applies `(payable_id, amount)` allocations -- typically from
+    /// `accounts_payable::payments::allocate_payment` -- as one atomic
+    /// update.
+    pub fn apply_payable_payments(&self, allocations: &[(i64, Decimal)]) -> AppResult<()> {
+        self.db.with_transaction(|tx| {
+            for (id, amount) in allocations {
+                tx.execute(
+                    "UPDATE payables SET amount_paid = amount_paid + ?1 WHERE id = ?2",
+                    params![amount.to_string(), id],
+                )?;
+            }
+            Ok(())
+        })
+    }
 }
 
 fn map_account(row: &Row) -> rusqlite::Result<Account> {
@@ -553,6 +692,38 @@ fn map_transaction(row: &Row) -> rusqlite::Result<Transaction> {
     })
 }
 
+fn map_receivable(row: &Row) -> rusqlite::Result<Receivable> {
+    let amount_text: String = row.get(6)?;
+    let amount_paid_text: String = row.get(7)?;
+    Ok(Receivable {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        customer_id: row.get(2)?,
+        reference: row.get(3)?,
+        invoice_date: row.get(4)?,
+        due_date: row.get(5)?,
+        amount: amount_text.parse().unwrap_or(Decimal::ZERO),
+        amount_paid: amount_paid_text.parse().unwrap_or(Decimal::ZERO),
+        transaction_id: row.get(8)?,
+    })
+}
+
+fn map_payable(row: &Row) -> rusqlite::Result<Payable> {
+    let amount_text: String = row.get(6)?;
+    let amount_paid_text: String = row.get(7)?;
+    Ok(Payable {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        vendor_id: row.get(2)?,
+        reference: row.get(3)?,
+        bill_date: row.get(4)?,
+        due_date: row.get(5)?,
+        amount: amount_text.parse().unwrap_or(Decimal::ZERO),
+        amount_paid: amount_paid_text.parse().unwrap_or(Decimal::ZERO),
+        transaction_id: row.get(8)?,
+    })
+}
+
 fn map_transaction_line(row: &Row) -> rusqlite::Result<TransactionLine> {
     let debit_text: String = row.get(3)?;
     let credit_text: String = row.get(4)?;
@@ -578,15 +749,21 @@ mod tests {
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
 
     fn repo_with_company() -> (AccountingRepository, i64) {
+        let (db, company_id) = db_with_company();
+        (AccountingRepository::new(db), company_id)
+    }
+
+    fn db_with_company() -> (Database, i64) {
         let db = Database::open_in_memory().unwrap();
         db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::repositories::party_repository::MIGRATIONS).unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
         db.run_migrations(audit_logs::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
         let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
 
-        (AccountingRepository::new(db), company.id.unwrap())
+        (db, company.id.unwrap())
     }
 
     fn date(y: i32, m: u32, d: u32) -> chrono::NaiveDate {
@@ -960,5 +1137,72 @@ mod tests {
         assert!(trial_balance.is_balanced());
         let retained_earnings_line = trial_balance.lines.iter().find(|l| l.account_id == retained_earnings.id.unwrap()).unwrap();
         assert_eq!(retained_earnings_line.credit, rust_decimal_macros::dec!(3800));
+    }
+
+    #[test]
+    fn receivable_lifecycle_create_list_open_then_settle() {
+        let (db, company_id) = db_with_company();
+        let repo = AccountingRepository::new(db.clone());
+        let party_repo = crate::backend::repositories::party_repository::PartyRepository::new(db);
+        let customer = party_repo
+            .create_customer(&crate::backend::parties::customers::Customer::new(company_id, "Acme Retail"))
+            .unwrap();
+
+        let receivable = repo
+            .create_receivable(&Receivable::new(
+                company_id,
+                customer.id.unwrap(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                rust_decimal_macros::dec!(1000),
+            ))
+            .unwrap();
+
+        assert_eq!(repo.list_open_receivables_for_company(company_id).unwrap().len(), 1);
+
+        repo.apply_receivable_payments(&[(receivable.id.unwrap(), rust_decimal_macros::dec!(1000))])
+            .unwrap();
+        assert!(repo.list_open_receivables_for_company(company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn payable_lifecycle_create_list_open_then_partially_settle() {
+        let (db, company_id) = db_with_company();
+        let repo = AccountingRepository::new(db.clone());
+        let party_repo = crate::backend::repositories::party_repository::PartyRepository::new(db);
+        let vendor = party_repo
+            .create_vendor(&crate::backend::parties::vendors::Vendor::new(company_id, "Acme Supplies Ltd"))
+            .unwrap();
+
+        let payable = repo
+            .create_payable(&Payable::new(
+                company_id,
+                vendor.id.unwrap(),
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+                rust_decimal_macros::dec!(1000),
+            ))
+            .unwrap();
+
+        repo.apply_payable_payments(&[(payable.id.unwrap(), rust_decimal_macros::dec!(400))])
+            .unwrap();
+
+        let open = repo.list_open_payables_for_company(company_id).unwrap();
+        assert_eq!(open.len(), 1);
+        assert_eq!(open[0].balance(), rust_decimal_macros::dec!(600));
+    }
+
+    #[test]
+    fn creating_a_receivable_for_a_nonexistent_customer_is_rejected() {
+        let (db, company_id) = db_with_company();
+        let repo = AccountingRepository::new(db);
+        let result = repo.create_receivable(&Receivable::new(
+            company_id,
+            999,
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+            rust_decimal_macros::dec!(1000),
+        ));
+        assert!(matches!(result, Err(AppError::Database(_))));
     }
 }

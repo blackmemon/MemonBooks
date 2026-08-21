@@ -5,6 +5,39 @@
 //! the transaction engine (Development Order step 6) uses
 //! `AccountType::normal_balance` to turn postings into signed balance
 //! movements.
+//!
+//! Also holds `AgingBucket`: the "how overdue is this" classification
+//! shared by `accounts_receivable::aging` and `accounts_payable::aging`
+//! (Development Order step 9) -- one rule, not duplicated between them.
+
+use chrono::NaiveDate;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AgingBucket {
+    /// Not yet due (or due today).
+    Current,
+    Days1To30,
+    Days31To60,
+    Days61To90,
+    Over90,
+}
+
+/// Buckets a due date relative to `as_of` -- the same rule for a
+/// receivable (owed to us) or a payable (owed by us).
+pub fn aging_bucket_for(due_date: NaiveDate, as_of: NaiveDate) -> AgingBucket {
+    let days_overdue = (as_of - due_date).num_days();
+    if days_overdue <= 0 {
+        AgingBucket::Current
+    } else if days_overdue <= 30 {
+        AgingBucket::Days1To30
+    } else if days_overdue <= 60 {
+        AgingBucket::Days31To60
+    } else if days_overdue <= 90 {
+        AgingBucket::Days61To90
+    } else {
+        AgingBucket::Over90
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccountType {
@@ -87,5 +120,23 @@ mod tests {
     #[test]
     fn parse_rejects_unknown_values() {
         assert_eq!(AccountType::parse("not-a-type"), None);
+    }
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
+    fn not_yet_due_or_due_today_is_current() {
+        assert_eq!(aging_bucket_for(date(2026, 3, 1), date(2026, 2, 15)), AgingBucket::Current);
+        assert_eq!(aging_bucket_for(date(2026, 3, 1), date(2026, 3, 1)), AgingBucket::Current);
+    }
+
+    #[test]
+    fn aging_bucket_boundaries_are_inclusive_of_their_upper_edge() {
+        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 1, 31)), AgingBucket::Days1To30);
+        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 2, 1)), AgingBucket::Days31To60);
+        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 3, 3)), AgingBucket::Days61To90);
+        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 4, 2)), AgingBucket::Over90);
     }
 }

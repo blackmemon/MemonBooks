@@ -4,11 +4,14 @@
 //! repository as later steps build them, since they all share this one
 //! migration set and company-scoped schema.
 
+use rust_decimal::Decimal;
 use rusqlite::{params, OptionalExtension, Row};
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::fiscal_periods::{FiscalPeriod, FiscalPeriodStatus};
+use crate::backend::accounting::general_ledger::{self, GeneralLedgerEntry, Posting};
+use crate::backend::accounting::trial_balance::{TrialBalance, TrialBalanceLine};
 use crate::backend::audit::audit_logs::{self, AuditLog};
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
@@ -356,6 +359,100 @@ impl AccountingRepository {
         let reversal = original.build_reversal(reversal_date)?;
         self.post_transaction(&reversal)
     }
+
+    // -- general ledger and trial balance (derived, not stored) --------
+
+    /// The chronological posting history for one account, with a running
+    /// balance after each line. `opening_balance` is 0 until
+    /// Development Order step 8 (opening balances) supplies a real one.
+    pub fn general_ledger_for_account(
+        &self,
+        account_id: i64,
+        opening_balance: Decimal,
+        up_to: chrono::NaiveDate,
+    ) -> AppResult<Vec<GeneralLedgerEntry>> {
+        let account = self.get_account(account_id)?;
+
+        let postings: Vec<(Posting, Option<String>)> = self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT t.id, t.transaction_date, tl.debit, tl.credit, tl.description
+                 FROM transaction_lines tl
+                 JOIN transactions t ON t.id = tl.transaction_id
+                 WHERE tl.account_id = ?1 AND t.status != 'draft' AND t.transaction_date <= ?2
+                 ORDER BY t.transaction_date, t.id, tl.line_number",
+            )?;
+            let rows = stmt.query_map(params![account_id, up_to], |row| {
+                let debit_text: String = row.get(2)?;
+                let credit_text: String = row.get(3)?;
+                Ok((
+                    Posting {
+                        transaction_id: row.get(0)?,
+                        transaction_date: row.get(1)?,
+                        debit: debit_text.parse().unwrap_or(Decimal::ZERO),
+                        credit: credit_text.parse().unwrap_or(Decimal::ZERO),
+                    },
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })?;
+
+        let bare_postings: Vec<Posting> = postings.iter().map(|(p, _)| *p).collect();
+        let balances = general_ledger::running_balances(account.normal_balance(), opening_balance, &bare_postings);
+
+        Ok(postings
+            .into_iter()
+            .zip(balances)
+            .map(|((posting, description), running_balance)| GeneralLedgerEntry {
+                transaction_id: posting.transaction_id,
+                transaction_date: posting.transaction_date,
+                description,
+                debit: posting.debit,
+                credit: posting.credit,
+                running_balance,
+            })
+            .collect())
+    }
+
+    /// Every account's net balance as of `as_of`, shown on whichever side
+    /// it actually falls on. Derived entirely from posted transaction
+    /// lines -- nothing here is a stored total.
+    pub fn trial_balance_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<TrialBalance> {
+        let accounts = self.list_accounts_for_company(company_id)?;
+
+        let net_movements: std::collections::HashMap<i64, Decimal> = self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT tl.account_id, tl.debit, tl.credit
+                 FROM transaction_lines tl
+                 JOIN transactions t ON t.id = tl.transaction_id
+                 WHERE t.company_id = ?1 AND t.status != 'draft' AND t.transaction_date <= ?2",
+            )?;
+            let rows = stmt.query_map(params![company_id, as_of], |row| {
+                let debit_text: String = row.get(1)?;
+                let credit_text: String = row.get(2)?;
+                let debit: Decimal = debit_text.parse().unwrap_or(Decimal::ZERO);
+                let credit: Decimal = credit_text.parse().unwrap_or(Decimal::ZERO);
+                Ok((row.get::<_, i64>(0)?, debit - credit))
+            })?;
+
+            let mut totals = std::collections::HashMap::new();
+            for row in rows {
+                let (account_id, net) = row?;
+                *totals.entry(account_id).or_insert(Decimal::ZERO) += net;
+            }
+            Ok(totals)
+        })?;
+
+        let lines = accounts
+            .into_iter()
+            .filter_map(|account| {
+                let net = *net_movements.get(&account.id.unwrap())?;
+                Some(TrialBalanceLine::from_net_movement(account.id.unwrap(), account.code, account.name, net))
+            })
+            .collect();
+
+        Ok(TrialBalance { as_of, lines })
+    }
 }
 
 fn map_account(row: &Row) -> rusqlite::Result<Account> {
@@ -635,5 +732,78 @@ mod tests {
             .map(|l| l.debit - l.credit)
             .sum();
         assert_eq!(net_cash, rust_decimal::Decimal::ZERO);
+    }
+
+    #[test]
+    fn general_ledger_for_account_shows_running_balance_in_order() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(1000)))
+                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(1000))),
+        )
+        .unwrap();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 20))
+                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(300)))
+                .with_line(TransactionLine::debit(capital_id, rust_decimal_macros::dec!(300))),
+        )
+        .unwrap();
+
+        let ledger = repo
+            .general_ledger_for_account(cash_id, rust_decimal::Decimal::ZERO, date(2026, 1, 31))
+            .unwrap();
+        assert_eq!(ledger.len(), 2);
+        assert_eq!(ledger[0].running_balance, rust_decimal_macros::dec!(1000));
+        assert_eq!(ledger[1].running_balance, rust_decimal_macros::dec!(700));
+    }
+
+    #[test]
+    fn general_ledger_for_account_respects_the_opening_balance_and_cutoff_date() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
+                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100))),
+        )
+        .unwrap();
+
+        let ledger = repo
+            .general_ledger_for_account(cash_id, rust_decimal_macros::dec!(500), date(2026, 1, 4))
+            .unwrap();
+        assert!(ledger.is_empty());
+
+        let ledger = repo
+            .general_ledger_for_account(cash_id, rust_decimal_macros::dec!(500), date(2026, 1, 31))
+            .unwrap();
+        assert_eq!(ledger.len(), 1);
+        assert_eq!(ledger[0].running_balance, rust_decimal_macros::dec!(600));
+    }
+
+    #[test]
+    fn trial_balance_as_of_always_balances_and_reflects_only_postings_up_to_the_date() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(1000)))
+                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(1000))),
+        )
+        .unwrap();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 20))
+                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(300)))
+                .with_line(TransactionLine::debit(capital_id, rust_decimal_macros::dec!(300))),
+        )
+        .unwrap();
+
+        let mid_month = repo.trial_balance_as_of(company_id, date(2026, 1, 10)).unwrap();
+        assert!(mid_month.is_balanced());
+        let cash_line = mid_month.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        assert_eq!(cash_line.debit, rust_decimal_macros::dec!(1000));
+
+        let end_month = repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+        assert!(end_month.is_balanced());
+        let cash_line = end_month.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        assert_eq!(cash_line.debit, rust_decimal_macros::dec!(700));
     }
 }

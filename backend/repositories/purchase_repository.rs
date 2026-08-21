@@ -182,6 +182,18 @@ impl PurchaseRepository {
         })
     }
 
+    /// Headers only -- mirrors `SalesRepository::list_invoices_for_company`.
+    pub fn list_bills_for_company(&self, company_id: i64) -> AppResult<Vec<Bill>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, vendor_id, bill_date, due_date, status, transaction_id
+                 FROM bills WHERE company_id = ?1 ORDER BY bill_date DESC, id DESC",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_bill)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
+    }
+
     /// Mirrors `SalesRepository::post_invoice`.
     pub fn post_bill(&self, bill_id: i64, ap_account_id: i64) -> AppResult<(Bill, Transaction, Payable)> {
         let bill = self.get_bill(bill_id)?;

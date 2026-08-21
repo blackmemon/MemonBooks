@@ -164,6 +164,17 @@ impl FixedAssetRepository {
         })
     }
 
+    pub fn list_assets_for_company(&self, company_id: i64) -> AppResult<Vec<Asset>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, category_id, name, acquisition_date, acquisition_cost, salvage_value, useful_life_years, method, method_rate, accumulated_depreciation, is_disposed, transaction_id
+                 FROM assets WHERE company_id = ?1 ORDER BY acquisition_date",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_asset)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
+    }
+
     /// Computes this year's depreciation from the asset's current book
     /// value, posts the expense/accumulated-depreciation entry, and
     /// updates the asset's accumulated_depreciation -- atomically.

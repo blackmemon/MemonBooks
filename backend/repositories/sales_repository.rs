@@ -256,6 +256,19 @@ impl SalesRepository {
         })
     }
 
+    /// Headers only (no line items) -- enough for a list view; call
+    /// `get_invoice` for the full detail of one invoice.
+    pub fn list_invoices_for_company(&self, company_id: i64) -> AppResult<Vec<Invoice>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, customer_id, invoice_date, due_date, status, transaction_id
+                 FROM invoices WHERE company_id = ?1 ORDER BY invoice_date DESC, id DESC",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_invoice)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
+    }
+
     /// Builds the GL transaction and receivable from a draft invoice,
     /// posts both atomically (`AccountingRepository::post_transaction_with_receivable`),
     /// and marks the invoice Posted with the resulting transaction id.

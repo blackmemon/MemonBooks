@@ -8,7 +8,7 @@ use memonbooks::backend::audit::audit_logs;
 use memonbooks::backend::core::logging;
 use memonbooks::backend::repositories::{
     accounting_repository, banking_repository, expense_repository, fixed_asset_repository, inventory_repository,
-    organization_repository, party_repository, purchase_repository, sales_repository, user_repository,
+    organization_repository, party_repository, purchase_repository, sales_repository, tax_repository, user_repository,
 };
 use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::{Database, Migration};
@@ -29,6 +29,7 @@ fn all_migrations() -> Vec<Migration> {
     migrations.extend_from_slice(banking_repository::MIGRATIONS);
     migrations.extend_from_slice(expense_repository::MIGRATIONS);
     migrations.extend_from_slice(fixed_asset_repository::MIGRATIONS);
+    migrations.extend_from_slice(tax_repository::MIGRATIONS);
     migrations.extend_from_slice(audit_logs::MIGRATIONS);
     migrations
 }

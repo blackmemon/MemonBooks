@@ -281,6 +281,77 @@ impl AccountingRepository {
     /// entry all commit together or not at all (Architecture Rules,
     /// Section 3: atomic multi-table financial posting).
     pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {
+        self.validate_for_posting(transaction)?;
+        self.db
+            .with_transaction(|tx| Self::insert_transaction_and_lines(tx, transaction))
+            .map(|transaction_id| Transaction {
+                id: Some(transaction_id),
+                status: TransactionStatus::Posted,
+                ..transaction.clone()
+            })
+    }
+
+    /// Posts `transaction` and records `receivable` in the same atomic
+    /// write -- used by sales invoices/credit notes/payments (Development
+    /// Order step 10), so a GL posting can never exist without its
+    /// matching subledger entry, or vice versa.
+    pub fn post_transaction_with_receivable(&self, transaction: &Transaction, receivable: &Receivable) -> AppResult<(Transaction, Receivable)> {
+        self.validate_for_posting(transaction)?;
+        receivable.validate()?;
+        let (transaction_id, receivable_id) = self.db.with_transaction(|tx| {
+            let transaction_id = Self::insert_transaction_and_lines(tx, transaction)?;
+            tx.execute(
+                "INSERT INTO receivables (company_id, customer_id, reference, invoice_date, due_date, amount, amount_paid, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    receivable.company_id,
+                    receivable.customer_id,
+                    receivable.reference,
+                    receivable.invoice_date,
+                    receivable.due_date,
+                    receivable.amount.to_string(),
+                    receivable.amount_paid.to_string(),
+                    transaction_id,
+                ],
+            )?;
+            Ok((transaction_id, tx.last_insert_rowid()))
+        })?;
+        Ok((
+            Transaction { id: Some(transaction_id), status: TransactionStatus::Posted, ..transaction.clone() },
+            Receivable { id: Some(receivable_id), transaction_id: Some(transaction_id), ..receivable.clone() },
+        ))
+    }
+
+    /// Posts `transaction` and records `payable` atomically. Mirrors
+    /// `post_transaction_with_receivable`.
+    pub fn post_transaction_with_payable(&self, transaction: &Transaction, payable: &Payable) -> AppResult<(Transaction, Payable)> {
+        self.validate_for_posting(transaction)?;
+        payable.validate()?;
+        let (transaction_id, payable_id) = self.db.with_transaction(|tx| {
+            let transaction_id = Self::insert_transaction_and_lines(tx, transaction)?;
+            tx.execute(
+                "INSERT INTO payables (company_id, vendor_id, reference, bill_date, due_date, amount, amount_paid, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    payable.company_id,
+                    payable.vendor_id,
+                    payable.reference,
+                    payable.bill_date,
+                    payable.due_date,
+                    payable.amount.to_string(),
+                    payable.amount_paid.to_string(),
+                    transaction_id,
+                ],
+            )?;
+            Ok((transaction_id, tx.last_insert_rowid()))
+        })?;
+        Ok((
+            Transaction { id: Some(transaction_id), status: TransactionStatus::Posted, ..transaction.clone() },
+            Payable { id: Some(payable_id), transaction_id: Some(transaction_id), ..payable.clone() },
+        ))
+    }
+
+    fn validate_for_posting(&self, transaction: &Transaction) -> AppResult<()> {
         let period = self
             .fiscal_period_for_date(transaction.company_id, transaction.transaction_date)?
             .ok_or_else(|| {
@@ -289,62 +360,60 @@ impl AccountingRepository {
                     transaction.transaction_date
                 ))
             })?;
-        transaction_engine::validate_for_posting(transaction, &period)?;
+        transaction_engine::validate_for_posting(transaction, &period)
+    }
 
-        self.db.with_transaction(|tx| {
+    /// The shared insert path: transaction header, every line, the
+    /// reversal link on the original (if any), and the audit log entry --
+    /// all within the caller's open `tx`. Returns the new transaction's id.
+    fn insert_transaction_and_lines(tx: &rusqlite::Transaction, transaction: &Transaction) -> AppResult<i64> {
+        tx.execute(
+            "INSERT INTO transactions
+             (company_id, transaction_type, transaction_date, description, status,
+              reverses_transaction_id, reversed_by_transaction_id, posted_by_user_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                transaction.company_id,
+                transaction.transaction_type.as_str(),
+                transaction.transaction_date,
+                transaction.description,
+                TransactionStatus::Posted.as_str(),
+                transaction.reverses_transaction_id,
+                transaction.reversed_by_transaction_id,
+                transaction.posted_by_user_id,
+            ],
+        )?;
+        let transaction_id = tx.last_insert_rowid();
+
+        for (line_number, line) in transaction.lines.iter().enumerate() {
             tx.execute(
-                "INSERT INTO transactions
-                 (company_id, transaction_type, transaction_date, description, status,
-                  reverses_transaction_id, reversed_by_transaction_id, posted_by_user_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO transaction_lines (transaction_id, account_id, debit, credit, description, line_number)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
-                    transaction.company_id,
-                    transaction.transaction_type.as_str(),
-                    transaction.transaction_date,
-                    transaction.description,
-                    TransactionStatus::Posted.as_str(),
-                    transaction.reverses_transaction_id,
-                    transaction.reversed_by_transaction_id,
-                    transaction.posted_by_user_id,
+                    transaction_id,
+                    line.account_id,
+                    line.debit.to_string(),
+                    line.credit.to_string(),
+                    line.description,
+                    line_number as i64,
                 ],
             )?;
-            let transaction_id = tx.last_insert_rowid();
+        }
 
-            for (line_number, line) in transaction.lines.iter().enumerate() {
-                tx.execute(
-                    "INSERT INTO transaction_lines (transaction_id, account_id, debit, credit, description, line_number)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![
-                        transaction_id,
-                        line.account_id,
-                        line.debit.to_string(),
-                        line.credit.to_string(),
-                        line.description,
-                        line_number as i64,
-                    ],
-                )?;
-            }
+        if let Some(original_id) = transaction.reverses_transaction_id {
+            tx.execute(
+                "UPDATE transactions SET reversed_by_transaction_id = ?1, status = ?2 WHERE id = ?3",
+                params![transaction_id, TransactionStatus::Reversed.as_str(), original_id],
+            )?;
+        }
 
-            if let Some(original_id) = transaction.reverses_transaction_id {
-                tx.execute(
-                    "UPDATE transactions SET reversed_by_transaction_id = ?1, status = ?2 WHERE id = ?3",
-                    params![transaction_id, TransactionStatus::Reversed.as_str(), original_id],
-                )?;
-            }
+        let mut entry = AuditLog::new(format!("accounting.transaction.{}", transaction.transaction_type.as_str()));
+        entry.user_id = transaction.posted_by_user_id;
+        entry.entity_type = Some("transaction".into());
+        entry.entity_id = Some(transaction_id.to_string());
+        audit_logs::record(tx, &entry)?;
 
-            let mut entry = AuditLog::new(format!("accounting.transaction.{}", transaction.transaction_type.as_str()));
-            entry.user_id = transaction.posted_by_user_id;
-            entry.entity_type = Some("transaction".into());
-            entry.entity_id = Some(transaction_id.to_string());
-            audit_logs::record(tx, &entry)?;
-
-            Ok(transaction_id)
-        })
-        .map(|transaction_id| Transaction {
-            id: Some(transaction_id),
-            status: TransactionStatus::Posted,
-            ..transaction.clone()
-        })
+        Ok(transaction_id)
     }
 
     pub fn get_transaction(&self, id: i64) -> AppResult<Transaction> {

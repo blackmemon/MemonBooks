@@ -5,6 +5,7 @@ use iced::widget::{center, text};
 use iced::{Element, Task};
 
 use memonbooks::backend::core::logging;
+use memonbooks::backend::repositories::organization_repository;
 use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::Database;
 use memonbooks::frontend::styles::{colors, typography};
@@ -18,7 +19,7 @@ fn main() -> iced::Result {
 
     let database = Database::open(&config.database_path).expect("failed to open database");
     database
-        .run_migrations(&[])
+        .run_migrations(organization_repository::MIGRATIONS)
         .expect("failed to run database migrations");
 
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)

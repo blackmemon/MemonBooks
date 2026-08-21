@@ -1,0 +1,323 @@
+MemonBooks/
+├── .gitignore
+├── CHANGELOG.md
+├── Cargo.toml
+├── LICENSE
+├── PROJECT_SPEC.md
+├── Project_Structure.txt
+├── README.md
+├── backend/
+│   ├── accounting/
+│   │   ├── accounting_rules.rs
+│   │   ├── accounts_payable/
+│   │   │   ├── aging.rs
+│   │   │   ├── mod.rs
+│   │   │   ├── payables.rs
+│   │   │   └── payments.rs
+│   │   ├── accounts_receivable/
+│   │   │   ├── aging.rs
+│   │   │   ├── collections.rs
+│   │   │   ├── mod.rs
+│   │   │   └── receivables.rs
+│   │   ├── chart_of_accounts.rs
+│   │   ├── fiscal_periods.rs
+│   │   ├── general_ledger.rs
+│   │   ├── journal_entries.rs
+│   │   ├── mod.rs
+│   │   ├── opening_balances.rs
+│   │   ├── period_closing.rs
+│   │   └── trial_balance.rs
+│   ├── audit/
+│   │   ├── activity_logs.rs
+│   │   ├── audit_logs.rs
+│   │   ├── change_history.rs
+│   │   └── mod.rs
+│   ├── backup/
+│   │   ├── backup.rs
+│   │   ├── backup_schedule.rs
+│   │   ├── mod.rs
+│   │   └── restore.rs
+│   ├── banking/
+│   │   ├── bank_accounts.rs
+│   │   ├── bank_reconciliation.rs
+│   │   ├── bank_transactions.rs
+│   │   ├── cash_management.rs
+│   │   └── mod.rs
+│   ├── core/
+│   │   ├── auth/
+│   │   │   ├── activation.rs
+│   │   │   ├── authentication.rs
+│   │   │   ├── licensing.rs
+│   │   │   ├── mod.rs
+│   │   │   ├── passwords.rs
+│   │   │   ├── sessions.rs
+│   │   │   └── two_factor.rs
+│   │   ├── errors.rs
+│   │   ├── logging.rs
+│   │   ├── mod.rs
+│   │   ├── permissions.rs
+│   │   ├── roles.rs
+│   │   ├── telemetry.rs
+│   │   ├── users.rs
+│   │   └── validation.rs
+│   ├── currency/
+│   │   ├── currencies.rs
+│   │   ├── currency_conversions.rs
+│   │   ├── exchange_rates.rs
+│   │   └── mod.rs
+│   ├── expenses/
+│   │   ├── expense_categories.rs
+│   │   ├── expense_claims.rs
+│   │   ├── expenses.rs
+│   │   └── mod.rs
+│   ├── fixed_assets/
+│   │   ├── asset_categories.rs
+│   │   ├── assets.rs
+│   │   ├── depreciation.rs
+│   │   ├── disposals.rs
+│   │   ├── mod.rs
+│   │   └── transfers.rs
+│   ├── hr/
+│   │   ├── attendance.rs
+│   │   ├── employees.rs
+│   │   ├── leave.rs
+│   │   ├── mod.rs
+│   │   ├── payroll.rs
+│   │   └── salary.rs
+│   ├── inventory/
+│   │   ├── adjustments.rs
+│   │   ├── categories.rs
+│   │   ├── mod.rs
+│   │   ├── products.rs
+│   │   ├── stock.rs
+│   │   ├── stock_movements.rs
+│   │   ├── transfers.rs
+│   │   └── warehouses.rs
+│   ├── mod.rs
+│   ├── notifications/
+│   │   ├── email.rs
+│   │   ├── mod.rs
+│   │   ├── notifications.rs
+│   │   ├── reminders.rs
+│   │   ├── sms.rs
+│   │   ├── templates.rs
+│   │   └── whatsapp.rs
+│   ├── organization/
+│   │   ├── branches.rs
+│   │   ├── companies.rs
+│   │   ├── departments.rs
+│   │   └── mod.rs
+│   ├── parties/
+│   │   ├── addresses.rs
+│   │   ├── contacts.rs
+│   │   ├── customers.rs
+│   │   ├── mod.rs
+│   │   └── vendors.rs
+│   ├── pos/
+│   │   ├── barcode.rs
+│   │   ├── cash_drawer.rs
+│   │   ├── mod.rs
+│   │   ├── payments.rs
+│   │   ├── receipts.rs
+│   │   ├── sales.rs
+│   │   ├── sessions.rs
+│   │   └── terminals.rs
+│   ├── purchases/
+│   │   ├── bills.rs
+│   │   ├── debit_notes.rs
+│   │   ├── mod.rs
+│   │   ├── payments.rs
+│   │   └── purchase_orders.rs
+│   ├── reports/
+│   │   ├── account_statement.rs
+│   │   ├── accounts_payable.rs
+│   │   ├── accounts_receivable.rs
+│   │   ├── aging_summary.rs
+│   │   ├── balance_sheet.rs
+│   │   ├── banking.rs
+│   │   ├── cash_book.rs
+│   │   ├── cash_flow.rs
+│   │   ├── expenses.rs
+│   │   ├── fixed_assets.rs
+│   │   ├── general_ledger.rs
+│   │   ├── inventory.rs
+│   │   ├── mod.rs
+│   │   ├── profit_loss.rs
+│   │   ├── purchases.rs
+│   │   ├── retained_earnings.rs
+│   │   ├── sales.rs
+│   │   ├── tax.rs
+│   │   ├── trial_balance.rs
+│   │   └── vat_summary.rs
+│   ├── repositories/
+│   │   ├── accounting_repository.rs
+│   │   ├── banking_repository.rs
+│   │   ├── expense_repository.rs
+│   │   ├── fixed_asset_repository.rs
+│   │   ├── inventory_repository.rs
+│   │   ├── mod.rs
+│   │   ├── organization_repository.rs
+│   │   ├── party_repository.rs
+│   │   ├── purchase_repository.rs
+│   │   ├── sales_repository.rs
+│   │   ├── tax_repository.rs
+│   │   └── user_repository.rs
+│   ├── sales/
+│   │   ├── credit_notes.rs
+│   │   ├── invoices.rs
+│   │   ├── mod.rs
+│   │   ├── payments.rs
+│   │   └── quotations.rs
+│   ├── services/
+│   │   ├── accounting_service.rs
+│   │   ├── api.rs
+│   │   ├── banking_service.rs
+│   │   ├── commands.rs
+│   │   ├── expense_service.rs
+│   │   ├── fixed_asset_service.rs
+│   │   ├── inventory_service.rs
+│   │   ├── mod.rs
+│   │   ├── organization_service.rs
+│   │   ├── party_service.rs
+│   │   ├── purchase_service.rs
+│   │   ├── report_service.rs
+│   │   ├── sales_service.rs
+│   │   ├── tax_service.rs
+│   │   └── transaction_service.rs
+│   ├── settings/
+│   │   ├── accounting_settings.rs
+│   │   ├── company_settings.rs
+│   │   ├── invoice_settings.rs
+│   │   ├── localization.rs
+│   │   ├── mod.rs
+│   │   ├── numbering.rs
+│   │   ├── sync.rs
+│   │   └── tax_settings.rs
+│   ├── tax/
+│   │   ├── mod.rs
+│   │   ├── tax_rates.rs
+│   │   ├── tax_reports.rs
+│   │   ├── tax_transactions.rs
+│   │   └── vat.rs
+│   └── transactions/
+│       ├── mod.rs
+│       ├── transaction.rs
+│       ├── transaction_engine.rs
+│       ├── transaction_lines.rs
+│       ├── transaction_status.rs
+│       └── transaction_types.rs
+├── configs/
+│   ├── app.rs
+│   ├── environment.rs
+│   └── mod.rs
+├── database/
+│   ├── database.rs
+│   ├── exports/
+│   │   ├── csv.rs
+│   │   ├── mod.rs
+│   │   ├── pdf.rs
+│   │   └── xlsx.rs
+│   ├── migrations/
+│   ├── mod.rs
+│   └── seeds/
+├── frontend/
+│   ├── assets/
+│   ├── components/
+│   │   ├── common/
+│   │   │   ├── button.rs
+│   │   │   ├── calendar.rs
+│   │   │   ├── confirmation.rs
+│   │   │   ├── data_table.rs
+│   │   │   ├── dropdown.rs
+│   │   │   ├── input_field.rs
+│   │   │   ├── loading.rs
+│   │   │   ├── mod.rs
+│   │   │   ├── modal.rs
+│   │   │   ├── notification.rs
+│   │   │   ├── pagination.rs
+│   │   │   └── search.rs
+│   │   └── mod.rs
+│   ├── i18n/
+│   │   ├── ar.rs
+│   │   ├── en.rs
+│   │   ├── mod.rs
+│   │   └── ur.rs
+│   ├── mod.rs
+│   ├── resources/
+│   │   ├── calendar.svg
+│   │   └── close.svg
+│   ├── styles/
+│   │   ├── application.rs
+│   │   ├── badges.rs
+│   │   ├── borders.rs
+│   │   ├── button.rs
+│   │   ├── calendar.rs
+│   │   ├── checkbox.rs
+│   │   ├── colors.rs
+│   │   ├── combobox.rs
+│   │   ├── datepicker.rs
+│   │   ├── dialogs.rs
+│   │   ├── dropdown.rs
+│   │   ├── fonts.rs
+│   │   ├── forms.rs
+│   │   ├── frames.rs
+│   │   ├── headers.rs
+│   │   ├── icons.rs
+│   │   ├── inputs.rs
+│   │   ├── labels.rs
+│   │   ├── list.rs
+│   │   ├── menu.rs
+│   │   ├── mod.rs
+│   │   ├── modal.rs
+│   │   ├── panels.rs
+│   │   ├── radiobutton.rs
+│   │   ├── scrollbar.rs
+│   │   ├── separators.rs
+│   │   ├── shadows.rs
+│   │   ├── spacing.rs
+│   │   ├── states.rs
+│   │   ├── statusbar.rs
+│   │   ├── table.rs
+│   │   ├── tabs.rs
+│   │   ├── textbox.rs
+│   │   ├── theme.rs
+│   │   ├── toolbar.rs
+│   │   ├── tooltip.rs
+│   │   ├── tree.rs
+│   │   └── typography.rs
+│   ├── uploads/
+│   └── views/
+│       ├── accounting/
+│       │   ├── chart_of_accounts_view.rs
+│       │   ├── journal_entry_view.rs
+│       │   ├── mod.rs
+│       │   └── trial_balance_view.rs
+│       ├── auth/
+│       ├── dashboard/
+│       ├── hr/
+│       ├── inventory/
+│       ├── mod.rs
+│       ├── pos/
+│       ├── reports/
+│       ├── sales/
+│       └── settings/
+├── packaging/
+│   ├── linux/
+│   │   └── flatpak/
+│   ├── macos/
+│   └── windows/
+├── rust-toolchain.toml
+├── src/
+│   ├── lib.rs
+│   └── main.rs
+└── tests/
+    ├── accounting/
+    ├── banking/
+    ├── expenses/
+    ├── fixed_assets/
+    ├── inventory/
+    ├── pos/
+    ├── purchases/
+    ├── reports/
+    ├── sales/
+    └── tax/

@@ -1,0 +1,15 @@
+/target
+
+# local runtime data (not shipped, not fixtures)
+*.db
+*.sqlite
+*.sqlite3
+frontend/uploads/*
+!frontend/uploads/.gitkeep
+
+# editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

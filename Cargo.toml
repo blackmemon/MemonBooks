@@ -1,0 +1,11 @@
+[package]
+name = "memonbooks"
+version = "0.1.0"
+edition = "2021"
+description = "MemonBooks -- a double-entry accounting / ERP desktop application."
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+iced = "0.13"
+rust_decimal = "1"

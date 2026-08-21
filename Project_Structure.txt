@@ -62,12 +62,6 @@ E:.
 ¦   ¦   ¦       transfers.rs
 ¦   ¦   ¦       warehouses.rs
 ¦   ¦   ¦       
-¦   ¦   +---notifications
-¦   ¦   ¦       email.rs
-¦   ¦   ¦       notifications.rs
-¦   ¦   ¦       reminders.rs
-¦   ¦   ¦       templates.rs
-¦   ¦   ¦       
 ¦   ¦   +---purchases
 ¦   ¦   ¦       bills.rs
 ¦   ¦   ¦       debit_notes.rs
@@ -138,6 +132,9 @@ E:.
 ¦   ¦       
 ¦   +---notifications
 ¦   ¦       email.rs
+¦   ¦       notifications.rs
+¦   ¦       reminders.rs
+¦   ¦       templates.rs
 ¦   ¦       whatsapp.rs
 ¦   ¦       
 ¦   +---organization
@@ -157,7 +154,6 @@ E:.
 ¦   ¦       payments.rs
 ¦   ¦       receipts.rs
 ¦   ¦       sales.rs
-¦   ¦       scanning.rs
 ¦   ¦       sessions.rs
 ¦   ¦       terminals.rs
 ¦   ¦       
@@ -222,12 +218,29 @@ E:.
 +---frontend
 ¦   +---assets
 ¦   +---components
+¦   ¦   +---common
+¦   ¦           button.rs
+¦   ¦           calender.rs
+¦   ¦           data_table.rs
+¦   ¦           dropdown.rs
+¦   ¦           input_field.rs
+¦   ¦           modal.rs
+¦   ¦           
+¦   +---i18n
+¦   ¦       ar.rs
+¦   ¦       en.rs
+¦   ¦       ur.rs
+¦   ¦       
 ¦   +---resources
+¦   ¦       calendar.svg
+¦   ¦       close.svg
+¦   ¦       
 ¦   +---styles
 ¦   ¦       application.rs
 ¦   ¦       badges.rs
 ¦   ¦       borders.rs
 ¦   ¦       button.rs
+¦   ¦       calender.rs
 ¦   ¦       checkbox.rs
 ¦   ¦       colors.rs
 ¦   ¦       combobox.rs
@@ -250,7 +263,6 @@ E:.
 ¦   ¦       separators.rs
 ¦   ¦       shadows.rs
 ¦   ¦       spacing.rs
-¦   ¦       state.rs
 ¦   ¦       states.rs
 ¦   ¦       statusbar.rs
 ¦   ¦       table.rs
@@ -261,10 +273,22 @@ E:.
 ¦   ¦       tooltip.rs
 ¦   ¦       tree.rs
 ¦   ¦       typography.rs
-¦   ¦       viewmodels.rs
-¦   ¦       views.rs
 ¦   ¦       
 ¦   +---uploads
+¦   +---views
+¦       +---accounting
+¦       ¦       chart_of_accounts_view.rs
+¦       ¦       journal_entry_view.rs
+¦       ¦       trial_balance_view.rs
+¦       ¦       
+¦       +---auth
+¦       +---dashboard
+¦       +---hr
+¦       +---inventory
+¦       +---pos
+¦       +---reports
+¦       +---sales
+¦       +---settings
 +---src
         lib.rs
         main.rs

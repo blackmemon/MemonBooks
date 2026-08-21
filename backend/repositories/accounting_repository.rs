@@ -11,6 +11,7 @@ use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::fiscal_periods::{FiscalPeriod, FiscalPeriodStatus};
 use crate::backend::accounting::general_ledger::{self, GeneralLedgerEntry, Posting};
+use crate::backend::accounting::period_closing::{self, ClosingBalance};
 use crate::backend::accounting::trial_balance::{TrialBalance, TrialBalanceLine};
 use crate::backend::audit::audit_logs::{self, AuditLog};
 use crate::backend::core::errors::{AppError, AppResult};
@@ -453,6 +454,49 @@ impl AccountingRepository {
 
         Ok(TrialBalance { as_of, lines })
     }
+
+    // -- period closing --------------------------------------------------
+
+    /// Revenue and expense account balances as of a date, shaped for
+    /// `period_closing::build_closing_transaction`.
+    pub fn revenue_and_expense_balances_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<Vec<ClosingBalance>> {
+        let accounts = self.list_accounts_for_company(company_id)?;
+        let trial_balance = self.trial_balance_as_of(company_id, as_of)?;
+
+        Ok(trial_balance
+            .lines
+            .iter()
+            .filter_map(|line| {
+                let account = accounts.iter().find(|a| a.id == Some(line.account_id))?;
+                if !matches!(account.account_type, AccountType::Revenue | AccountType::Expense) {
+                    return None;
+                }
+                Some(ClosingBalance {
+                    account_id: line.account_id,
+                    account_type: account.account_type,
+                    net_balance: line.debit - line.credit,
+                })
+            })
+            .collect())
+    }
+
+    /// Enforces chronological closing order (`period_closing::can_close`)
+    /// and, if that passes, transitions the period to Closed. Does *not*
+    /// generate a closing (revenue/expense-zeroing) entry -- that's a
+    /// separate, opt-in step the caller takes with
+    /// `revenue_and_expense_balances_as_of` +
+    /// `period_closing::build_closing_transaction` + `post_transaction`,
+    /// typically only at a fiscal year boundary.
+    pub fn close_fiscal_period(&self, period_id: i64) -> AppResult<FiscalPeriod> {
+        let period = self.get_fiscal_period(period_id)?;
+        let other_periods: Vec<FiscalPeriod> = self
+            .list_fiscal_periods_for_company(period.company_id)?
+            .into_iter()
+            .filter(|p| p.id != Some(period_id))
+            .collect();
+        period_closing::can_close(&period, &other_periods)?;
+        self.transition_fiscal_period_status(period_id, FiscalPeriodStatus::Closed)
+    }
 }
 
 fn map_account(row: &Row) -> rusqlite::Result<Account> {
@@ -805,5 +849,116 @@ mod tests {
         assert!(end_month.is_balanced());
         let cash_line = end_month.lines.iter().find(|l| l.account_id == cash_id).unwrap();
         assert_eq!(cash_line.debit, rust_decimal_macros::dec!(700));
+    }
+
+    #[test]
+    fn posting_opening_balances_seeds_the_trial_balance() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let opening = crate::backend::accounting::opening_balances::OpeningBalances::new(company_id, date(2026, 1, 1))
+            .with_balance(cash_id, rust_decimal_macros::dec!(10000))
+            .with_balance(capital_id, rust_decimal_macros::dec!(-10000))
+            .into_transaction();
+
+        repo.post_transaction(&opening).unwrap();
+
+        let trial_balance = repo.trial_balance_as_of(company_id, date(2026, 1, 1)).unwrap();
+        assert!(trial_balance.is_balanced());
+        let cash_line = trial_balance.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        assert_eq!(cash_line.debit, rust_decimal_macros::dec!(10000));
+    }
+
+    #[test]
+    fn closing_a_period_out_of_order_is_rejected() {
+        let (repo, company_id) = repo_with_company();
+        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "December 2025", date(2025, 12, 1), date(2025, 12, 31)))
+            .unwrap();
+        let january = repo
+            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .unwrap();
+
+        let result = repo.close_fiscal_period(january.id.unwrap());
+        assert!(result.is_err());
+        assert_eq!(repo.get_fiscal_period(january.id.unwrap()).unwrap().status, FiscalPeriodStatus::Open);
+    }
+
+    #[test]
+    fn closing_the_earliest_open_period_succeeds() {
+        let (repo, company_id) = repo_with_company();
+        let december = repo
+            .create_fiscal_period(&FiscalPeriod::new(company_id, "December 2025", date(2025, 12, 1), date(2025, 12, 31)))
+            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .unwrap();
+
+        let closed = repo.close_fiscal_period(december.id.unwrap()).unwrap();
+        assert_eq!(closed.status, FiscalPeriodStatus::Closed);
+    }
+
+    #[test]
+    fn revenue_and_expense_balances_as_of_excludes_balance_sheet_accounts() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let sales = repo
+            .create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue))
+            .unwrap();
+
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(2000)))
+                .with_line(TransactionLine::credit(sales.id.unwrap(), rust_decimal_macros::dec!(2000))),
+        )
+        .unwrap();
+        // A balance-sheet-only entry that should not show up as revenue/expense.
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 16))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(500)))
+                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(500))),
+        )
+        .unwrap();
+
+        let balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
+        assert_eq!(balances.len(), 1);
+        assert_eq!(balances[0].account_id, sales.id.unwrap());
+        assert_eq!(balances[0].net_balance, rust_decimal_macros::dec!(-2000));
+    }
+
+    #[test]
+    fn end_to_end_closing_entry_posts_and_zeroes_revenue_and_expense() {
+        let (repo, company_id, cash_id, _capital_id) = repo_with_company_and_accounts();
+        let sales = repo
+            .create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue))
+            .unwrap();
+        let rent = repo
+            .create_account(&Account::new(company_id, "5000", "Rent Expense", AccountType::Expense))
+            .unwrap();
+        let retained_earnings = repo
+            .create_account(&Account::new(company_id, "3900", "Retained Earnings", AccountType::Equity))
+            .unwrap();
+
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 10))
+                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
+                .with_line(TransactionLine::credit(sales.id.unwrap(), rust_decimal_macros::dec!(5000))),
+        )
+        .unwrap();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 12))
+                .with_line(TransactionLine::debit(rent.id.unwrap(), rust_decimal_macros::dec!(1200)))
+                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(1200))),
+        )
+        .unwrap();
+
+        let balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
+        let closing_transaction =
+            period_closing::build_closing_transaction(company_id, date(2026, 1, 31), retained_earnings.id.unwrap(), &balances)
+                .expect("there should be something to close");
+        repo.post_transaction(&closing_transaction).unwrap();
+
+        let post_closing_balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
+        assert!(post_closing_balances.iter().all(|b| b.net_balance == Decimal::ZERO));
+
+        let trial_balance = repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+        assert!(trial_balance.is_balanced());
+        let retained_earnings_line = trial_balance.lines.iter().find(|l| l.account_id == retained_earnings.id.unwrap()).unwrap();
+        assert_eq!(retained_earnings_line.credit, rust_decimal_macros::dec!(3800));
     }
 }

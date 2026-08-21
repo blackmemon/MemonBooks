@@ -6,7 +6,7 @@ use iced::{Element, Task};
 
 use memonbooks::backend::audit::audit_logs;
 use memonbooks::backend::core::logging;
-use memonbooks::backend::repositories::{organization_repository, user_repository};
+use memonbooks::backend::repositories::{accounting_repository, organization_repository, user_repository};
 use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::{Database, Migration};
 use memonbooks::frontend::styles::{colors, typography};
@@ -18,6 +18,7 @@ fn all_migrations() -> Vec<Migration> {
     let mut migrations = Vec::new();
     migrations.extend_from_slice(organization_repository::MIGRATIONS);
     migrations.extend_from_slice(user_repository::MIGRATIONS);
+    migrations.extend_from_slice(accounting_repository::MIGRATIONS);
     migrations.extend_from_slice(audit_logs::MIGRATIONS);
     migrations
 }

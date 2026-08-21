@@ -11,6 +11,8 @@ pub const KNOWN_PERMISSIONS: &[&str] = &[
     "roles.manage",
     "organization.manage",
     "reports.view",
+    "accounting.chart_of_accounts.manage",
+    "accounting.fiscal_periods.manage",
 ];
 
 pub fn is_known_permission(key: &str) -> bool {

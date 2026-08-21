@@ -9,35 +9,71 @@ use rusqlite::{params, OptionalExtension, Row};
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::fiscal_periods::{FiscalPeriod, FiscalPeriodStatus};
+use crate::backend::audit::audit_logs::{self, AuditLog};
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
+use crate::backend::transactions::transaction::Transaction;
+use crate::backend::transactions::transaction_engine;
+use crate::backend::transactions::transaction_lines::TransactionLine;
+use crate::backend::transactions::transaction_status::TransactionStatus;
+use crate::backend::transactions::transaction_types::TransactionType;
 use crate::database::database::{Database, Migration};
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 500,
-    name: "chart_of_accounts_and_fiscal_periods_schema",
-    sql: "
-        CREATE TABLE accounts (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id  INTEGER NOT NULL REFERENCES companies(id),
-            code        TEXT NOT NULL,
-            name        TEXT NOT NULL,
-            account_type TEXT NOT NULL,
-            parent_id   INTEGER REFERENCES accounts(id),
-            is_active   INTEGER NOT NULL DEFAULT 1,
-            UNIQUE (company_id, code)
-        );
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 500,
+        name: "chart_of_accounts_and_fiscal_periods_schema",
+        sql: "
+            CREATE TABLE accounts (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id  INTEGER NOT NULL REFERENCES companies(id),
+                code        TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                account_type TEXT NOT NULL,
+                parent_id   INTEGER REFERENCES accounts(id),
+                is_active   INTEGER NOT NULL DEFAULT 1,
+                UNIQUE (company_id, code)
+            );
 
-        CREATE TABLE fiscal_periods (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id  INTEGER NOT NULL REFERENCES companies(id),
-            name        TEXT NOT NULL,
-            start_date  TEXT NOT NULL,
-            end_date    TEXT NOT NULL,
-            status      TEXT NOT NULL
-        );
-    ",
-}];
+            CREATE TABLE fiscal_periods (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id  INTEGER NOT NULL REFERENCES companies(id),
+                name        TEXT NOT NULL,
+                start_date  TEXT NOT NULL,
+                end_date    TEXT NOT NULL,
+                status      TEXT NOT NULL
+            );
+        ",
+    },
+    Migration {
+        version: 600,
+        name: "transactions_and_transaction_lines_schema",
+        sql: "
+            CREATE TABLE transactions (
+                id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id                  INTEGER NOT NULL REFERENCES companies(id),
+                transaction_type            TEXT NOT NULL,
+                transaction_date            TEXT NOT NULL,
+                description                 TEXT,
+                status                      TEXT NOT NULL,
+                reverses_transaction_id     INTEGER REFERENCES transactions(id),
+                reversed_by_transaction_id  INTEGER REFERENCES transactions(id),
+                posted_by_user_id           INTEGER,
+                posted_at                   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            );
+
+            CREATE TABLE transaction_lines (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_id  INTEGER NOT NULL REFERENCES transactions(id),
+                account_id      INTEGER NOT NULL REFERENCES accounts(id),
+                debit           TEXT NOT NULL,
+                credit          TEXT NOT NULL,
+                description     TEXT,
+                line_number     INTEGER NOT NULL
+            );
+        ",
+    },
+];
 
 #[derive(Clone)]
 pub struct AccountingRepository {
@@ -199,6 +235,127 @@ impl AccountingRepository {
         })?;
         Ok(FiscalPeriod { status: to, ..period })
     }
+
+    // -- transactions (the transaction engine's persistence) -----------
+
+    /// Validates `transaction` against the transaction engine (balanced,
+    /// draft, dated within an open fiscal period) and, if it passes,
+    /// posts it: the transaction header, every line, and an audit log
+    /// entry all commit together or not at all (Architecture Rules,
+    /// Section 3: atomic multi-table financial posting).
+    pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {
+        let period = self
+            .fiscal_period_for_date(transaction.company_id, transaction.transaction_date)?
+            .ok_or_else(|| {
+                AppError::Validation(format!(
+                    "no fiscal period covers {}",
+                    transaction.transaction_date
+                ))
+            })?;
+        transaction_engine::validate_for_posting(transaction, &period)?;
+
+        self.db.with_transaction(|tx| {
+            tx.execute(
+                "INSERT INTO transactions
+                 (company_id, transaction_type, transaction_date, description, status,
+                  reverses_transaction_id, reversed_by_transaction_id, posted_by_user_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    transaction.company_id,
+                    transaction.transaction_type.as_str(),
+                    transaction.transaction_date,
+                    transaction.description,
+                    TransactionStatus::Posted.as_str(),
+                    transaction.reverses_transaction_id,
+                    transaction.reversed_by_transaction_id,
+                    transaction.posted_by_user_id,
+                ],
+            )?;
+            let transaction_id = tx.last_insert_rowid();
+
+            for (line_number, line) in transaction.lines.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO transaction_lines (transaction_id, account_id, debit, credit, description, line_number)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        transaction_id,
+                        line.account_id,
+                        line.debit.to_string(),
+                        line.credit.to_string(),
+                        line.description,
+                        line_number as i64,
+                    ],
+                )?;
+            }
+
+            if let Some(original_id) = transaction.reverses_transaction_id {
+                tx.execute(
+                    "UPDATE transactions SET reversed_by_transaction_id = ?1, status = ?2 WHERE id = ?3",
+                    params![transaction_id, TransactionStatus::Reversed.as_str(), original_id],
+                )?;
+            }
+
+            let mut entry = AuditLog::new(format!("accounting.transaction.{}", transaction.transaction_type.as_str()));
+            entry.user_id = transaction.posted_by_user_id;
+            entry.entity_type = Some("transaction".into());
+            entry.entity_id = Some(transaction_id.to_string());
+            audit_logs::record(tx, &entry)?;
+
+            Ok(transaction_id)
+        })
+        .map(|transaction_id| Transaction {
+            id: Some(transaction_id),
+            status: TransactionStatus::Posted,
+            ..transaction.clone()
+        })
+    }
+
+    pub fn get_transaction(&self, id: i64) -> AppResult<Transaction> {
+        let (mut header, lines) = self.db.with_connection(|conn| {
+            let header = conn
+                .query_row(
+                    "SELECT id, company_id, transaction_type, transaction_date, description, status,
+                            reverses_transaction_id, reversed_by_transaction_id, posted_by_user_id
+                     FROM transactions WHERE id = ?1",
+                    params![id],
+                    map_transaction,
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("transaction {id} not found")))?;
+
+            let mut stmt = conn.prepare(
+                "SELECT id, transaction_id, account_id, debit, credit, description
+                 FROM transaction_lines WHERE transaction_id = ?1 ORDER BY line_number",
+            )?;
+            let lines = stmt
+                .query_map(params![id], map_transaction_line)?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok((header, lines))
+        })?;
+        header.lines = lines;
+        Ok(header)
+    }
+
+    pub fn list_transactions_for_company(&self, company_id: i64) -> AppResult<Vec<Transaction>> {
+        let ids: Vec<i64> = self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id FROM transactions WHERE company_id = ?1 ORDER BY transaction_date, id",
+            )?;
+            let rows = stmt.query_map(params![company_id], |row| row.get(0))?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })?;
+        ids.into_iter().map(|id| self.get_transaction(id)).collect()
+    }
+
+    /// Builds and posts the reversal of an already-posted transaction.
+    /// The original is *not* edited beyond its status/reversal link
+    /// (Architecture Rules, Section 3: posted entries are immutable).
+    pub fn reverse_transaction(&self, original_id: i64, reversal_date: chrono::NaiveDate) -> AppResult<Transaction> {
+        let original = self.get_transaction(original_id)?;
+        let reversal = original.build_reversal(reversal_date)?;
+        self.post_transaction(&reversal)
+    }
 }
 
 fn map_account(row: &Row) -> rusqlite::Result<Account> {
@@ -232,6 +389,47 @@ fn map_fiscal_period(row: &Row) -> rusqlite::Result<FiscalPeriod> {
     })
 }
 
+fn map_transaction(row: &Row) -> rusqlite::Result<Transaction> {
+    let transaction_type_text: String = row.get(2)?;
+    let transaction_type = TransactionType::parse(&transaction_type_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, "invalid transaction_type".into())
+    })?;
+    let status_text: String = row.get(5)?;
+    let status = TransactionStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid transaction status".into())
+    })?;
+    Ok(Transaction {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        transaction_type,
+        transaction_date: row.get(3)?,
+        description: row.get(4)?,
+        status,
+        lines: Vec::new(),
+        reverses_transaction_id: row.get(6)?,
+        reversed_by_transaction_id: row.get(7)?,
+        posted_by_user_id: row.get(8)?,
+    })
+}
+
+fn map_transaction_line(row: &Row) -> rusqlite::Result<TransactionLine> {
+    let debit_text: String = row.get(3)?;
+    let credit_text: String = row.get(4)?;
+    let parse_decimal = |field: usize, text: &str| {
+        text.parse().map_err(|_| {
+            rusqlite::Error::FromSqlConversionFailure(field, rusqlite::types::Type::Text, "invalid decimal".into())
+        })
+    };
+    Ok(TransactionLine {
+        id: Some(row.get(0)?),
+        transaction_id: Some(row.get(1)?),
+        account_id: row.get(2)?,
+        debit: parse_decimal(3, &debit_text)?,
+        credit: parse_decimal(4, &credit_text)?,
+        description: row.get(5)?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,6 +440,7 @@ mod tests {
         let db = Database::open_in_memory().unwrap();
         db.run_migrations(organization_repository::MIGRATIONS).unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
+        db.run_migrations(audit_logs::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
         let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
@@ -334,5 +533,107 @@ mod tests {
 
         let refetched = repo.get_fiscal_period(period.id.unwrap()).unwrap();
         assert_eq!(refetched.status, FiscalPeriodStatus::Open);
+    }
+
+    fn repo_with_company_and_accounts() -> (AccountingRepository, i64, i64, i64) {
+        let (repo, company_id) = repo_with_company();
+        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .unwrap();
+        let cash = repo
+            .create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset))
+            .unwrap();
+        let capital = repo
+            .create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity))
+            .unwrap();
+        (repo, company_id, cash.id.unwrap(), capital.id.unwrap())
+    }
+
+    #[test]
+    fn posting_a_balanced_transaction_persists_header_lines_and_audit_entry() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
+            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
+            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(5000)));
+
+        let posted = repo.post_transaction(&transaction).unwrap();
+        assert!(posted.id.is_some());
+        assert_eq!(posted.status, TransactionStatus::Posted);
+
+        let fetched = repo.get_transaction(posted.id.unwrap()).unwrap();
+        assert_eq!(fetched.lines.len(), 2);
+        assert!(fetched.is_balanced());
+
+        let audit = audit_logs::list_recent(&repo.db, 10).unwrap();
+        assert_eq!(audit.len(), 1);
+        assert_eq!(audit[0].entity_id.as_deref(), Some(posted.id.unwrap().to_string().as_str()));
+    }
+
+    #[test]
+    fn posting_an_unbalanced_transaction_is_rejected_and_nothing_is_written() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
+            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
+            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(4000)));
+
+        let result = repo.post_transaction(&transaction);
+        assert!(result.is_err());
+        assert!(repo.list_transactions_for_company(company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn posting_outside_the_fiscal_period_range_is_rejected() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 3, 1))
+            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
+            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100)));
+
+        assert!(repo.post_transaction(&transaction).is_err());
+    }
+
+    #[test]
+    fn posting_into_a_closed_period_is_rejected() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let periods = repo.list_fiscal_periods_for_company(company_id).unwrap();
+        repo.transition_fiscal_period_status(periods[0].id.unwrap(), FiscalPeriodStatus::Closed)
+            .unwrap();
+
+        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
+            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
+            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100)));
+
+        assert!(repo.post_transaction(&transaction).is_err());
+    }
+
+    #[test]
+    fn reversing_a_posted_transaction_balances_it_out_and_marks_the_original_reversed() {
+        let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
+        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
+            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
+            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(5000)));
+        let posted = repo.post_transaction(&transaction).unwrap();
+
+        let reversal = repo.reverse_transaction(posted.id.unwrap(), date(2026, 1, 20)).unwrap();
+        assert_eq!(reversal.transaction_type, TransactionType::Reversal);
+        assert_eq!(reversal.reverses_transaction_id, posted.id);
+
+        let original = repo.get_transaction(posted.id.unwrap()).unwrap();
+        assert_eq!(original.status, TransactionStatus::Reversed);
+        assert_eq!(original.reversed_by_transaction_id, reversal.id);
+        // the original's financial content (accounts/amounts) is untouched,
+        // even though it was re-fetched from the DB (and so now carries line ids)
+        let content = |lines: &[TransactionLine]| -> Vec<(i64, rust_decimal::Decimal, rust_decimal::Decimal)> {
+            lines.iter().map(|l| (l.account_id, l.debit, l.credit)).collect()
+        };
+        assert_eq!(content(&original.lines), content(&posted.lines));
+
+        // net effect across both postings is zero on every account
+        let net_cash: rust_decimal::Decimal = original
+            .lines
+            .iter()
+            .chain(reversal.lines.iter())
+            .filter(|l| l.account_id == cash_id)
+            .map(|l| l.debit - l.credit)
+            .sum();
+        assert_eq!(net_cash, rust_decimal::Decimal::ZERO);
     }
 }

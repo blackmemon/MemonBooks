@@ -48,14 +48,16 @@ impl AuditLog {
     }
 }
 
-pub fn record(db: &Database, entry: &AuditLog) -> AppResult<()> {
-    db.with_connection(|conn| {
-        conn.execute(
-            "INSERT INTO audit_logs (user_id, action, entity_type, entity_id, detail) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![entry.user_id, entry.action, entry.entity_type, entry.entity_id, entry.detail],
-        )?;
-        Ok(())
-    })
+/// Takes a `&Connection` (not `&Database`) specifically so callers already
+/// holding an open `rusqlite::Transaction` -- e.g. `AccountingRepository`
+/// posting a ledger transaction -- can record the audit entry as part of
+/// that same atomic write (a `Transaction` derefs to `Connection`).
+pub fn record(conn: &rusqlite::Connection, entry: &AuditLog) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO audit_logs (user_id, action, entity_type, entity_id, detail) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![entry.user_id, entry.action, entry.entity_type, entry.entity_id, entry.detail],
+    )?;
+    Ok(())
 }
 
 pub fn list_recent(db: &Database, limit: i64) -> AppResult<Vec<AuditLog>> {
@@ -94,12 +96,12 @@ mod tests {
 
         let mut login = AuditLog::new("auth.login_succeeded");
         login.user_id = Some(1);
-        record(&db, &login).unwrap();
+        db.with_connection(|conn| record(conn, &login)).unwrap();
 
         let mut role_change = AuditLog::new("roles.updated");
         role_change.entity_type = Some("role".into());
         role_change.entity_id = Some("2".into());
-        record(&db, &role_change).unwrap();
+        db.with_connection(|conn| record(conn, &role_change)).unwrap();
 
         let recent = list_recent(&db, 10).unwrap();
         assert_eq!(recent.len(), 2);
@@ -111,7 +113,7 @@ mod tests {
     fn list_recent_respects_the_limit() {
         let db = db_with_schema();
         for i in 0..5 {
-            record(&db, &AuditLog::new(format!("event.{i}"))).unwrap();
+            db.with_connection(|conn| record(conn, &AuditLog::new(format!("event.{i}")))).unwrap();
         }
         assert_eq!(list_recent(&db, 2).unwrap().len(), 2);
     }

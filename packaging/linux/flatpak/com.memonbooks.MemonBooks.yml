@@ -1,0 +1,54 @@
+# Flatpak manifest (Section 7). No business logic lives here or
+# anywhere under packaging/ -- this only describes how to build and
+# sandbox the already-written Rust application.
+#
+# Build steps (not runnable here -- no flatpak-builder / Flatpak
+# runtimes were available in this Windows environment to actually
+# produce a .flatpak; this manifest is written to the real schema and
+# ready for someone on Linux with flatpak-builder installed):
+#   flatpak install flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+#   flatpak install flathub org.freedesktop.Sdk.Extension.rust-stable//23.08
+#   flatpak-builder --user --install build-dir com.memonbooks.MemonBooks.yml
+
+app-id: com.memonbooks.MemonBooks
+runtime: org.freedesktop.Platform
+runtime-version: "23.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: memonbooks
+
+finish-args:
+  # A desktop window (Wayland preferred, X11 fallback) and GPU access
+  # for Iced's wgpu renderer -- nothing beyond that: no network,
+  # no host filesystem, no microphone/camera/device access.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The app's own SQLite database and logs live under the Flatpak
+  # sandbox's private data directory, which needs no extra permission
+  # (XDG_DATA_HOME is granted by default).
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/memonbooks/cargo
+
+modules:
+  - name: memonbooks
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --offline || cargo build --release
+      - install -Dm755 target/release/memonbooks /app/bin/memonbooks
+      - install -Dm644 packaging/linux/flatpak/com.memonbooks.MemonBooks.desktop
+          /app/share/applications/com.memonbooks.MemonBooks.desktop
+      - install -Dm644 packaging/linux/flatpak/com.memonbooks.MemonBooks.metainfo.xml
+          /app/share/metainfo/com.memonbooks.MemonBooks.metainfo.xml
+      # packaging/linux/icon.svg is a placeholder (see the comment in
+      # that file) -- swap it for a real designed icon before shipping.
+      - install -Dm644 packaging/linux/icon.svg
+          /app/share/icons/hicolor/scalable/apps/com.memonbooks.MemonBooks.svg
+    sources:
+      - type: dir
+        path: ../../..

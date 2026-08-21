@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS app bundle Info.plist (Section 7). No business logic lives here
+  or anywhere under packaging/ -- this only describes the bundle to
+  launch services and the App Store.
+
+  Build steps (not runnable here -- no macOS/Xcode toolchain was
+  available in this environment to actually produce or codesign a .app;
+  this plist is written to the real bundle schema and ready for someone
+  on macOS with Xcode to package):
+    1. cargo build --release --target aarch64-apple-darwin
+       cargo build --release --target x86_64-apple-darwin
+       lipo -create -output memonbooks target/*/release/memonbooks   (universal binary)
+    2. Lay out MemonBooks.app/Contents/{MacOS/memonbooks, Info.plist (this file),
+       Resources/AppIcon.icns (a real icon asset still needs to be supplied),
+       PkgInfo}
+    3. codesign --deep --force --options runtime --entitlements entitlements.plist
+         --sign "Apple Distribution: <team>" MemonBooks.app
+    4. productbuild --component MemonBooks.app /Applications --sign
+         "3rd Party Mac Developer Installer: <team>" MemonBooks.pkg
+       (for Mac App Store submission via Transporter/Xcode Organizer)
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>MemonBooks</string>
+    <key>CFBundleDisplayName</key>
+    <string>MemonBooks</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.memonbooks.MemonBooks</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleExecutable</key>
+    <string>memonbooks</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.finance</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright MemonBooks. All rights reserved.</string>
+</dict>
+</plist>

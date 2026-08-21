@@ -42,7 +42,9 @@ impl Database {
         Self::from_connection(conn)
     }
 
-    #[cfg(test)]
+    /// An ephemeral, in-memory database -- used by this crate's own unit
+    /// tests, and by the integration tests under `tests/`, which run as
+    /// a separate crate and so need this to not be `#[cfg(test)]`-gated.
     pub fn open_in_memory() -> AppResult<Self> {
         Self::from_connection(Connection::open_in_memory()?)
     }

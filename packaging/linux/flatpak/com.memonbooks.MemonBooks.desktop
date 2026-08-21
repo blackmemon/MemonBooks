@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MemonBooks
+Comment=Double-entry accounting and ERP desktop application
+Exec=memonbooks
+Icon=com.memonbooks.MemonBooks
+Categories=Office;Finance;
+Terminal=false
+StartupNotify=true

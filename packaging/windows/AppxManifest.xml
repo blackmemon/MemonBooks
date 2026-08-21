@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX package manifest for the Microsoft Store (Section 7).
+  No business logic lives here or anywhere under packaging/ -- this
+  file only describes identity, capabilities, and how Windows should
+  launch the already-built memonbooks.exe.
+
+  Build steps (not runnable in this environment -- no Windows SDK /
+  makeappx.exe / signtool.exe were available to actually produce or
+  sign a .msix here; this manifest is written to the real MSIX schema
+  and is ready for someone with the SDK to package and sign):
+    1. cargo build --release
+    2. Lay out a package root:
+         MemonBooks/
+           memonbooks.exe          (from target/release/)
+           AppxManifest.xml        (this file)
+           Assets/Square150x150Logo.png, Square44x44Logo.png, StoreLogo.png
+             (real icon assets still need to be supplied -- see the
+             note in packaging/linux/flatpak/ about the same gap)
+    3. makeappx pack /d MemonBooks /p MemonBooks.msix
+    4. signtool sign /fd SHA256 /a MemonBooks.msix
+       (or submit unsigned through Partner Center, which signs on
+       ingestion for Store distribution)
+-->
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    IgnorableNamespaces="uap rescap">
+
+  <Identity
+      Name="MemonBooks"
+      Publisher="CN=MemonBooks"
+      Version="0.1.0.0" />
+
+  <Properties>
+    <DisplayName>MemonBooks</DisplayName>
+    <PublisherDisplayName>MemonBooks</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Double-entry accounting and ERP desktop application.</Description>
+  </Properties>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Applications>
+    <Application Id="MemonBooks" Executable="memonbooks.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+          DisplayName="MemonBooks"
+          Description="Double-entry accounting and ERP desktop application."
+          BackgroundColor="transparent"
+          Square150x150Logo="Assets\Square150x150Logo.png"
+          Square44x44Logo="Assets\Square44x44Logo.png">
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Local SQLite file access under the app's own data directory
+         only -- no broad filesystem, network, or device capabilities
+         are declared, since the app has none of those needs. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>

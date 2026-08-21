@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Placeholder app icon, using the White Theme primary color
+     (Section 6, #51A2FF). A real designed icon should replace this
+     before shipping; kept as a simple, honest placeholder rather than
+     leaving the packaging manifests pointing at a file that doesn't
+     exist. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect x="4" y="4" width="120" height="120" rx="24" fill="#51A2FF"/>
+  <text x="64" y="84" font-family="Arial, sans-serif" font-size="64" font-weight="bold"
+        text-anchor="middle" fill="#FFFFFF">M</text>
+</svg>

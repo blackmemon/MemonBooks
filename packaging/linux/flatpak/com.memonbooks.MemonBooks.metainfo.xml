@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metainfo (Section 7) -- listing metadata for software
+     centers (GNOME Software, KDE Discover, Flathub). -->
+<component type="desktop-application">
+  <id>com.memonbooks.MemonBooks</id>
+  <name>MemonBooks</name>
+  <summary>Double-entry accounting and ERP desktop application</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <description>
+    <p>
+      MemonBooks is a double-entry accounting and ERP desktop
+      application covering the general ledger, accounts
+      receivable/payable, sales, purchases, inventory, banking,
+      expenses, fixed assets, tax, point of sale, and payroll -- all
+      running locally, with no server or web runtime required.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.memonbooks.MemonBooks.desktop</launchable>
+  <categories>
+    <category>Office</category>
+    <category>Finance</category>
+  </categories>
+  <releases>
+    <release version="0.1.0" date="2026-08-21">
+      <description>
+        <p>Initial scaffold and core accounting flow.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>

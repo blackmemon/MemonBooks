@@ -6,8 +6,62 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- Initial project scaffold: full folder/file structure from
-  `PROJECT_SPEC.md` Section 2, wired through `mod.rs`/`lib.rs` as empty
-  stub modules.
-- White Theme color and base typography tokens
-  (`frontend/styles/colors.rs`, `frontend/styles/typography.rs`).
+- Full project scaffold: folder/file structure from `PROJECT_SPEC.md`
+  Section 2, wired through `mod.rs`/`lib.rs`, White Theme tokens
+  (`frontend/styles/colors.rs`, `typography.rs`).
+- Cargo/Iced application foundation (step 1) and the configuration,
+  error, logging, and validation infrastructure plus the SQLite
+  database and migration runner (step 2).
+- Companies, branches, departments, and currencies/exchange rates
+  (step 3); users, roles, permissions, sessions, and 2FA (step 4).
+- The accounting core: chart of accounts and fiscal periods (step 5);
+  the transaction engine and journal entries, enforcing the hard
+  invariant that every posted transaction's debits equal its credits
+  (step 6); the general ledger and trial balance, derived from posted
+  transactions rather than stored separately (step 7); opening
+  balances and period closing, including closing-entry generation
+  (step 8).
+- Customers, vendors, and the AR/AP subledger with aging (step 9);
+  sales and purchases documents -- quotations, invoices, credit notes,
+  purchase orders, bills, debit notes, and customer/vendor payments,
+  all posting through the transaction engine (step 10).
+- Inventory: products, categories, warehouses, and an append-only
+  stock movement ledger with atomic warehouse transfers (step 11).
+- Banking: bank accounts, reconciliation, and cash transfers (step
+  12); direct expenses and employee expense claims, and fixed assets
+  with depreciation (straight-line and declining balance) and disposal
+  gain/loss (step 13).
+- Tax/VAT: rates, transactions, and period summaries (step 14).
+- Reports (trial balance, general ledger, AR/AP, aging, balance sheet,
+  profit & loss, cash flow, retained earnings, account statements,
+  sales/purchases/inventory/expenses/fixed assets/tax registers) and
+  CSV/PDF/XLSX export (step 15).
+- Point of sale: terminals, sessions, cash drawer reconciliation, and
+  split-tender sales (step 16).
+- HR/payroll: employees, salary structures, attendance, leave, and
+  payroll runs posting to the ledger (step 17).
+- Notifications (email/SMS/WhatsApp channels with templates),
+  backup/restore (SQLite `VACUUM INTO`), and HMAC-signed offline
+  license activation with a 30-day trial (step 18).
+- Iced views for every module above, with sidebar navigation, a
+  two-factor login flow, and a first-run bootstrap that creates a
+  default company and administrator account (step 19).
+- Integration tests exercising each business domain end to end (not
+  just each module's own unit tests), and cross-platform packaging
+  manifests for the Microsoft Store (MSIX), Mac App Store (Info.plist
+  + entitlements), and Linux (Flatpak manifest, desktop entry,
+  AppStream metainfo) (step 20).
+
+### Known gaps
+- No onboarding UI yet for creating additional companies, changing the
+  bootstrap-generated admin password, or switching users.
+- Real email/SMS/WhatsApp delivery needs a configured provider;
+  `Unconfigured*Sender` validates fully and fails with a clear error
+  until one is wired in.
+- Packaging manifests are written to each platform's real schema but
+  unverified end to end -- no macOS, Windows SDK, or Flatpak build
+  environment was available to actually produce and sign a package in
+  this environment.
+- Icon assets are a placeholder (`packaging/linux/icon.svg`); a
+  designed icon set should replace it before shipping.
+- `LICENSE` is a placeholder; a license still needs to be chosen.

@@ -16,3 +16,6 @@ simplelog = "0.12"
 directories = "5"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 chrono = "0.4"
+argon2 = "0.5"
+totp-rs = { version = "5", features = ["gen_secret"] }
+rand = "0.8"

@@ -4,11 +4,23 @@
 use iced::widget::{center, text};
 use iced::{Element, Task};
 
+use memonbooks::backend::audit::audit_logs;
 use memonbooks::backend::core::logging;
-use memonbooks::backend::repositories::organization_repository;
+use memonbooks::backend::repositories::{organization_repository, user_repository};
 use memonbooks::configs::app::AppConfig;
-use memonbooks::database::database::Database;
+use memonbooks::database::database::{Database, Migration};
 use memonbooks::frontend::styles::{colors, typography};
+
+/// Every module that owns schema contributes its `MIGRATIONS` here, in the
+/// order its Development Order step was implemented. `Database::run_migrations`
+/// re-sorts by version anyway, so this list only has to be complete, not ordered.
+fn all_migrations() -> Vec<Migration> {
+    let mut migrations = Vec::new();
+    migrations.extend_from_slice(organization_repository::MIGRATIONS);
+    migrations.extend_from_slice(user_repository::MIGRATIONS);
+    migrations.extend_from_slice(audit_logs::MIGRATIONS);
+    migrations
+}
 
 fn main() -> iced::Result {
     let config = AppConfig::load().expect("failed to resolve application configuration");
@@ -19,7 +31,7 @@ fn main() -> iced::Result {
 
     let database = Database::open(&config.database_path).expect("failed to open database");
     database
-        .run_migrations(organization_repository::MIGRATIONS)
+        .run_migrations(&all_migrations())
         .expect("failed to run database migrations");
 
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)

@@ -103,11 +103,25 @@ impl Database {
 
     /// Runs `f` with exclusive access to the underlying connection.
     /// Repositories use this instead of holding the lock themselves.
-    pub fn with_connection<T>(&self, f: impl FnOnce(&Connection) -> AppResult<T>) -> AppResult<T> {
-        let conn = self.conn.lock().map_err(|_| {
+    pub fn with_connection<T>(&self, f: impl FnOnce(&mut Connection) -> AppResult<T>) -> AppResult<T> {
+        let mut conn = self.conn.lock().map_err(|_| {
             AppError::Internal("database connection mutex was poisoned".into())
         })?;
-        f(&conn)
+        f(&mut conn)
+    }
+
+    /// Runs `f` inside a single SQLite transaction: commits if `f` returns
+    /// `Ok`, rolls back if it returns `Err` (or panics). Repositories use
+    /// this for any write that touches more than one table and must be
+    /// all-or-nothing -- per Architecture Rules, Section 3: "multi-table
+    /// financial posting must be atomic."
+    pub fn with_transaction<T>(&self, f: impl FnOnce(&rusqlite::Transaction) -> AppResult<T>) -> AppResult<T> {
+        self.with_connection(|conn| {
+            let tx = conn.transaction()?;
+            let result = f(&tx)?;
+            tx.commit()?;
+            Ok(result)
+        })
     }
 }
 

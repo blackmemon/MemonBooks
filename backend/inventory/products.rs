@@ -12,6 +12,9 @@ pub struct Product {
     pub company_id: i64,
     pub sku: String,
     pub name: String,
+    /// Scanned at POS (Development Order step 16) to look the product up;
+    /// optional since not every product is sold over the counter.
+    pub barcode: Option<String>,
     pub category_id: Option<i64>,
     pub unit_of_measure: String,
     pub cost_price: Decimal,
@@ -27,6 +30,7 @@ impl Product {
             company_id,
             sku: sku.into(),
             name: name.into(),
+            barcode: None,
             category_id: None,
             unit_of_measure: "each".into(),
             cost_price: Decimal::ZERO,

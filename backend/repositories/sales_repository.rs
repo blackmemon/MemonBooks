@@ -2,12 +2,24 @@
 //! payments. Posting an invoice or credit note delegates the atomic
 //! GL + receivable write to `AccountingRepository`, since that's where
 //! `transactions`/`transaction_lines`/`receivables` already live.
+//!
+//! Also POS (Development Order step 16): terminals, sessions, cash
+//! drawer events, and POS sales. A POS sale is still fundamentally a
+//! sale (build a transaction, post it through the same engine), so it
+//! lives here rather than inventing a dedicated repository the frozen
+//! structure doesn't have a slot for.
 
+use chrono::{DateTime, Utc};
 use rusqlite::{params, OptionalExtension, Row};
 
 use crate::backend::accounting::accounts_receivable::receivables::Receivable;
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
+use crate::backend::pos::cash_drawer::{CashDrawerEvent, CashDrawerEventType};
+use crate::backend::pos::payments::PaymentMethod;
+use crate::backend::pos::sales::PosSale;
+use crate::backend::pos::sessions::{PosSession, PosSessionStatus};
+use crate::backend::pos::terminals::Terminal;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::sales::credit_notes::CreditNote;
 use crate::backend::sales::invoices::{Invoice, InvoiceLine, InvoiceStatus};
@@ -80,6 +92,66 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             payment_date    TEXT NOT NULL,
             amount          TEXT NOT NULL,
             transaction_id  INTEGER REFERENCES transactions(id)
+        );
+    ",
+}, Migration {
+    version: 1601,
+    name: "pos_schema",
+    sql: "
+        CREATE TABLE pos_terminals (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id      INTEGER NOT NULL REFERENCES companies(id),
+            branch_id       INTEGER REFERENCES branches(id),
+            warehouse_id    INTEGER NOT NULL REFERENCES warehouses(id),
+            name            TEXT NOT NULL,
+            is_active       INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE pos_sessions (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            terminal_id         INTEGER NOT NULL REFERENCES pos_terminals(id),
+            cashier_user_id     INTEGER NOT NULL REFERENCES users(id),
+            opened_at           TEXT NOT NULL,
+            closed_at           TEXT,
+            opening_cash        TEXT NOT NULL,
+            closing_cash        TEXT,
+            status              TEXT NOT NULL
+        );
+
+        CREATE TABLE cash_drawer_events (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id      INTEGER NOT NULL REFERENCES pos_sessions(id),
+            event_type      TEXT NOT NULL,
+            amount          TEXT NOT NULL,
+            reason          TEXT,
+            occurred_at     TEXT NOT NULL
+        );
+
+        CREATE TABLE pos_sales (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id      INTEGER NOT NULL REFERENCES companies(id),
+            terminal_id     INTEGER NOT NULL REFERENCES pos_terminals(id),
+            session_id      INTEGER NOT NULL REFERENCES pos_sessions(id),
+            sale_date       TEXT NOT NULL,
+            transaction_id  INTEGER REFERENCES transactions(id)
+        );
+
+        CREATE TABLE pos_sale_lines (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            pos_sale_id         INTEGER NOT NULL REFERENCES pos_sales(id),
+            product_id          INTEGER NOT NULL REFERENCES products(id),
+            revenue_account_id  INTEGER NOT NULL REFERENCES accounts(id),
+            description         TEXT NOT NULL,
+            quantity            TEXT NOT NULL,
+            unit_price          TEXT NOT NULL,
+            line_number         INTEGER NOT NULL
+        );
+
+        CREATE TABLE pos_sale_payments (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            pos_sale_id     INTEGER NOT NULL REFERENCES pos_sales(id),
+            method          TEXT NOT NULL,
+            amount          TEXT NOT NULL
         );
     ",
 }];
@@ -269,6 +341,188 @@ impl SalesRepository {
             ..payment.clone()
         })
     }
+
+    // -- POS: terminals -------------------------------------------------
+
+    pub fn create_terminal(&self, terminal: &Terminal) -> AppResult<Terminal> {
+        terminal.validate()?;
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO pos_terminals (company_id, branch_id, warehouse_id, name, is_active) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![terminal.company_id, terminal.branch_id, terminal.warehouse_id, terminal.name, terminal.is_active],
+            )?;
+            Ok(Terminal { id: Some(conn.last_insert_rowid()), ..terminal.clone() })
+        })
+    }
+
+    pub fn list_terminals_for_company(&self, company_id: i64) -> AppResult<Vec<Terminal>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, company_id, branch_id, warehouse_id, name, is_active FROM pos_terminals WHERE company_id = ?1 ORDER BY name",
+            )?;
+            let rows = stmt.query_map(params![company_id], map_terminal)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
+    }
+
+    // -- POS: sessions and cash drawer ---------------------------------
+
+    pub fn open_session(&self, session: &PosSession) -> AppResult<PosSession> {
+        session.validate()?;
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO pos_sessions (terminal_id, cashier_user_id, opened_at, closed_at, opening_cash, closing_cash, status)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    session.terminal_id,
+                    session.cashier_user_id,
+                    session.opened_at,
+                    session.closed_at,
+                    session.opening_cash.to_string(),
+                    session.closing_cash.map(|c| c.to_string()),
+                    session.status.as_str(),
+                ],
+            )?;
+            Ok(PosSession { id: Some(conn.last_insert_rowid()), ..session.clone() })
+        })
+    }
+
+    pub fn get_session(&self, id: i64) -> AppResult<PosSession> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                "SELECT id, terminal_id, cashier_user_id, opened_at, closed_at, opening_cash, closing_cash, status FROM pos_sessions WHERE id = ?1",
+                params![id],
+                map_session,
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("POS session {id} not found")))
+        })
+    }
+
+    pub fn record_cash_drawer_event(&self, event: &CashDrawerEvent) -> AppResult<CashDrawerEvent> {
+        event.validate()?;
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO cash_drawer_events (session_id, event_type, amount, reason, occurred_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![event.session_id, event.event_type.as_str(), event.amount.to_string(), event.reason, event.occurred_at],
+            )?;
+            Ok(CashDrawerEvent { id: Some(conn.last_insert_rowid()), ..event.clone() })
+        })
+    }
+
+    pub fn list_cash_drawer_events(&self, session_id: i64) -> AppResult<Vec<CashDrawerEvent>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, session_id, event_type, amount, reason, occurred_at FROM cash_drawer_events WHERE session_id = ?1 ORDER BY occurred_at",
+            )?;
+            let rows = stmt.query_map(params![session_id], map_cash_drawer_event)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
+    }
+
+    /// Closes the session with the counted amount. Does not itself judge
+    /// over/short -- pair with `cash_drawer::expected_closing_cash` using
+    /// `list_cash_drawer_events` first, if that comparison is needed.
+    pub fn close_session(&self, session_id: i64, closing_cash: rust_decimal::Decimal, closed_at: DateTime<Utc>) -> AppResult<PosSession> {
+        let session = self.get_session(session_id)?;
+        if session.status != PosSessionStatus::Open {
+            return Err(AppError::Validation("only an open POS session can be closed".into()));
+        }
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "UPDATE pos_sessions SET status = ?1, closing_cash = ?2, closed_at = ?3 WHERE id = ?4",
+                params![PosSessionStatus::Closed.as_str(), closing_cash.to_string(), closed_at, session_id],
+            )?;
+            Ok(())
+        })?;
+        Ok(PosSession {
+            status: PosSessionStatus::Closed,
+            closing_cash: Some(closing_cash),
+            closed_at: Some(closed_at),
+            ..session
+        })
+    }
+
+    // -- POS: sales -----------------------------------------------------
+
+    /// Validates and posts the sale's GL transaction, then stores the
+    /// sale (header, lines, payments) linked to it -- atomically, same
+    /// pattern as `post_invoice`.
+    pub fn post_pos_sale(&self, sale: &PosSale, payment_accounts: &[(PaymentMethod, i64)]) -> AppResult<(PosSale, Transaction)> {
+        sale.validate()?;
+        let transaction = sale.build_transaction(payment_accounts)?;
+        let posted = self.accounting.post_transaction(&transaction)?;
+
+        let sale_id = self.db.with_transaction(|tx| {
+            tx.execute(
+                "INSERT INTO pos_sales (company_id, terminal_id, session_id, sale_date, transaction_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![sale.company_id, sale.terminal_id, sale.session_id, sale.sale_date, posted.id],
+            )?;
+            let sale_id = tx.last_insert_rowid();
+
+            for (line_number, line) in sale.lines.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO pos_sale_lines (pos_sale_id, product_id, revenue_account_id, description, quantity, unit_price, line_number)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![sale_id, line.product_id, line.revenue_account_id, line.description, line.quantity.to_string(), line.unit_price.to_string(), line_number as i64],
+                )?;
+            }
+            for payment in &sale.payments {
+                tx.execute(
+                    "INSERT INTO pos_sale_payments (pos_sale_id, method, amount) VALUES (?1, ?2, ?3)",
+                    params![sale_id, payment.method.as_str(), payment.amount.to_string()],
+                )?;
+            }
+
+            Ok(sale_id)
+        })?;
+
+        Ok((PosSale { id: Some(sale_id), transaction_id: posted.id, ..sale.clone() }, posted))
+    }
+}
+
+fn map_terminal(row: &Row) -> rusqlite::Result<Terminal> {
+    Ok(Terminal {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        branch_id: row.get(2)?,
+        warehouse_id: row.get(3)?,
+        name: row.get(4)?,
+        is_active: row.get(5)?,
+    })
+}
+
+fn map_session(row: &Row) -> rusqlite::Result<PosSession> {
+    let opening_text: String = row.get(5)?;
+    let closing_text: Option<String> = row.get(6)?;
+    let status_text: String = row.get(7)?;
+    let status = PosSessionStatus::parse(&status_text)
+        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, "invalid POS session status".into()))?;
+    Ok(PosSession {
+        id: Some(row.get(0)?),
+        terminal_id: row.get(1)?,
+        cashier_user_id: row.get(2)?,
+        opened_at: row.get(3)?,
+        closed_at: row.get(4)?,
+        opening_cash: opening_text.parse().unwrap_or(rust_decimal::Decimal::ZERO),
+        closing_cash: closing_text.and_then(|c| c.parse().ok()),
+        status,
+    })
+}
+
+fn map_cash_drawer_event(row: &Row) -> rusqlite::Result<CashDrawerEvent> {
+    let amount_text: String = row.get(3)?;
+    let event_type_text: String = row.get(2)?;
+    let event_type = CashDrawerEventType::parse(&event_type_text)
+        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, "invalid cash drawer event type".into()))?;
+    Ok(CashDrawerEvent {
+        id: Some(row.get(0)?),
+        session_id: row.get(1)?,
+        event_type,
+        amount: amount_text.parse().unwrap_or(rust_decimal::Decimal::ZERO),
+        reason: row.get(4)?,
+        occurred_at: row.get(5)?,
+    })
 }
 
 fn map_quotation(row: &Row) -> rusqlite::Result<Quotation> {
@@ -328,6 +582,7 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use crate::backend::organization::companies::Company;
+    use crate::backend::pos::payments::PosPayment;
     use crate::backend::parties::customers::Customer;
     use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
@@ -348,6 +603,9 @@ mod tests {
         ar_account_id: i64,
         revenue_account_id: i64,
         cash_account_id: i64,
+        warehouse_id: i64,
+        product_id: i64,
+        cashier_user_id: i64,
     }
 
     fn fixture() -> TestFixture {
@@ -355,6 +613,8 @@ mod tests {
         db.run_migrations(organization_repository::MIGRATIONS).unwrap();
         db.run_migrations(party_repository::MIGRATIONS).unwrap();
         db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::repositories::inventory_repository::MIGRATIONS).unwrap();
         db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
@@ -373,6 +633,18 @@ mod tests {
         let revenue_account = acc_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
         let cash_account = acc_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
 
+        let user_repo = crate::backend::repositories::user_repository::UserRepository::new(db.clone());
+        let role = user_repo.create_role(&crate::backend::core::roles::Role::new("Cashier")).unwrap();
+        let cashier = user_repo
+            .create_user(&crate::backend::core::users::User::new("cashier", "Cashier One", "hash", role.id.unwrap()))
+            .unwrap();
+
+        let inventory_repo = crate::backend::repositories::inventory_repository::InventoryRepository::new(db.clone());
+        let warehouse = inventory_repo
+            .create_warehouse(&crate::backend::inventory::warehouses::Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
+        let product = inventory_repo.create_product(&crate::backend::inventory::products::Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+
         TestFixture {
             sales: SalesRepository::new(db),
             company_id,
@@ -380,6 +652,9 @@ mod tests {
             ar_account_id: ar_account.id.unwrap(),
             revenue_account_id: revenue_account.id.unwrap(),
             cash_account_id: cash_account.id.unwrap(),
+            warehouse_id: warehouse.id.unwrap(),
+            product_id: product.id.unwrap(),
+            cashier_user_id: cashier.id.unwrap(),
         }
     }
 
@@ -441,5 +716,51 @@ mod tests {
 
         let accounting = AccRepo::new(f.sales.db.clone());
         assert!(accounting.list_open_receivables_for_company(f.company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn pos_session_lifecycle_open_drawer_events_close() {
+        let f = fixture();
+        let terminal = f
+            .sales
+            .create_terminal(&Terminal::new(f.company_id, f.warehouse_id, "Front Counter"))
+            .unwrap();
+
+        let session = f.sales.open_session(&PosSession::open(terminal.id.unwrap(), f.cashier_user_id, dec!(200))).unwrap();
+        assert_eq!(session.status, PosSessionStatus::Open);
+
+        f.sales
+            .record_cash_drawer_event(&crate::backend::pos::cash_drawer::CashDrawerEvent::new(
+                session.id.unwrap(),
+                crate::backend::pos::cash_drawer::CashDrawerEventType::CashSale,
+                dec!(150),
+            ))
+            .unwrap();
+
+        let events = f.sales.list_cash_drawer_events(session.id.unwrap()).unwrap();
+        let expected = crate::backend::pos::cash_drawer::expected_closing_cash(session.opening_cash, &events);
+        assert_eq!(expected, dec!(350));
+
+        let closed = f.sales.close_session(session.id.unwrap(), dec!(350), Utc::now()).unwrap();
+        assert_eq!(closed.status, PosSessionStatus::Closed);
+        assert_eq!(closed.closing_cash, Some(dec!(350)));
+    }
+
+    #[test]
+    fn posting_a_pos_sale_posts_the_transaction_and_stores_the_sale() {
+        let f = fixture();
+        let terminal = f
+            .sales
+            .create_terminal(&Terminal::new(f.company_id, f.warehouse_id, "Front Counter"))
+            .unwrap();
+        let session = f.sales.open_session(&PosSession::open(terminal.id.unwrap(), f.cashier_user_id, dec!(200))).unwrap();
+
+        let mut sale = PosSale::new(f.company_id, terminal.id.unwrap(), session.id.unwrap(), date(2026, 1, 15));
+        sale.lines.push(crate::backend::pos::sales::PosSaleLine::new(f.product_id, f.revenue_account_id, "Widget", dec!(2), dec!(50)));
+        sale.payments.push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
+
+        let (recorded, transaction) = f.sales.post_pos_sale(&sale, &[(PaymentMethod::Cash, f.cash_account_id)]).unwrap();
+        assert!(transaction.is_balanced());
+        assert_eq!(recorded.transaction_id, transaction.id);
     }
 }

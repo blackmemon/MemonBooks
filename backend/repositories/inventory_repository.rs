@@ -60,6 +60,13 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             transaction_id  INTEGER REFERENCES transactions(id)
         );
     ",
+}, Migration {
+    // Additive: products already has rows by the time POS (step 16)
+    // needs barcode lookup, so this extends the existing table rather
+    // than editing migration 1100's already-applied SQL.
+    version: 1600,
+    name: "products_barcode_column",
+    sql: "ALTER TABLE products ADD COLUMN barcode TEXT;",
 }];
 
 #[derive(Clone)]
@@ -122,12 +129,13 @@ impl InventoryRepository {
         product.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO products (company_id, sku, name, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO products (company_id, sku, name, barcode, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     product.company_id,
                     product.sku,
                     product.name,
+                    product.barcode,
                     product.category_id,
                     product.unit_of_measure,
                     product.cost_price.to_string(),
@@ -143,7 +151,7 @@ impl InventoryRepository {
     pub fn get_product(&self, id: i64) -> AppResult<Product> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, sku, name, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
+                "SELECT id, company_id, sku, name, barcode, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
                  FROM products WHERE id = ?1",
                 params![id],
                 map_product,
@@ -153,10 +161,23 @@ impl InventoryRepository {
         })
     }
 
+    pub fn get_product_by_barcode(&self, company_id: i64, barcode: &str) -> AppResult<Option<Product>> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                "SELECT id, company_id, sku, name, barcode, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
+                 FROM products WHERE company_id = ?1 AND barcode = ?2",
+                params![company_id, barcode],
+                map_product,
+            )
+            .optional()
+            .map_err(AppError::from)
+        })
+    }
+
     pub fn list_products_for_company(&self, company_id: i64) -> AppResult<Vec<Product>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, sku, name, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
+                "SELECT id, company_id, sku, name, barcode, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
                  FROM products WHERE company_id = ?1 ORDER BY sku",
             )?;
             let rows = stmt.query_map(params![company_id], map_product)?;
@@ -251,19 +272,20 @@ fn map_category(row: &Row) -> rusqlite::Result<Category> {
 }
 
 fn map_product(row: &Row) -> rusqlite::Result<Product> {
-    let cost_price_text: String = row.get(6)?;
-    let sale_price_text: String = row.get(7)?;
+    let cost_price_text: String = row.get(7)?;
+    let sale_price_text: String = row.get(8)?;
     Ok(Product {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
         sku: row.get(2)?,
         name: row.get(3)?,
-        category_id: row.get(4)?,
-        unit_of_measure: row.get(5)?,
+        barcode: row.get(4)?,
+        category_id: row.get(5)?,
+        unit_of_measure: row.get(6)?,
         cost_price: cost_price_text.parse().unwrap_or(Decimal::ZERO),
         sale_price: sale_price_text.parse().unwrap_or(Decimal::ZERO),
-        track_inventory: row.get(8)?,
-        is_active: row.get(9)?,
+        track_inventory: row.get(9)?,
+        is_active: row.get(10)?,
     })
 }
 

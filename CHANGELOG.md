@@ -98,6 +98,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   AppStream metainfo) (step 20).
 
 ### Known gaps
+- Overpayment is rejected outright, not recorded as an on-account
+  customer/vendor credit. `record_customer_payment`/
+  `record_vendor_payment` (and `post_credit_note`/`post_debit_note`)
+  reject a payment or note exceeding the linked receivable's/payable's
+  balance rather than tracking the excess -- an intentional, discussed
+  v1 choice (see "Fixed" above), not a bug: it keeps the AR/AP control
+  account and its subledger always reconciled, at the cost of pushing
+  the resolution (a manual refund, or re-entering a smaller amount) to
+  a human. A proper fix is a deferred v2 feature: a `CustomerCredit`/
+  `VendorCredit` domain type mirroring `Receivable`/`Payable`
+  (`amount`/`amount_applied` against a new liability GL account, not
+  netted into AR/AP), a three-way GL split on
+  `record_customer_payment` (cash / applied AR / excess to the credit
+  account) instead of the current two-way split, an
+  `apply_customer_credit`/`apply_vendor_credit` operation to offset a
+  stored credit against a future invoice or bill (with a policy
+  decision on automatic vs. user-chosen application), a
+  `refund_customer_credit`/`refund_vendor_credit` operation for cash
+  back instead of applying it, and reporting/UI changes so the credit
+  balance surfaces (aging summary, balance sheet liability line,
+  `customers_view`/`dashboard_view`) rather than sitting invisible in
+  the backend. Comparable in scope to one Development Order step (AR/AP
+  itself was step 9); not started.
 - No onboarding UI yet for creating additional companies, changing the
   bootstrap-generated admin password, or switching users.
 - Real email/SMS/WhatsApp delivery needs a configured provider;

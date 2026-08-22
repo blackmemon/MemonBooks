@@ -6,12 +6,13 @@
 //! concerns (permission checks tied to `core::permissions`, for
 //! instance) come up, they belong here, not back in the view.
 //!
-//! Grown incrementally as each view is migrated onto it -- this only
-//! covers what `chart_of_accounts_view.rs` needs so far.
+//! Grown incrementally as each view is migrated onto it -- covers what
+//! `chart_of_accounts_view.rs` and `journal_entry_view.rs` need.
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::core::errors::AppResult;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
+use crate::backend::transactions::transaction::Transaction;
 use crate::database::database::Database;
 
 #[derive(Clone)]
@@ -30,5 +31,9 @@ impl AccountingService {
 
     pub fn create_account(&self, account: &Account) -> AppResult<Account> {
         self.repo.create_account(account)
+    }
+
+    pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {
+        self.repo.post_transaction(transaction)
     }
 }

@@ -12,7 +12,7 @@ use iced::Element;
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::journal_entries::JournalEntry;
-use crate::backend::repositories::accounting_repository::AccountingRepository;
+use crate::backend::services::accounting_service::AccountingService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -56,8 +56,8 @@ fn to_option(account: &Account) -> AccountOption {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let repo = AccountingRepository::new(ctx.db.clone());
-    match repo.list_accounts_for_company(ctx.company_id) {
+    let service = AccountingService::new(ctx.db.clone());
+    match service.list_accounts(ctx.company_id) {
         Ok(accounts) => State {
             accounts: accounts.iter().map(to_option).collect(),
             ..Default::default()
@@ -95,8 +95,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 .credit(credit.id, amount)
                 .into_transaction();
 
-            let repo = AccountingRepository::new(ctx.db.clone());
-            match repo.post_transaction(&entry) {
+            let service = AccountingService::new(ctx.db.clone());
+            match service.post_transaction(&entry) {
                 Ok(posted) => {
                     state.message = Some(format!("Posted transaction #{}.", posted.id.unwrap_or_default()));
                     state.amount_input.clear();
@@ -132,4 +132,97 @@ pub fn view(state: &State) -> Element<'_, Message> {
     }
 
     container(content).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::accounting::accounting_rules::AccountType;
+    use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::database::database::Database;
+    use chrono::NaiveDate;
+    use std::path::PathBuf;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn ctx_with_two_accounts() -> (Ctx, AccountOption, AccountOption) {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+
+        let org_repo = OrganizationRepository::new(db.clone());
+        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+
+        let accounting_repo = AccountingRepository::new(db.clone());
+        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
+        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        (ctx, to_option(&cash), to_option(&capital))
+    }
+
+    #[test]
+    fn field_changed_messages_update_the_corresponding_field() {
+        let (ctx, cash, capital) = ctx_with_two_accounts();
+        let mut state = State::default();
+
+        update(&mut state, Message::DebitAccountSelected(cash.clone()), &ctx);
+        update(&mut state, Message::CreditAccountSelected(capital.clone()), &ctx);
+        update(&mut state, Message::AmountChanged("500".into()), &ctx);
+        update(&mut state, Message::MemoChanged("Owner contribution".into()), &ctx);
+
+        assert_eq!(state.debit_account, Some(cash));
+        assert_eq!(state.credit_account, Some(capital));
+        assert_eq!(state.amount_input, "500");
+        assert_eq!(state.memo_input, "Owner contribution");
+    }
+
+    #[test]
+    fn posting_without_choosing_both_accounts_sets_an_error() {
+        let (ctx, cash, _capital) = ctx_with_two_accounts();
+        let mut state = State { debit_account: Some(cash), ..Default::default() };
+
+        update(&mut state, Message::Post, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("choose both a debit and a credit account"));
+    }
+
+    #[test]
+    fn posting_a_non_numeric_amount_sets_an_error() {
+        let (ctx, cash, capital) = ctx_with_two_accounts();
+        let mut state = State { debit_account: Some(cash), credit_account: Some(capital), amount_input: "not a number".into(), ..Default::default() };
+
+        update(&mut state, Message::Post, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("amount is not a valid number"));
+    }
+
+    #[test]
+    fn posting_a_valid_entry_clears_the_form_and_reports_the_posted_transaction() {
+        let (ctx, cash, capital) = ctx_with_two_accounts();
+        let mut state = State {
+            debit_account: Some(cash),
+            credit_account: Some(capital),
+            amount_input: "500".into(),
+            memo_input: "Owner contribution".into(),
+            ..Default::default()
+        };
+
+        update(&mut state, Message::Post, &ctx);
+
+        assert!(state.error.is_none());
+        assert!(state.message.as_deref().unwrap_or_default().starts_with("Posted transaction"));
+        assert!(state.amount_input.is_empty());
+        assert!(state.memo_input.is_empty());
+
+        let trial_balance = AccountingRepository::new(ctx.db.clone()).trial_balance_as_of(ctx.company_id, date(2030, 1, 1)).unwrap();
+        assert!(trial_balance.is_balanced());
+    }
 }

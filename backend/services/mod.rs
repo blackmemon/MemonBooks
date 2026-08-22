@@ -1,5 +1,6 @@
 pub mod accounting_service;
 pub mod api;
+pub mod auth_service;
 pub mod banking_service;
 pub mod commands;
 pub mod expense_service;

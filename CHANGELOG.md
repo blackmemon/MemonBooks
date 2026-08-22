@@ -5,6 +5,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Views now route all data access through `backend/services/*.rs`
+  instead of calling repositories directly, closing an Architecture
+  Rule violation (Section 3: "Iced View -> Service -> Repository ->
+  Database"). Added `backend/services/auth_service.rs`, which was not
+  in `PROJECT_SPEC.md` Section 2's frozen `services/` file list --
+  every other domain had one, but there was no dedicated auth/user
+  service for `auth/login_view.rs` to route through. Wraps
+  `UserRepository` plus `core::auth::authentication`'s login/2FA
+  decisions; kept separate from `organization_service.rs` since
+  authentication is its own concern, not organization data. Each
+  converted view also gained direct tests of its `update()` logic
+  (state transitions per `Message` variant), closing what the
+  post-step-20 self-audit found to be the largest coverage gap in the
+  codebase -- previously zero views had any test coverage at all.
+
 ### Added
 - Full project scaffold: folder/file structure from `PROJECT_SPEC.md`
   Section 2, wired through `mod.rs`/`lib.rs`, White Theme tokens

@@ -4,9 +4,9 @@
 use iced::widget::{button, column, container, text, text_input};
 use iced::{Element, Length};
 
-use crate::backend::core::auth::authentication::{authenticate, verify_two_factor, AuthOutcome};
+use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
-use crate::backend::repositories::user_repository::UserRepository;
+use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -48,9 +48,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
             Event::None
         }
         Message::SubmitCredentials => {
-            let user_repo = UserRepository::new(ctx.db.clone());
-            let user = user_repo.find_user_by_username(&state.username).ok().flatten();
-            match authenticate(user.as_ref(), &state.password) {
+            let service = AuthService::new(ctx.db.clone());
+            match service.login_with_credentials(&state.username, &state.password) {
                 Ok(AuthOutcome::Authenticated(user)) => Event::LoggedIn(user),
                 Ok(AuthOutcome::TwoFactorRequired(user)) => {
                     state.pending_user = Some(user);
@@ -67,7 +66,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
             let Some(user) = state.pending_user.clone() else {
                 return Event::None;
             };
-            match verify_two_factor(&user, &state.two_factor_code) {
+            let service = AuthService::new(ctx.db.clone());
+            match service.login_with_two_factor_code(&user, &state.two_factor_code) {
                 Ok(user) => Event::LoggedIn(user),
                 Err(err) => {
                     state.error = Some(err.to_string());
@@ -115,4 +115,124 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .center_x(Length::Fill)
         .center_y(Length::Fill)
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::core::auth::passwords::hash_password;
+    use crate::backend::core::auth::two_factor::generate_secret;
+    use crate::backend::core::roles::Role;
+    use crate::backend::repositories::user_repository::{self, UserRepository};
+    use crate::database::database::Database;
+    use std::path::PathBuf;
+
+    fn ctx_with_user(username: &str, password: &str, two_factor_secret: Option<String>) -> Ctx {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(user_repository::MIGRATIONS).unwrap();
+
+        let repo = UserRepository::new(db.clone());
+        let role = repo.create_role(&Role::new("Staff")).unwrap();
+        let mut user = User::new(username, "Test User", hash_password(password).unwrap(), role.id.unwrap());
+        if let Some(secret) = two_factor_secret {
+            user.two_factor_enabled = true;
+            user.two_factor_secret = Some(secret);
+        }
+        repo.create_user(&user).unwrap();
+
+        Ctx { db, company_id: 1, current_user_id: None, export_dir: PathBuf::from(".") }
+    }
+
+    #[test]
+    fn field_changed_messages_update_the_corresponding_field() {
+        let mut state = State::default();
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+
+        update(&mut state, Message::UsernameChanged("alice".into()), &ctx);
+        update(&mut state, Message::PasswordChanged("secret".into()), &ctx);
+        update(&mut state, Message::TwoFactorCodeChanged("123456".into()), &ctx);
+
+        assert_eq!(state.username, "alice");
+        assert_eq!(state.password, "secret");
+        assert_eq!(state.two_factor_code, "123456");
+    }
+
+    #[test]
+    fn correct_credentials_without_two_factor_logs_in_directly() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { username: "alice".into(), password: "correct horse battery staple".into(), ..Default::default() };
+
+        let event = update(&mut state, Message::SubmitCredentials, &ctx);
+
+        assert!(matches!(event, Event::LoggedIn(user) if user.username == "alice"));
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn wrong_password_sets_a_generic_error_and_does_not_log_in() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { username: "alice".into(), password: "wrong password".into(), ..Default::default() };
+
+        let event = update(&mut state, Message::SubmitCredentials, &ctx);
+
+        assert!(matches!(event, Event::None));
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn unknown_username_sets_the_same_generic_error_as_a_wrong_password() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { username: "someone-else".into(), password: "whatever".into(), ..Default::default() };
+
+        update(&mut state, Message::SubmitCredentials, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("validation error: invalid username or password"));
+    }
+
+    #[test]
+    fn correct_credentials_with_two_factor_enabled_requires_a_code_before_logging_in() {
+        let secret = generate_secret();
+        let ctx = ctx_with_user("alice", "correct horse battery staple", Some(secret.clone()));
+        let mut state = State { username: "alice".into(), password: "correct horse battery staple".into(), ..Default::default() };
+
+        let event = update(&mut state, Message::SubmitCredentials, &ctx);
+        assert!(matches!(event, Event::None));
+        assert!(state.pending_user.is_some());
+
+        let code = totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, totp_rs::Secret::Encoded(secret).to_bytes().unwrap())
+            .unwrap()
+            .generate_current()
+            .unwrap();
+        state.two_factor_code = code;
+
+        let event = update(&mut state, Message::SubmitTwoFactorCode, &ctx);
+        assert!(matches!(event, Event::LoggedIn(user) if user.username == "alice"));
+    }
+
+    #[test]
+    fn wrong_two_factor_code_sets_an_error_and_does_not_log_in() {
+        let secret = generate_secret();
+        let ctx = ctx_with_user("alice", "correct horse battery staple", Some(secret));
+        let mut state = State { username: "alice".into(), password: "correct horse battery staple".into(), ..Default::default() };
+
+        update(&mut state, Message::SubmitCredentials, &ctx);
+        assert!(state.pending_user.is_some());
+
+        state.two_factor_code = "000000".into();
+        let event = update(&mut state, Message::SubmitTwoFactorCode, &ctx);
+
+        assert!(matches!(event, Event::None));
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn submitting_a_two_factor_code_with_no_pending_user_is_a_no_op() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State::default();
+
+        let event = update(&mut state, Message::SubmitTwoFactorCode, &ctx);
+
+        assert!(matches!(event, Event::None));
+        assert!(state.error.is_none());
+    }
 }

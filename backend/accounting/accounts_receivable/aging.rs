@@ -76,4 +76,13 @@ mod tests {
         let summary = summarize(&[settled], date(2026, 3, 1));
         assert_eq!(summary.total(), Decimal::ZERO);
     }
+
+    #[test]
+    fn partially_paid_receivables_contribute_only_their_remaining_balance() {
+        let mut partially_paid = receivable(date(2026, 1, 1), dec!(500));
+        partially_paid.amount_paid = dec!(300);
+        let summary = summarize(&[partially_paid], date(2026, 1, 1));
+        assert_eq!(summary.current, dec!(200));
+        assert_eq!(summary.total(), dec!(200));
+    }
 }

@@ -65,4 +65,44 @@ mod tests {
         assert!(!summary.is_reconciled());
         assert_eq!(summary.discrepancy(), dec!(-50));
     }
+
+    #[test]
+    fn reconciled_with_no_items_in_transit_when_statement_already_matches_book() {
+        let summary = ReconciliationSummary {
+            book_balance: dec!(500),
+            statement_balance: dec!(500),
+            deposits_in_transit: Decimal::ZERO,
+            outstanding_withdrawals: Decimal::ZERO,
+        };
+        assert!(summary.is_reconciled());
+        assert_eq!(summary.discrepancy(), Decimal::ZERO);
+    }
+
+    #[test]
+    fn positive_discrepancy_means_the_books_show_more_than_the_adjusted_statement() {
+        // Book balance overstates what the bank will actually show once
+        // outstanding items clear -- e.g. a posted deposit that was
+        // never actually deposited.
+        let summary = ReconciliationSummary {
+            book_balance: dec!(1000),
+            statement_balance: dec!(700),
+            deposits_in_transit: Decimal::ZERO,
+            outstanding_withdrawals: Decimal::ZERO,
+        };
+        assert!(!summary.is_reconciled());
+        assert_eq!(summary.discrepancy(), dec!(300));
+    }
+
+    #[test]
+    fn reconciles_correctly_with_a_negative_book_balance() {
+        // An overdrawn account: outstanding withdrawals bring the
+        // statement down to match a negative book balance.
+        let summary = ReconciliationSummary {
+            book_balance: dec!(-200),
+            statement_balance: dec!(300),
+            deposits_in_transit: Decimal::ZERO,
+            outstanding_withdrawals: dec!(500),
+        };
+        assert!(summary.is_reconciled());
+    }
 }

@@ -71,6 +71,7 @@ impl StockTransfer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::core::validation::Validate;
     use rust_decimal_macros::dec;
 
     fn transfer() -> StockTransfer {
@@ -92,5 +93,49 @@ mod tests {
         assert_eq!(inbound.warehouse_id, 20);
         assert_eq!(inbound.quantity_delta, dec!(50));
         assert_eq!(out.quantity_delta + inbound.quantity_delta, Decimal::ZERO);
+    }
+
+    #[test]
+    fn validate_rejects_zero_quantity() {
+        let mut t = transfer();
+        t.quantity = Decimal::ZERO;
+        assert!(t.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_negative_quantity() {
+        let mut t = transfer();
+        t.quantity = dec!(-10);
+        assert!(t.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_a_well_formed_transfer() {
+        assert!(transfer().validate().is_ok());
+    }
+
+    #[test]
+    fn build_movements_carries_the_same_company_and_product_on_both_legs() {
+        let [out, inbound] = transfer().build_movements();
+        assert_eq!(out.company_id, 1);
+        assert_eq!(inbound.company_id, 1);
+        assert_eq!(out.product_id, 1);
+        assert_eq!(inbound.product_id, 1);
+        assert_eq!(out.movement_type, MovementType::TransferOut);
+        assert_eq!(inbound.movement_type, MovementType::TransferIn);
+    }
+
+    #[test]
+    fn build_movements_tags_both_legs_with_a_matching_reference() {
+        let [out, inbound] = transfer().build_movements();
+        assert_eq!(out.reference, Some("Transfer 10 -> 20".to_string()));
+        assert_eq!(out.reference, inbound.reference);
+    }
+
+    #[test]
+    fn built_movements_are_individually_valid() {
+        let [out, inbound] = transfer().build_movements();
+        assert!(out.validate().is_ok());
+        assert!(inbound.validate().is_ok());
     }
 }

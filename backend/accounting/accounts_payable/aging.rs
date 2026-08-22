@@ -64,4 +64,21 @@ mod tests {
         assert_eq!(summary.days_31_to_60, dec!(200));
         assert_eq!(summary.total(), dec!(300));
     }
+
+    #[test]
+    fn settled_payables_do_not_contribute() {
+        let mut settled = payable(date(2026, 1, 1), dec!(500));
+        settled.amount_paid = dec!(500);
+        let summary = summarize(&[settled], date(2026, 3, 1));
+        assert_eq!(summary.total(), Decimal::ZERO);
+    }
+
+    #[test]
+    fn partially_paid_payables_contribute_only_their_remaining_balance() {
+        let mut partially_paid = payable(date(2026, 1, 1), dec!(500));
+        partially_paid.amount_paid = dec!(300);
+        let summary = summarize(&[partially_paid], date(2026, 1, 1));
+        assert_eq!(summary.current, dec!(200));
+        assert_eq!(summary.total(), dec!(200));
+    }
 }

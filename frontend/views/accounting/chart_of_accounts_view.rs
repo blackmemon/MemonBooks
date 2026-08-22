@@ -6,7 +6,7 @@ use iced::{Element, Length};
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::core::validation::Validate;
-use crate::backend::repositories::accounting_repository::AccountingRepository;
+use crate::backend::services::accounting_service::AccountingService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -36,8 +36,8 @@ pub enum Message {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let repo = AccountingRepository::new(ctx.db.clone());
-    match repo.list_accounts_for_company(ctx.company_id) {
+    let service = AccountingService::new(ctx.db.clone());
+    match service.list_accounts(ctx.company_id) {
         Ok(accounts) => State { accounts, ..Default::default() },
         Err(err) => State { error: Some(err.to_string()), ..Default::default() },
     }
@@ -58,8 +58,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state.error = Some(err.to_string());
                 return;
             }
-            let repo = AccountingRepository::new(ctx.db.clone());
-            match repo.create_account(&account) {
+            let service = AccountingService::new(ctx.db.clone());
+            match service.create_account(&account) {
                 Ok(created) => {
                     state.accounts.push(created);
                     state.accounts.sort_by(|a, b| a.code.cmp(&b.code));

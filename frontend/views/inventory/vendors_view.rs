@@ -9,7 +9,7 @@ use iced::{Element, Length};
 
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::vendors::Vendor;
-use crate::backend::repositories::party_repository::PartyRepository;
+use crate::backend::services::party_service::PartyService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -29,8 +29,8 @@ pub enum Message {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let repo = PartyRepository::new(ctx.db.clone());
-    match repo.list_vendors_for_company(ctx.company_id) {
+    let service = PartyService::new(ctx.db.clone());
+    match service.list_vendors(ctx.company_id) {
         Ok(vendors) => State { vendors, ..Default::default() },
         Err(err) => State { error: Some(err.to_string()), ..Default::default() },
     }
@@ -49,8 +49,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state.error = Some(err.to_string());
                 return;
             }
-            let repo = PartyRepository::new(ctx.db.clone());
-            match repo.create_vendor(&vendor) {
+            let service = PartyService::new(ctx.db.clone());
+            match service.create_vendor(&vendor) {
                 Ok(created) => {
                     state.vendors.push(created);
                     state.name_input.clear();
@@ -89,4 +89,73 @@ pub fn view(state: &State) -> Element<'_, Message> {
     }
 
     container(content).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::backend::repositories::party_repository;
+    use crate::database::database::Database;
+    use std::path::PathBuf;
+
+    fn ctx_with_company() -> Ctx {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(party_repository::MIGRATIONS).unwrap();
+
+        let org_repo = OrganizationRepository::new(db.clone());
+        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+
+        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }
+    }
+
+    #[test]
+    fn field_changed_messages_update_the_corresponding_field() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::NameChanged("Acme Supplies".into()), &ctx);
+        update(&mut state, Message::EmailChanged("ap@acmesupplies.test".into()), &ctx);
+
+        assert_eq!(state.name_input, "Acme Supplies");
+        assert_eq!(state.email_input, "ap@acmesupplies.test");
+    }
+
+    #[test]
+    fn creating_with_a_blank_name_is_rejected_before_reaching_the_service() {
+        let ctx = ctx_with_company();
+        let mut state = State { name_input: "".into(), ..Default::default() };
+
+        update(&mut state, Message::Create, &ctx);
+
+        assert!(state.error.is_some());
+        assert!(state.vendors.is_empty());
+    }
+
+    #[test]
+    fn creating_with_a_blank_email_leaves_it_unset() {
+        let ctx = ctx_with_company();
+        let mut state = State { name_input: "Acme Supplies".into(), email_input: "".into(), ..Default::default() };
+
+        update(&mut state, Message::Create, &ctx);
+
+        assert!(state.error.is_none());
+        assert_eq!(state.vendors[0].email, None);
+    }
+
+    #[test]
+    fn creating_a_valid_vendor_adds_it_to_the_list_and_clears_the_form() {
+        let ctx = ctx_with_company();
+        let mut state = State { name_input: "Acme Supplies".into(), email_input: "ap@acmesupplies.test".into(), ..Default::default() };
+
+        update(&mut state, Message::Create, &ctx);
+
+        assert!(state.error.is_none());
+        assert_eq!(state.vendors.len(), 1);
+        assert_eq!(state.vendors[0].email.as_deref(), Some("ap@acmesupplies.test"));
+        assert!(state.name_input.is_empty());
+        assert!(state.email_input.is_empty());
+    }
 }

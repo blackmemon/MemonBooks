@@ -10,8 +10,7 @@ use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::banking::bank_accounts::BankAccount;
-use crate::backend::repositories::accounting_repository::AccountingRepository;
-use crate::backend::repositories::banking_repository::BankingRepository;
+use crate::backend::services::banking_service::BankingService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -46,25 +45,24 @@ pub enum Message {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let banking_repo = BankingRepository::new(ctx.db.clone());
-    let accounting_repo = AccountingRepository::new(ctx.db.clone());
+    let service = BankingService::new(ctx.db.clone());
     let today = Utc::now().date_naive();
 
-    let bank_accounts = banking_repo
-        .list_bank_accounts_for_company(ctx.company_id)
+    let bank_accounts = service
+        .list_bank_accounts(ctx.company_id)
         .map(|accounts| {
             accounts
                 .into_iter()
                 .map(|account| {
-                    let balance = banking_repo.book_balance(account.id.unwrap_or_default(), today).map(|b| b.to_string()).unwrap_or_else(|_| "?".to_string());
+                    let balance = service.book_balance(account.id.unwrap_or_default(), today).map(|b| b.to_string()).unwrap_or_else(|_| "?".to_string());
                     (account, balance)
                 })
                 .collect()
         })
         .unwrap_or_default();
 
-    let gl_accounts = accounting_repo
-        .list_accounts_for_company(ctx.company_id)
+    let gl_accounts = service
+        .list_gl_accounts(ctx.company_id)
         .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
         .unwrap_or_default();
 
@@ -86,8 +84,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 return;
             };
             let bank_account = BankAccount::new(ctx.company_id, gl_account.id, state.bank_name_input.clone(), state.account_number_input.clone(), "USD");
-            let repo = BankingRepository::new(ctx.db.clone());
-            match repo.create_bank_account(&bank_account) {
+            let service = BankingService::new(ctx.db.clone());
+            match service.create_bank_account(&bank_account) {
                 Ok(created) => {
                     state.bank_accounts.push((created, "0".to_string()));
                     state.bank_name_input.clear();
@@ -133,4 +131,79 @@ pub fn view(state: &State) -> Element<'_, Message> {
     }
 
     container(content).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::accounting::accounting_rules::AccountType;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+    use crate::backend::repositories::banking_repository;
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::database::database::Database;
+    use std::path::PathBuf;
+
+    fn ctx_with_a_gl_account() -> (Ctx, Choice) {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(banking_repository::MIGRATIONS).unwrap();
+
+        let org_repo = OrganizationRepository::new(db.clone());
+        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+
+        let accounting_repo = AccountingRepository::new(db.clone());
+        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let choice = Choice { id: cash.id.unwrap(), label: "1000 - Cash".into() };
+        (ctx, choice)
+    }
+
+    #[test]
+    fn field_changed_messages_update_the_corresponding_field() {
+        let (ctx, gl_account) = ctx_with_a_gl_account();
+        let mut state = State::default();
+
+        update(&mut state, Message::GlAccountSelected(gl_account.clone()), &ctx);
+        update(&mut state, Message::BankNameChanged("First National".into()), &ctx);
+        update(&mut state, Message::AccountNumberChanged("12345".into()), &ctx);
+
+        assert_eq!(state.gl_account, Some(gl_account));
+        assert_eq!(state.bank_name_input, "First National");
+        assert_eq!(state.account_number_input, "12345");
+    }
+
+    #[test]
+    fn creating_without_a_gl_account_sets_an_error() {
+        let (ctx, _gl_account) = ctx_with_a_gl_account();
+        let mut state = State { bank_name_input: "First National".into(), ..Default::default() };
+
+        update(&mut state, Message::Create, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("choose a GL account"));
+        assert!(state.bank_accounts.is_empty());
+    }
+
+    #[test]
+    fn creating_a_valid_bank_account_adds_it_with_a_zero_balance_and_clears_the_form() {
+        let (ctx, gl_account) = ctx_with_a_gl_account();
+        let mut state = State {
+            gl_account: Some(gl_account),
+            bank_name_input: "First National".into(),
+            account_number_input: "12345".into(),
+            ..Default::default()
+        };
+
+        update(&mut state, Message::Create, &ctx);
+
+        assert!(state.error.is_none());
+        assert_eq!(state.bank_accounts.len(), 1);
+        assert_eq!(state.bank_accounts[0].0.bank_name, "First National");
+        assert_eq!(state.bank_accounts[0].1, "0");
+        assert!(state.bank_name_input.is_empty());
+        assert!(state.account_number_input.is_empty());
+    }
 }

@@ -7,8 +7,8 @@ use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Length};
 
 use crate::backend::accounting::trial_balance::TrialBalance;
-use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::reports::trial_balance as trial_balance_report;
+use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
@@ -27,9 +27,9 @@ pub enum Message {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let repo = AccountingRepository::new(ctx.db.clone());
+    let service = ReportService::new(ctx.db.clone());
     let today = Utc::now().date_naive();
-    match repo.trial_balance_as_of(ctx.company_id, today) {
+    match service.trial_balance_as_of(ctx.company_id, today) {
         Ok(report) => State { report: Some(report), export_message: None, error: None },
         Err(err) => State { error: Some(err.to_string()), ..Default::default() },
     }
@@ -100,4 +100,86 @@ pub fn view(state: &State) -> Element<'_, Message> {
     }
 
     container(content).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::accounting::accounting_rules::AccountType;
+    use crate::backend::accounting::chart_of_accounts::Account;
+    use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::backend::transactions::transaction::Transaction;
+    use crate::backend::transactions::transaction_lines::TransactionLine;
+    use crate::backend::transactions::transaction_types::TransactionType;
+    use crate::database::database::Database;
+    use chrono::NaiveDate;
+    use rust_decimal_macros::dec;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn ctx_with_a_posted_transaction() -> Ctx {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+
+        let org_repo = OrganizationRepository::new(db.clone());
+        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+
+        let accounting_repo = AccountingRepository::new(db.clone());
+        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
+        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        accounting_repo
+            .post_transaction(
+                &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
+                    .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(1000)))
+                    .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(1000))),
+            )
+            .unwrap();
+
+        let export_dir = std::env::temp_dir().join(format!("memonbooks_trial_balance_view_test_{:?}", std::thread::current().id()));
+        Ctx { db, company_id, current_user_id: None, export_dir }
+    }
+
+    #[test]
+    fn refresh_loads_a_balanced_report_reflecting_posted_transactions() {
+        let ctx = ctx_with_a_posted_transaction();
+        let mut state = State::default();
+
+        update(&mut state, Message::Refresh, &ctx);
+
+        let report = state.report.expect("report should have loaded");
+        assert!(report.is_balanced());
+        assert_eq!(report.total_debits(), dec!(1000));
+    }
+
+    #[test]
+    fn export_csv_with_no_report_loaded_is_a_no_op() {
+        let ctx = ctx_with_a_posted_transaction();
+        let mut state = State::default();
+
+        update(&mut state, Message::ExportCsv, &ctx);
+
+        assert!(state.export_message.is_none());
+    }
+
+    #[test]
+    fn export_csv_writes_a_file_and_sets_the_export_message() {
+        let ctx = ctx_with_a_posted_transaction();
+        let mut state = load(&ctx);
+
+        update(&mut state, Message::ExportCsv, &ctx);
+
+        assert!(state.export_message.is_some());
+        assert!(state.error.is_none());
+        assert!(ctx.export_path("trial_balance.csv").exists());
+
+        let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
 }

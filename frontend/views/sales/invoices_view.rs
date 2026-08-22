@@ -7,10 +7,8 @@ use iced::widget::{button, column, container, pick_list, row, scrollable, text, 
 use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
-use crate::backend::repositories::accounting_repository::AccountingRepository;
-use crate::backend::repositories::party_repository::PartyRepository;
-use crate::backend::repositories::sales_repository::SalesRepository;
 use crate::backend::sales::invoices::{Invoice, InvoiceLine};
+use crate::backend::services::sales_service::SalesService;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -51,20 +49,18 @@ pub enum Message {
 }
 
 pub fn load(ctx: &Ctx) -> State {
-    let sales_repo = SalesRepository::new(ctx.db.clone());
-    let party_repo = PartyRepository::new(ctx.db.clone());
-    let accounting_repo = AccountingRepository::new(ctx.db.clone());
+    let service = SalesService::new(ctx.db.clone());
 
-    let customers = party_repo
-        .list_customers_for_company(ctx.company_id)
+    let customers = service
+        .list_customers(ctx.company_id)
         .map(|customers| customers.iter().map(|c| Choice { id: c.id.unwrap_or_default(), label: c.name.clone() }).collect())
         .unwrap_or_default();
-    let accounts: Vec<Choice> = accounting_repo
-        .list_accounts_for_company(ctx.company_id)
+    let accounts: Vec<Choice> = service
+        .list_gl_accounts(ctx.company_id)
         .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
         .unwrap_or_default();
 
-    let invoices = sales_repo.list_invoices_for_company(ctx.company_id).unwrap_or_default();
+    let invoices = service.list_invoices(ctx.company_id).unwrap_or_default();
 
     State {
         invoices,
@@ -102,15 +98,15 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             let mut invoice = Invoice::new(ctx.company_id, customer.id, today, due_date);
             invoice.lines.push(InvoiceLine::new(revenue_account.id, state.description_input.clone(), Decimal::ONE, amount));
 
-            let repo = SalesRepository::new(ctx.db.clone());
-            let created = match repo.create_invoice(&invoice) {
+            let service = SalesService::new(ctx.db.clone());
+            let created = match service.create_invoice(&invoice) {
                 Ok(invoice) => invoice,
                 Err(err) => {
                     state.error = Some(err.to_string());
                     return;
                 }
             };
-            match repo.post_invoice(created.id.unwrap_or_default(), ar_account.id) {
+            match service.post_invoice(created.id.unwrap_or_default(), ar_account.id) {
                 Ok((posted, _transaction, _receivable)) => {
                     state.message = Some(format!("Posted invoice #{}.", posted.id.unwrap_or_default()));
                     state.invoices.push(posted);
@@ -169,4 +165,116 @@ pub fn view(state: &State) -> Element<'_, Message> {
     }
 
     container(content).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::accounting::accounting_rules::AccountType;
+    use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::parties::customers::Customer;
+    use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::backend::repositories::party_repository::{self, PartyRepository};
+    use crate::backend::repositories::sales_repository;
+    use crate::database::database::Database;
+    use chrono::NaiveDate;
+    use std::path::PathBuf;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn ctx_with_customer_and_accounts() -> (Ctx, Choice, Choice, Choice) {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(party_repository::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(sales_repository::MIGRATIONS).unwrap();
+
+        let org_repo = OrganizationRepository::new(db.clone());
+        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+
+        let party_repo = PartyRepository::new(db.clone());
+        let customer = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+
+        let accounting_repo = AccountingRepository::new(db.clone());
+        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
+        let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
+        let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let customer_choice = Choice { id: customer.id.unwrap(), label: customer.name.clone() };
+        let ar_choice = Choice { id: ar.id.unwrap(), label: "1100 - Accounts Receivable".into() };
+        let revenue_choice = Choice { id: revenue.id.unwrap(), label: "4000 - Sales Revenue".into() };
+        (ctx, customer_choice, ar_choice, revenue_choice)
+    }
+
+    #[test]
+    fn field_changed_messages_update_the_corresponding_field() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let mut state = State::default();
+
+        update(&mut state, Message::CustomerSelected(customer.clone()), &ctx);
+        update(&mut state, Message::ArAccountSelected(ar.clone()), &ctx);
+        update(&mut state, Message::RevenueAccountSelected(revenue.clone()), &ctx);
+        update(&mut state, Message::DescriptionChanged("Consulting".into()), &ctx);
+        update(&mut state, Message::AmountChanged("1500".into()), &ctx);
+
+        assert_eq!(state.customer, Some(customer));
+        assert_eq!(state.ar_account, Some(ar));
+        assert_eq!(state.revenue_account, Some(revenue));
+        assert_eq!(state.description_input, "Consulting");
+        assert_eq!(state.amount_input, "1500");
+    }
+
+    #[test]
+    fn creating_without_choosing_customer_and_both_accounts_sets_an_error() {
+        let (ctx, customer, _ar, _revenue) = ctx_with_customer_and_accounts();
+        let mut state = State { customer: Some(customer), ..Default::default() };
+
+        update(&mut state, Message::CreateAndPost, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("choose a customer, AR account, and revenue account"));
+    }
+
+    #[test]
+    fn creating_with_a_non_numeric_amount_sets_an_error() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let mut state = State {
+            customer: Some(customer),
+            ar_account: Some(ar),
+            revenue_account: Some(revenue),
+            amount_input: "not a number".into(),
+            ..Default::default()
+        };
+
+        update(&mut state, Message::CreateAndPost, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("amount is not a valid number"));
+    }
+
+    #[test]
+    fn creating_and_posting_a_valid_invoice_adds_it_to_the_list_and_clears_the_form() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let mut state = State {
+            customer: Some(customer),
+            ar_account: Some(ar),
+            revenue_account: Some(revenue),
+            description_input: "Consulting".into(),
+            amount_input: "1500".into(),
+            ..Default::default()
+        };
+
+        update(&mut state, Message::CreateAndPost, &ctx);
+
+        assert!(state.error.is_none());
+        assert!(state.message.as_deref().unwrap_or_default().starts_with("Posted invoice"));
+        assert_eq!(state.invoices.len(), 1);
+        assert_eq!(state.invoices[0].total(), rust_decimal_macros::dec!(1500));
+        assert!(state.description_input.is_empty());
+        assert!(state.amount_input.is_empty());
+    }
 }

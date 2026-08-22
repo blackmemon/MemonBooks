@@ -5,6 +5,35 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- `SalesRepository::record_customer_payment` and
+  `PurchaseRepository::record_vendor_payment` now reject a payment
+  greater than the customer's/vendor's total open balance, before
+  posting anything. Previously the GL transaction always posted for
+  the payment's full nominal amount (debit cash, credit AR/AP) while
+  the receivables/payables subledger only ever allocated up to what
+  was actually owed (`allocate_collection`/`allocate_payment` silently
+  drop any leftover by design) -- an overpayment left the AR/AP
+  control account and its subledger permanently out of agreement, with
+  the excess amount untracked anywhere. Found while writing the
+  overpayment integration test called for in the post-step-20
+  self-audit; confirmed with `tests/sales/main.rs`'s
+  `overpaying_a_receivable_is_rejected_and_posts_nothing`.
+- Credit notes and debit notes now actually post. `create_credit_note`/
+  `create_debit_note` only ever inserted the header/line rows --
+  `CreditNote::build_transaction`/`DebitNote::build_transaction`
+  existed but were never called by anything, so a "posted" credit or
+  debit note had zero effect on the general ledger or the linked
+  receivable's/payable's balance, despite both modules' doc comments
+  saying otherwise. Adds `SalesRepository::post_credit_note` and
+  `PurchaseRepository::post_debit_note`, which build and post the
+  transaction, and -- mirroring the overpayment fix above -- reject a
+  note whose total exceeds its linked receivable's/payable's remaining
+  balance before posting anything. Also adds
+  `AccountingRepository::get_receivable`/`get_payable`, needed to check
+  that balance. Found while writing the "crediting a partially-paid
+  invoice" test called for in the post-step-20 self-audit.
+
 ### Changed
 - Views now route all data access through `backend/services/*.rs`
   instead of calling repositories directly, closing an Architecture

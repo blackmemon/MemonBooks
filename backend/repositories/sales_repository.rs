@@ -11,6 +11,7 @@
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::accounting::accounts_receivable::receivables::Receivable;
 use crate::backend::core::errors::{AppError, AppResult};
@@ -21,7 +22,7 @@ use crate::backend::pos::sales::PosSale;
 use crate::backend::pos::sessions::{PosSession, PosSessionStatus};
 use crate::backend::pos::terminals::Terminal;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
-use crate::backend::sales::credit_notes::CreditNote;
+use crate::backend::sales::credit_notes::{CreditNote, CreditNoteLine};
 use crate::backend::sales::invoices::{Invoice, InvoiceLine, InvoiceStatus};
 use crate::backend::sales::payments::CustomerPayment;
 use crate::backend::sales::quotations::{Quotation, QuotationLine, QuotationStatus};
@@ -320,13 +321,96 @@ impl SalesRepository {
         .map(|id| CreditNote { id: Some(id), ..credit_note.clone() })
     }
 
+    pub fn get_credit_note(&self, id: i64) -> AppResult<CreditNote> {
+        self.db.with_connection(|conn| {
+            let mut header = conn
+                .query_row(
+                    "SELECT id, company_id, customer_id, receivable_id, credit_note_date, transaction_id FROM credit_notes WHERE id = ?1",
+                    params![id],
+                    map_credit_note,
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("credit note {id} not found")))?;
+
+            let mut stmt = conn.prepare(
+                "SELECT revenue_account_id, description, amount FROM credit_note_lines WHERE credit_note_id = ?1 ORDER BY line_number",
+            )?;
+            header.lines = stmt
+                .query_map(params![id], map_credit_note_line)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(header)
+        })
+    }
+
+    /// Builds the GL transaction from a draft credit note and posts it
+    /// (credit AR, debit each line's revenue account). If the credit
+    /// note is linked to a specific receivable, rejects it up front if
+    /// its total exceeds that receivable's remaining balance -- same
+    /// reasoning as `record_customer_payment`'s cap: crediting more than
+    /// what's actually still owed would leave the AR control account
+    /// and the receivables subledger out of agreement.
+    pub fn post_credit_note(&self, credit_note_id: i64, ar_account_id: i64) -> AppResult<(CreditNote, Transaction)> {
+        let credit_note = self.get_credit_note(credit_note_id)?;
+        if credit_note.transaction_id.is_some() {
+            return Err(AppError::Validation("credit note is already posted".into()));
+        }
+
+        if let Some(receivable_id) = credit_note.receivable_id {
+            let receivable = self.accounting.get_receivable(receivable_id)?;
+            if credit_note.total() > receivable.balance() {
+                return Err(AppError::Validation(format!(
+                    "credit note amount {} exceeds the linked receivable's remaining balance of {}",
+                    credit_note.total(),
+                    receivable.balance()
+                )));
+            }
+        }
+
+        let transaction = credit_note.build_transaction(ar_account_id);
+        let posted = self.accounting.post_transaction(&transaction)?;
+
+        self.db.with_connection(|conn| {
+            conn.execute("UPDATE credit_notes SET transaction_id = ?1 WHERE id = ?2", params![posted.id, credit_note_id])?;
+            Ok(())
+        })?;
+
+        if let Some(receivable_id) = credit_note.receivable_id {
+            self.accounting.apply_receivable_payments(&[(receivable_id, credit_note.total())])?;
+        }
+
+        Ok((CreditNote { transaction_id: posted.id, ..credit_note }, posted))
+    }
+
     // -- customer payments --------------------------------------------
 
     /// Posts the payment's GL transaction, records the payment header,
     /// and applies the amount across the customer's open receivables
     /// (oldest due date first).
+    ///
+    /// Rejects a payment greater than the customer's total open
+    /// balance before posting anything -- the GL transaction always
+    /// moves the payment's full nominal amount, but allocation to the
+    /// subledger caps at what's actually owed, so an unchecked
+    /// overpayment would leave the AR control account and the
+    /// receivables subledger permanently out of agreement with no
+    /// record of where the excess went.
     pub fn record_customer_payment(&self, payment: &CustomerPayment, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
         payment.validate()?;
+
+        let open_receivables: Vec<Receivable> = self
+            .accounting
+            .list_open_receivables_for_company(payment.company_id)?
+            .into_iter()
+            .filter(|r| r.customer_id == payment.customer_id)
+            .collect();
+        let total_open_balance: Decimal = open_receivables.iter().map(Receivable::balance).sum();
+        if payment.amount > total_open_balance {
+            return Err(AppError::Validation(format!(
+                "payment amount {} exceeds the customer's total open balance of {total_open_balance}",
+                payment.amount
+            )));
+        }
+
         let transaction = payment.build_transaction(cash_account_id, ar_account_id);
         let posted = self.accounting.post_transaction(&transaction)?;
 
@@ -339,12 +423,6 @@ impl SalesRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        let open_receivables: Vec<Receivable> = self
-            .accounting
-            .list_open_receivables_for_company(payment.company_id)?
-            .into_iter()
-            .filter(|r| r.customer_id == payment.customer_id)
-            .collect();
         let allocations = crate::backend::accounting::accounts_receivable::collections::allocate_collection(&open_receivables, payment.amount);
         self.accounting.apply_receivable_payments(&allocations)?;
 
@@ -590,6 +668,27 @@ fn map_invoice_line(row: &Row) -> rusqlite::Result<InvoiceLine> {
     })
 }
 
+fn map_credit_note(row: &Row) -> rusqlite::Result<CreditNote> {
+    Ok(CreditNote {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        customer_id: row.get(2)?,
+        receivable_id: row.get(3)?,
+        credit_note_date: row.get(4)?,
+        lines: Vec::new(),
+        transaction_id: row.get(5)?,
+    })
+}
+
+fn map_credit_note_line(row: &Row) -> rusqlite::Result<CreditNoteLine> {
+    let amount_text: String = row.get(2)?;
+    Ok(CreditNoteLine {
+        revenue_account_id: row.get(0)?,
+        description: row.get(1)?,
+        amount: amount_text.parse().unwrap_or_default(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,6 +828,61 @@ mod tests {
 
         let accounting = AccRepo::new(f.sales.db.clone());
         assert!(accounting.list_open_receivables_for_company(f.company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn posting_a_credit_note_against_a_receivable_reduces_its_balance() {
+        let f = fixture();
+        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
+        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(2000)));
+        let invoice = f.sales.create_invoice(&invoice).unwrap();
+        let (_, _, receivable) = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+
+        let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
+        credit_note.receivable_id = Some(receivable.id.unwrap());
+        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "Return", dec!(500)));
+        let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
+
+        let (posted, transaction) = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id).unwrap();
+        assert!(posted.transaction_id.is_some());
+        assert!(transaction.is_balanced());
+
+        let accounting = AccRepo::new(f.sales.db.clone());
+        let updated_receivable = accounting.get_receivable(receivable.id.unwrap()).unwrap();
+        assert_eq!(updated_receivable.balance(), dec!(1500));
+    }
+
+    #[test]
+    fn posting_a_credit_note_exceeding_the_linked_receivables_balance_is_rejected() {
+        let f = fixture();
+        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
+        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(500)));
+        let invoice = f.sales.create_invoice(&invoice).unwrap();
+        let (_, _, receivable) = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+
+        let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
+        credit_note.receivable_id = Some(receivable.id.unwrap());
+        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "Return", dec!(1000))); // more than the 500 owed
+        let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
+
+        let result = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
+        assert!(result.is_err());
+
+        let accounting = AccRepo::new(f.sales.db.clone());
+        let unchanged_receivable = accounting.get_receivable(receivable.id.unwrap()).unwrap();
+        assert_eq!(unchanged_receivable.balance(), dec!(500));
+    }
+
+    #[test]
+    fn posting_an_already_posted_credit_note_is_rejected() {
+        let f = fixture();
+        let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
+        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "General credit", dec!(100)));
+        let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
+        f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id).unwrap();
+
+        let result = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
+        assert!(result.is_err());
     }
 
     #[test]

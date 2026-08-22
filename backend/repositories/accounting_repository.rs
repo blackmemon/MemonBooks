@@ -626,6 +626,19 @@ impl AccountingRepository {
         })
     }
 
+    pub fn get_receivable(&self, id: i64) -> AppResult<Receivable> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                "SELECT id, company_id, customer_id, reference, invoice_date, due_date, amount, amount_paid, transaction_id
+                 FROM receivables WHERE id = ?1",
+                params![id],
+                map_receivable,
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("receivable {id} not found")))
+        })
+    }
+
     pub fn list_open_receivables_for_company(&self, company_id: i64) -> AppResult<Vec<Receivable>> {
         let all = self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
@@ -676,6 +689,19 @@ impl AccountingRepository {
                 id: Some(conn.last_insert_rowid()),
                 ..payable.clone()
             })
+        })
+    }
+
+    pub fn get_payable(&self, id: i64) -> AppResult<Payable> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                "SELECT id, company_id, vendor_id, reference, bill_date, due_date, amount, amount_paid, transaction_id
+                 FROM payables WHERE id = ?1",
+                params![id],
+                map_payable,
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("payable {id} not found")))
         })
     }
 

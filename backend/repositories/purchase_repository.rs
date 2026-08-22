@@ -2,12 +2,13 @@
 //! payments. Mirrors `sales_repository.rs`.
 
 use rusqlite::{params, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::accounting::accounts_payable::payables::Payable;
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
 use crate::backend::purchases::bills::{Bill, BillLine, BillStatus};
-use crate::backend::purchases::debit_notes::DebitNote;
+use crate::backend::purchases::debit_notes::{DebitNote, DebitNoteLine};
 use crate::backend::purchases::payments::VendorPayment;
 use crate::backend::purchases::purchase_orders::{PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus};
 use crate::backend::repositories::accounting_repository::AccountingRepository;
@@ -243,10 +244,88 @@ impl PurchaseRepository {
         .map(|id| DebitNote { id: Some(id), ..debit_note.clone() })
     }
 
+    pub fn get_debit_note(&self, id: i64) -> AppResult<DebitNote> {
+        self.db.with_connection(|conn| {
+            let mut header = conn
+                .query_row(
+                    "SELECT id, company_id, vendor_id, payable_id, debit_note_date, transaction_id FROM debit_notes WHERE id = ?1",
+                    params![id],
+                    map_debit_note,
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("debit note {id} not found")))?;
+
+            let mut stmt =
+                conn.prepare("SELECT account_id, description, amount FROM debit_note_lines WHERE debit_note_id = ?1 ORDER BY line_number")?;
+            header.lines = stmt
+                .query_map(params![id], map_debit_note_line)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(header)
+        })
+    }
+
+    /// Builds the GL transaction from a draft debit note and posts it
+    /// (debit AP, credit each line's account). Mirrors
+    /// `SalesRepository::post_credit_note`: if the debit note is linked
+    /// to a specific payable, rejects it up front if its total exceeds
+    /// that payable's remaining balance, for the same reconciliation
+    /// reason.
+    pub fn post_debit_note(&self, debit_note_id: i64, ap_account_id: i64) -> AppResult<(DebitNote, Transaction)> {
+        let debit_note = self.get_debit_note(debit_note_id)?;
+        if debit_note.transaction_id.is_some() {
+            return Err(AppError::Validation("debit note is already posted".into()));
+        }
+
+        if let Some(payable_id) = debit_note.payable_id {
+            let payable = self.accounting.get_payable(payable_id)?;
+            if debit_note.total() > payable.balance() {
+                return Err(AppError::Validation(format!(
+                    "debit note amount {} exceeds the linked payable's remaining balance of {}",
+                    debit_note.total(),
+                    payable.balance()
+                )));
+            }
+        }
+
+        let transaction = debit_note.build_transaction(ap_account_id);
+        let posted = self.accounting.post_transaction(&transaction)?;
+
+        self.db.with_connection(|conn| {
+            conn.execute("UPDATE debit_notes SET transaction_id = ?1 WHERE id = ?2", params![posted.id, debit_note_id])?;
+            Ok(())
+        })?;
+
+        if let Some(payable_id) = debit_note.payable_id {
+            self.accounting.apply_payable_payments(&[(payable_id, debit_note.total())])?;
+        }
+
+        Ok((DebitNote { transaction_id: posted.id, ..debit_note }, posted))
+    }
+
     // -- vendor payments --------------------------------------------------
 
+    /// Rejects a payment greater than the vendor's total open balance
+    /// before posting anything -- see the matching note on
+    /// `SalesRepository::record_customer_payment` for why: the GL
+    /// transaction always moves the payment's full nominal amount, but
+    /// subledger allocation caps at what's actually owed.
     pub fn record_vendor_payment(&self, payment: &VendorPayment, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
         payment.validate()?;
+
+        let open_payables: Vec<Payable> = self
+            .accounting
+            .list_open_payables_for_company(payment.company_id)?
+            .into_iter()
+            .filter(|p| p.vendor_id == payment.vendor_id)
+            .collect();
+        let total_open_balance: Decimal = open_payables.iter().map(Payable::balance).sum();
+        if payment.amount > total_open_balance {
+            return Err(AppError::Validation(format!(
+                "payment amount {} exceeds the vendor's total open balance of {total_open_balance}",
+                payment.amount
+            )));
+        }
+
         let transaction = payment.build_transaction(ap_account_id, cash_account_id);
         let posted = self.accounting.post_transaction(&transaction)?;
 
@@ -259,12 +338,6 @@ impl PurchaseRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        let open_payables: Vec<Payable> = self
-            .accounting
-            .list_open_payables_for_company(payment.company_id)?
-            .into_iter()
-            .filter(|p| p.vendor_id == payment.vendor_id)
-            .collect();
         let allocations = crate::backend::accounting::accounts_payable::payments::allocate_payment(&open_payables, payment.amount);
         self.accounting.apply_payable_payments(&allocations)?;
 
@@ -325,6 +398,27 @@ fn map_bill_line(row: &Row) -> rusqlite::Result<BillLine> {
         description: row.get(1)?,
         quantity: quantity_text.parse().unwrap_or_default(),
         unit_price: unit_price_text.parse().unwrap_or_default(),
+    })
+}
+
+fn map_debit_note(row: &Row) -> rusqlite::Result<DebitNote> {
+    Ok(DebitNote {
+        id: Some(row.get(0)?),
+        company_id: row.get(1)?,
+        vendor_id: row.get(2)?,
+        payable_id: row.get(3)?,
+        debit_note_date: row.get(4)?,
+        lines: Vec::new(),
+        transaction_id: row.get(5)?,
+    })
+}
+
+fn map_debit_note_line(row: &Row) -> rusqlite::Result<DebitNoteLine> {
+    let amount_text: String = row.get(2)?;
+    Ok(DebitNoteLine {
+        account_id: row.get(0)?,
+        description: row.get(1)?,
+        amount: amount_text.parse().unwrap_or_default(),
     })
 }
 
@@ -419,5 +513,60 @@ mod tests {
 
         let accounting = AccRepo::new(f.purchases.db.clone());
         assert!(accounting.list_open_payables_for_company(f.company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn posting_a_debit_note_against_a_payable_reduces_its_balance() {
+        let f = fixture();
+        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
+        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(300)));
+        let bill = f.purchases.create_bill(&bill).unwrap();
+        let (_, _, payable) = f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+
+        let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
+        debit_note.payable_id = Some(payable.id.unwrap());
+        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "Damaged goods return", dec!(100)));
+        let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
+
+        let (posted, transaction) = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id).unwrap();
+        assert!(posted.transaction_id.is_some());
+        assert!(transaction.is_balanced());
+
+        let accounting = AccRepo::new(f.purchases.db.clone());
+        let updated_payable = accounting.get_payable(payable.id.unwrap()).unwrap();
+        assert_eq!(updated_payable.balance(), dec!(200));
+    }
+
+    #[test]
+    fn posting_a_debit_note_exceeding_the_linked_payables_balance_is_rejected() {
+        let f = fixture();
+        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
+        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(100)));
+        let bill = f.purchases.create_bill(&bill).unwrap();
+        let (_, _, payable) = f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+
+        let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
+        debit_note.payable_id = Some(payable.id.unwrap());
+        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "Damaged goods return", dec!(250))); // more than the 100 owed
+        let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
+
+        let result = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
+        assert!(result.is_err());
+
+        let accounting = AccRepo::new(f.purchases.db.clone());
+        let unchanged_payable = accounting.get_payable(payable.id.unwrap()).unwrap();
+        assert_eq!(unchanged_payable.balance(), dec!(100));
+    }
+
+    #[test]
+    fn posting_an_already_posted_debit_note_is_rejected() {
+        let f = fixture();
+        let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
+        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "General credit", dec!(50)));
+        let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
+        f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id).unwrap();
+
+        let result = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
+        assert!(result.is_err());
     }
 }

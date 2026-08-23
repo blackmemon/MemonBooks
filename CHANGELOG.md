@@ -121,8 +121,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `customers_view`/`dashboard_view`) rather than sitting invisible in
   the backend. Comparable in scope to one Development Order step (AR/AP
   itself was step 9); not started.
-- No onboarding UI yet for creating additional companies, changing the
-  bootstrap-generated admin password, or switching users.
 - Real email/SMS/WhatsApp delivery needs a configured provider;
   `Unconfigured*Sender` validates fully and fails with a clear error
   until one is wired in.
@@ -130,6 +128,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   unverified end to end -- no macOS, Windows SDK, or Flatpak build
   environment was available to actually produce and sign a package in
   this environment.
-- Icon assets are a placeholder (`packaging/linux/icon.svg`); a
-  designed icon set should replace it before shipping.
-- `LICENSE` is a placeholder; a license still needs to be chosen.
+- Icon assets are a simple placeholder MB monogram
+  (`packaging/generate_icon.py`, `packaging/icon-master-1024.png`),
+  not designed artwork; a professionally designed icon set should
+  replace it before a public release.
+- `LICENSE` is a placeholder -- deferred intentionally, not forgotten;
+  a license still needs to be chosen before a public release.
+
+### Onboarding
+- First-run flow: the bootstrap-generated administrator account must
+  change its password before reaching the rest of the app, with no
+  route that bypasses it.
+- Multi-company: a Companies screen to create additional companies
+  (each with its own open fiscal period, ready to post to
+  immediately) and switch which one the app is working in.
+- A basic user switcher: pick another active user and authenticate as
+  them directly, without a full logout/login round trip.

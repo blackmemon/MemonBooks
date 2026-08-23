@@ -2,13 +2,13 @@
 // (Development Order step 1), now wired to real views module-by-module
 // (Development Order step 19).
 //
-// Views call repositories directly rather than going through a
-// services/ indirection layer -- Architecture Rules (Section 3) require
-// the frontend to never manipulate database *tables* directly, which is
-// honored (every call here goes through a repository, never raw SQL);
-// the services/ files remain stubs, since at this scope they'd just be
-// pass-through wrappers with no behavior of their own. That's a
-// deliberate simplification, not an oversight.
+// Views route all data access through backend/services/*.rs, per
+// Architecture Rules (Section 3: "Iced View -> Service -> Repository ->
+// Database"). This file itself is the composition root -- it still
+// talks to repositories directly for one-time bootstrap (creating the
+// default company/admin before any session exists to route a service
+// call through), which is the same exception every service's own
+// constructor makes.
 
 use chrono::{Datelike, Utc};
 
@@ -33,7 +33,7 @@ use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::{Database, Migration};
 use memonbooks::frontend::styles::colors;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entry_view, tax_rates_view, trial_balance_view};
-use memonbooks::frontend::views::auth::login_view;
+use memonbooks::frontend::views::auth::{login_view, password_change_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
 use memonbooks::frontend::views::hr::{employees_view, expenses_view};
 use memonbooks::frontend::views::inventory::{bills_view, products_view, vendors_view, warehouses_view};
@@ -117,7 +117,8 @@ fn ensure_default_admin(db: &Database) {
         .map(char::from)
         .collect();
     let password_hash = hash_password(&password).expect("failed to hash default admin password");
-    let user = User::new("admin", "Administrator", password_hash, role.id.expect("persisted role must have an id"));
+    let mut user = User::new("admin", "Administrator", password_hash, role.id.expect("persisted role must have an id"));
+    user.must_change_password = true;
     user_repo.create_user(&user).expect("failed to create default admin user");
 
     log::warn!("No users existed yet -- created a default administrator account.");
@@ -197,6 +198,7 @@ struct MemonBooks {
     session: Option<User>,
     route: Route,
     login: login_view::State,
+    password_change: password_change_view::State,
     dashboard: dashboard_view::State,
     chart_of_accounts: chart_of_accounts_view::State,
     journal_entry: journal_entry_view::State,
@@ -222,6 +224,7 @@ enum Message {
     Navigate(Route),
     Logout,
     Login(login_view::Message),
+    PasswordChange(password_change_view::Message),
     Dashboard(dashboard_view::Message),
     ChartOfAccounts(chart_of_accounts_view::Message),
     JournalEntry(journal_entry_view::Message),
@@ -249,6 +252,7 @@ impl MemonBooks {
             session: None,
             route: Route::Dashboard,
             login: login_view::State::default(),
+            password_change: password_change_view::State::default(),
             dashboard: dashboard_view::State::default(),
             chart_of_accounts: chart_of_accounts_view::State::default(),
             journal_entry: journal_entry_view::State::default(),
@@ -315,6 +319,15 @@ impl MemonBooks {
                     self.load_route(Route::Dashboard);
                 }
             }
+            Message::PasswordChange(inner) => {
+                let Some(user) = self.session.clone() else { return };
+                if let password_change_view::Event::Changed(updated_user) = password_change_view::update(&mut self.password_change, inner, &self.ctx, &user) {
+                    self.session = Some(updated_user);
+                    self.password_change = password_change_view::State::default();
+                    self.route = Route::Dashboard;
+                    self.load_route(Route::Dashboard);
+                }
+            }
             Message::Dashboard(inner) => dashboard_view::update(&mut self.dashboard, inner, &self.ctx),
             Message::ChartOfAccounts(inner) => chart_of_accounts_view::update(&mut self.chart_of_accounts, inner, &self.ctx),
             Message::JournalEntry(inner) => journal_entry_view::update(&mut self.journal_entry, inner, &self.ctx),
@@ -340,6 +353,12 @@ impl MemonBooks {
         let Some(user) = &self.session else {
             return login_view::view(&self.login).map(Message::Login);
         };
+
+        // No way around this screen while set -- not even by navigating
+        // directly, since nothing below here renders until it's clear.
+        if user.must_change_password {
+            return password_change_view::view(&self.password_change).map(Message::PasswordChange);
+        }
 
         let mut nav = column![text(format!("Signed in as {}", user.display_name)).size(12).color(colors::WHITE_PRIMARY)].spacing(6).padding(12);
         for (route, label) in NAV_ITEMS {

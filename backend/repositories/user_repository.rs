@@ -47,6 +47,15 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             revoked_at  TEXT
         );
     ",
+}, Migration {
+    // 401 is already taken by backend::audit::audit_logs -- migration
+    // versions are a single global namespace (schema_migrations' primary
+    // key), not scoped per file, so every new migration anywhere in the
+    // codebase has to be checked against all the others, not just this
+    // file's own.
+    version: 402,
+    name: "users_must_change_password",
+    sql: "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;",
 }];
 
 #[derive(Clone)]
@@ -141,8 +150,8 @@ impl UserRepository {
         user.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO users (username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO users (username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     user.username,
                     user.display_name,
@@ -151,6 +160,7 @@ impl UserRepository {
                     user.is_active,
                     user.two_factor_enabled,
                     user.two_factor_secret,
+                    user.must_change_password,
                 ],
             )?;
             Ok(User {
@@ -163,7 +173,7 @@ impl UserRepository {
     pub fn get_user(&self, id: i64) -> AppResult<User> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
                  FROM users WHERE id = ?1",
                 params![id],
                 map_user,
@@ -177,7 +187,7 @@ impl UserRepository {
         let username = username.to_ascii_lowercase();
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
                  FROM users WHERE username = ?1",
                 params![username],
                 map_user,
@@ -190,7 +200,7 @@ impl UserRepository {
     pub fn list_users(&self) -> AppResult<Vec<User>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
                  FROM users ORDER BY username",
             )?;
             let rows = stmt.query_map([], map_user)?;
@@ -206,7 +216,7 @@ impl UserRepository {
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE users SET username = ?1, display_name = ?2, password_hash = ?3, role_id = ?4,
-                 is_active = ?5, two_factor_enabled = ?6, two_factor_secret = ?7 WHERE id = ?8",
+                 is_active = ?5, two_factor_enabled = ?6, two_factor_secret = ?7, must_change_password = ?8 WHERE id = ?9",
                 params![
                     user.username,
                     user.display_name,
@@ -215,11 +225,29 @@ impl UserRepository {
                     user.is_active,
                     user.two_factor_enabled,
                     user.two_factor_secret,
+                    user.must_change_password,
                     id,
                 ],
             )?;
             if affected == 0 {
                 return Err(AppError::NotFound(format!("user {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Sets a new password hash and clears `must_change_password` in
+    /// one update -- the operation `AuthService::change_password`
+    /// drives, rather than requiring callers to round-trip a full
+    /// `update_user` themselves.
+    pub fn set_password(&self, user_id: i64, new_password_hash: &str) -> AppResult<()> {
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE users SET password_hash = ?1, must_change_password = 0 WHERE id = ?2",
+                params![new_password_hash, user_id],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("user {user_id} not found")));
             }
             Ok(())
         })
@@ -285,6 +313,7 @@ fn map_user(row: &Row) -> rusqlite::Result<User> {
         is_active: row.get(5)?,
         two_factor_enabled: row.get(6)?,
         two_factor_secret: row.get(7)?,
+        must_change_password: row.get(8)?,
     })
 }
 

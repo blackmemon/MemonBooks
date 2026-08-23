@@ -10,7 +10,8 @@
 //! `core::auth::authentication` that decide the login outcome.
 
 use crate::backend::core::auth::authentication::{authenticate, verify_two_factor, AuthOutcome};
-use crate::backend::core::errors::AppResult;
+use crate::backend::core::auth::passwords::{hash_password, verify_password};
+use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::users::User;
 use crate::backend::repositories::user_repository::UserRepository;
 use crate::database::database::Database;
@@ -37,5 +38,25 @@ impl AuthService {
     /// returned `TwoFactorRequired`.
     pub fn login_with_two_factor_code(&self, user: &User, code: &str) -> AppResult<User> {
         verify_two_factor(user, code)
+    }
+
+    /// Verifies `current_password` against the stored hash, then hashes
+    /// and stores `new_password` and clears `must_change_password` --
+    /// the one path (forced or voluntary) for a user to change their
+    /// own password. Requiring the current password even on the forced
+    /// first-login change catches a mistyped assumption about what the
+    /// temporary password was, not just a rubber-stamp confirmation.
+    pub fn change_password(&self, user: &User, current_password: &str, new_password: &str) -> AppResult<User> {
+        let user_id = user.id.ok_or_else(|| AppError::Validation("cannot change the password of a user without an id".into()))?;
+        if !verify_password(current_password, &user.password_hash)? {
+            return Err(AppError::Validation("current password is incorrect".into()));
+        }
+        let new_hash = hash_password(new_password)?;
+        self.repo.set_password(user_id, &new_hash)?;
+        Ok(User {
+            password_hash: new_hash,
+            must_change_password: false,
+            ..user.clone()
+        })
     }
 }

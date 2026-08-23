@@ -15,6 +15,11 @@ pub struct User {
     pub is_active: bool,
     pub two_factor_enabled: bool,
     pub two_factor_secret: Option<String>,
+    /// Forces a password change before this account can use anything
+    /// past the login screen -- set on the bootstrap-generated admin
+    /// account so a freshly-installed system's freshly-logged
+    /// credential doesn't stay live indefinitely.
+    pub must_change_password: bool,
 }
 
 impl User {
@@ -28,6 +33,7 @@ impl User {
             is_active: true,
             two_factor_enabled: false,
             two_factor_secret: None,
+            must_change_password: false,
         }
     }
 }

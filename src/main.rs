@@ -40,7 +40,7 @@ use memonbooks::frontend::views::inventory::{bills_view, products_view, vendors_
 use memonbooks::frontend::views::pos::pos_view;
 use memonbooks::frontend::views::reports::{bank_accounts_view, reports_view};
 use memonbooks::frontend::views::sales::{customers_view, invoices_view};
-use memonbooks::frontend::views::settings::settings_view;
+use memonbooks::frontend::views::settings::{companies_view, settings_view};
 use memonbooks::frontend::views::Ctx;
 
 /// Every module that owns schema contributes its `MIGRATIONS` here, in the
@@ -170,6 +170,7 @@ enum Route {
     Pos,
     Reports,
     Settings,
+    Companies,
 }
 
 const NAV_ITEMS: &[(Route, &str)] = &[
@@ -191,6 +192,7 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Pos, "Point of Sale"),
     (Route::Reports, "Reports"),
     (Route::Settings, "Settings"),
+    (Route::Companies, "Companies"),
 ];
 
 struct MemonBooks {
@@ -217,6 +219,7 @@ struct MemonBooks {
     pos: pos_view::State,
     reports: reports_view::State,
     settings: settings_view::State,
+    companies: companies_view::State,
 }
 
 #[derive(Debug, Clone)]
@@ -243,6 +246,7 @@ enum Message {
     Pos(pos_view::Message),
     Reports(reports_view::Message),
     Settings(settings_view::Message),
+    Companies(companies_view::Message),
 }
 
 impl MemonBooks {
@@ -271,6 +275,7 @@ impl MemonBooks {
             pos: pos_view::State::default(),
             reports: reports_view::State::default(),
             settings: settings_view::State::default(),
+            companies: companies_view::State::default(),
         }
     }
 
@@ -296,6 +301,7 @@ impl MemonBooks {
             Route::Pos => self.pos = pos_view::load(&self.ctx),
             Route::Reports => self.reports = reports_view::load(&self.ctx),
             Route::Settings => self.settings = settings_view::load(&self.ctx),
+            Route::Companies => self.companies = companies_view::load(&self.ctx),
         }
     }
 
@@ -346,6 +352,13 @@ impl MemonBooks {
             Message::Pos(inner) => pos_view::update(&mut self.pos, inner, &self.ctx),
             Message::Reports(inner) => reports_view::update(&mut self.reports, inner, &self.ctx),
             Message::Settings(inner) => settings_view::update(&mut self.settings, inner, &self.ctx),
+            Message::Companies(inner) => {
+                if let companies_view::Event::Switched(company_id) = companies_view::update(&mut self.companies, inner, &self.ctx) {
+                    self.ctx.company_id = company_id;
+                    self.route = Route::Dashboard;
+                    self.load_route(Route::Dashboard);
+                }
+            }
         }
     }
 
@@ -389,6 +402,7 @@ impl MemonBooks {
             Route::Pos => pos_view::view(&self.pos).map(Message::Pos),
             Route::Reports => reports_view::view(&self.reports).map(Message::Reports),
             Route::Settings => settings_view::view(&self.settings).map(Message::Settings),
+            Route::Companies => companies_view::view(&self.companies).map(Message::Companies),
         };
 
         row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()

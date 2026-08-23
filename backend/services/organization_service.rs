@@ -1,23 +1,29 @@
 //! The organization domain's service layer, for
-//! `settings/settings_view.rs` (company info) and `hr/employees_view.rs`
-//! (HR has no dedicated repository or service of its own -- it was
-//! folded into `OrganizationRepository` back in the repository layer,
-//! so it stays folded into `organization_service.rs` here too).
+//! `settings/settings_view.rs` (company info and the multi-company
+//! create/switch list) and `hr/employees_view.rs` (HR has no dedicated
+//! repository or service of its own -- it was folded into
+//! `OrganizationRepository` back in the repository layer, so it stays
+//! folded into `organization_service.rs` here too).
 
+use chrono::{Datelike, Utc};
+
+use crate::backend::accounting::fiscal_periods::FiscalPeriod;
 use crate::backend::core::errors::AppResult;
 use crate::backend::hr::employees::Employee;
 use crate::backend::organization::companies::Company;
+use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::repositories::organization_repository::OrganizationRepository;
 use crate::database::database::Database;
 
 #[derive(Clone)]
 pub struct OrganizationService {
     repo: OrganizationRepository,
+    accounting_repo: AccountingRepository,
 }
 
 impl OrganizationService {
     pub fn new(db: Database) -> Self {
-        Self { repo: OrganizationRepository::new(db) }
+        Self { repo: OrganizationRepository::new(db.clone()), accounting_repo: AccountingRepository::new(db) }
     }
 
     pub fn get_company(&self, company_id: i64) -> AppResult<Company> {
@@ -26,6 +32,28 @@ impl OrganizationService {
 
     pub fn update_company(&self, company: &Company) -> AppResult<()> {
         self.repo.update_company(company)
+    }
+
+    pub fn list_companies(&self) -> AppResult<Vec<Company>> {
+        self.repo.list_companies()
+    }
+
+    /// Creates a company *and* an open fiscal period covering the
+    /// current calendar year, so it has somewhere to post to
+    /// immediately -- the same thing `src/main.rs`'s
+    /// `ensure_default_company` does for the bootstrap company, just
+    /// reachable from the UI for every company after the first.
+    pub fn create_company(&self, name: impl Into<String>, base_currency_code: impl Into<String>) -> AppResult<Company> {
+        let company = self.repo.create_company(&Company::new(name, base_currency_code))?;
+        let company_id = company.id.expect("just-created company must have an id");
+
+        let today = Utc::now().date_naive();
+        let year_start = chrono::NaiveDate::from_ymd_opt(today.year(), 1, 1).unwrap_or(today);
+        let year_end = chrono::NaiveDate::from_ymd_opt(today.year(), 12, 31).unwrap_or(today);
+        self.accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(company_id, format!("FY{}", today.year()), year_start, year_end))?;
+
+        Ok(company)
     }
 
     pub fn list_employees(&self, company_id: i64) -> AppResult<Vec<Employee>> {

@@ -33,7 +33,7 @@ use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::{Database, Migration};
 use memonbooks::frontend::styles::colors;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entry_view, tax_rates_view, trial_balance_view};
-use memonbooks::frontend::views::auth::{login_view, password_change_view};
+use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
 use memonbooks::frontend::views::hr::{employees_view, expenses_view};
 use memonbooks::frontend::views::inventory::{bills_view, products_view, vendors_view, warehouses_view};
@@ -171,6 +171,7 @@ enum Route {
     Reports,
     Settings,
     Companies,
+    SwitchUser,
 }
 
 const NAV_ITEMS: &[(Route, &str)] = &[
@@ -193,6 +194,7 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Reports, "Reports"),
     (Route::Settings, "Settings"),
     (Route::Companies, "Companies"),
+    (Route::SwitchUser, "Switch User"),
 ];
 
 struct MemonBooks {
@@ -220,6 +222,7 @@ struct MemonBooks {
     reports: reports_view::State,
     settings: settings_view::State,
     companies: companies_view::State,
+    switch_user: switch_user_view::State,
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +250,7 @@ enum Message {
     Reports(reports_view::Message),
     Settings(settings_view::Message),
     Companies(companies_view::Message),
+    SwitchUser(switch_user_view::Message),
 }
 
 impl MemonBooks {
@@ -276,6 +280,7 @@ impl MemonBooks {
             reports: reports_view::State::default(),
             settings: settings_view::State::default(),
             companies: companies_view::State::default(),
+            switch_user: switch_user_view::State::default(),
         }
     }
 
@@ -302,6 +307,7 @@ impl MemonBooks {
             Route::Reports => self.reports = reports_view::load(&self.ctx),
             Route::Settings => self.settings = settings_view::load(&self.ctx),
             Route::Companies => self.companies = companies_view::load(&self.ctx),
+            Route::SwitchUser => self.switch_user = switch_user_view::load(&self.ctx),
         }
     }
 
@@ -359,6 +365,15 @@ impl MemonBooks {
                     self.load_route(Route::Dashboard);
                 }
             }
+            Message::SwitchUser(inner) => {
+                if let switch_user_view::Event::SwitchedTo(user) = switch_user_view::update(&mut self.switch_user, inner, &self.ctx) {
+                    self.ctx.current_user_id = user.id;
+                    self.session = Some(user);
+                    self.switch_user = switch_user_view::State::default();
+                    self.route = Route::Dashboard;
+                    self.load_route(Route::Dashboard);
+                }
+            }
         }
     }
 
@@ -403,6 +418,7 @@ impl MemonBooks {
             Route::Reports => reports_view::view(&self.reports).map(Message::Reports),
             Route::Settings => settings_view::view(&self.settings).map(Message::Settings),
             Route::Companies => companies_view::view(&self.companies).map(Message::Companies),
+            Route::SwitchUser => switch_user_view::view(&self.switch_user).map(Message::SwitchUser),
         };
 
         row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()

@@ -26,6 +26,19 @@ impl AuthService {
         Self { repo: UserRepository::new(db) }
     }
 
+    /// Every other active account, for the basic user-switcher --
+    /// excludes `exclude_user_id` (the currently signed-in account)
+    /// and anyone deactivated, since neither belongs in a "switch to"
+    /// list.
+    pub fn list_other_active_users(&self, exclude_user_id: i64) -> AppResult<Vec<User>> {
+        Ok(self
+            .repo
+            .list_users()?
+            .into_iter()
+            .filter(|user| user.is_active && user.id != Some(exclude_user_id))
+            .collect())
+    }
+
     /// Step one of login: username + password. Looks the user up and
     /// delegates the outcome to `authenticate` -- see its doc comment
     /// for why "no such user" and "wrong password" share one error.

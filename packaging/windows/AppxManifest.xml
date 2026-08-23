@@ -15,8 +15,11 @@
            memonbooks.exe          (from target/release/)
            AppxManifest.xml        (this file)
            Assets/Square150x150Logo.png, Square44x44Logo.png, StoreLogo.png
-             (real icon assets still need to be supplied -- see the
-             note in packaging/linux/flatpak/ about the same gap)
+             (packaging/windows/Assets/ -- a simple placeholder MB
+             monogram; swap for real designed artwork before a public
+             release). packaging/windows/MemonBooks.ico is the same
+             icon for embedding directly in memonbooks.exe, if a
+             build.rs resource-embedding step is added later.
     3. makeappx pack /d MemonBooks /p MemonBooks.msix
     4. signtool sign /fd SHA256 /a MemonBooks.msix
        (or submit unsigned through Partner Center, which signs on

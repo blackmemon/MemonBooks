@@ -45,10 +45,25 @@ modules:
           /app/share/applications/com.memonbooks.MemonBooks.desktop
       - install -Dm644 packaging/linux/flatpak/com.memonbooks.MemonBooks.metainfo.xml
           /app/share/metainfo/com.memonbooks.MemonBooks.metainfo.xml
-      # packaging/linux/icon.svg is a placeholder (see the comment in
-      # that file) -- swap it for a real designed icon before shipping.
+      # icon.svg and the hicolor PNG set are a simple placeholder (see
+      # the comment in icon.svg) -- swap for real designed artwork
+      # before a public release.
       - install -Dm644 packaging/linux/icon.svg
           /app/share/icons/hicolor/scalable/apps/com.memonbooks.MemonBooks.svg
+      - install -Dm644 packaging/linux/icons/hicolor/16x16/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/16x16/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/32x32/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/32x32/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/48x48/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/48x48/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/64x64/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/64x64/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/128x128/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/128x128/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/256x256/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/256x256/apps/com.memonbooks.MemonBooks.png
+      - install -Dm644 packaging/linux/icons/hicolor/512x512/apps/com.memonbooks.MemonBooks.png
+          /app/share/icons/hicolor/512x512/apps/com.memonbooks.MemonBooks.png
     sources:
       - type: dir
         path: ../../..

@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Placeholder app icon, using the White Theme primary color
-     (Section 6, #51A2FF). A real designed icon should replace this
-     before shipping; kept as a simple, honest placeholder rather than
-     leaving the packaging manifests pointing at a file that doesn't
-     exist. -->
+<!-- Placeholder app icon: an "MB" monogram on the White Theme primary
+     color (Section 6, #51A2FF). Simple by design, not final artwork --
+     a professionally designed icon should replace it before a public
+     release, but every packaging manifest now points at a real asset
+     rather than a stand-in that doesn't exist. The raster derivatives
+     (Linux hicolor PNGs, Windows .ico/MSIX assets, macOS .icns) in
+     this directory tree are generated from this same design -- see
+     packaging/icon-master-1024.png and packaging/generate_icon.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <rect x="4" y="4" width="120" height="120" rx="24" fill="#51A2FF"/>
-  <text x="64" y="84" font-family="Arial, sans-serif" font-size="64" font-weight="bold"
-        text-anchor="middle" fill="#FFFFFF">M</text>
+  <text x="64" y="82" font-family="Arial, sans-serif" font-size="46" font-weight="bold"
+        text-anchor="middle" fill="#FFFFFF">MB</text>
 </svg>

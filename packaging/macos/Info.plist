@@ -12,8 +12,9 @@
        cargo build --release --target x86_64-apple-darwin
        lipo -create -output memonbooks target/*/release/memonbooks   (universal binary)
     2. Lay out MemonBooks.app/Contents/{MacOS/memonbooks, Info.plist (this file),
-       Resources/AppIcon.icns (a real icon asset still needs to be supplied),
-       PkgInfo}
+       Resources/AppIcon.icns (packaging/macos/AppIcon.icns -- a simple
+       placeholder MB monogram; swap for real designed artwork before
+       a public release), PkgInfo}
     3. codesign --deep --force --options runtime --entitlements entitlements.plist
          --sign "Apple Distribution: <team>" MemonBooks.app
     4. productbuild --component MemonBooks.app /Applications --sign

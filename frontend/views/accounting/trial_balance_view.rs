@@ -3,19 +3,22 @@
 
 use chrono::Utc;
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Length};
 
 use crate::backend::accounting::trial_balance::TrialBalance;
 use crate::backend::reports::trial_balance as trial_balance_report;
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
     report: Option<TrialBalance>,
+    search: String,
     export_message: Option<String>,
     error: Option<String>,
 }
@@ -24,13 +27,18 @@ pub struct State {
 pub enum Message {
     Refresh,
     ExportCsv,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
     let service = ReportService::new(ctx.db.clone());
     let today = Utc::now().date_naive();
     match service.trial_balance_as_of(ctx.company_id, today) {
-        Ok(report) => State { report: Some(report), export_message: None, error: None },
+        Ok(report) => State { report: Some(report), ..Default::default() },
         Err(err) => State { error: Some(err.to_string()), ..Default::default() },
     }
 }
@@ -48,6 +56,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, "Filters" / "Sort by" are rendered
+        // by the shared toolbar component now (Section 6), and the kebab
+        // menu has no per-row action -- this is a read-only report, not
+        // an editable list. Wiring real tab/filter/sort behavior is
+        // follow-up work, not part of this layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
@@ -57,49 +72,46 @@ pub fn view(state: &State) -> Element<'_, Message> {
         return container(text(message).color(colors::WHITE_NEGATIVE_FRONT)).padding(20).into();
     };
 
-    let mut list = column![row![
-        text("Code").width(Length::Fixed(80.0)),
-        text("Account").width(Length::Fill),
-        text("Debit").width(Length::Fixed(100.0)),
-        text("Credit").width(Length::Fixed(100.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Trial Balance", "Every account's debit and credit balance as of today.", "Export CSV", Message::ExportCsv);
 
-    for line in &report.lines {
-        list = list.push(row![
-            text(line.account_code.clone()).width(Length::Fixed(80.0)),
-            text(line.account_name.clone()).width(Length::Fill),
-            text(line.debit.to_string()).width(Length::Fixed(100.0)),
-            text(line.credit.to_string()).width(Length::Fixed(100.0)),
-        ]);
-    }
-    list = list.push(row![
-        text("").width(Length::Fixed(80.0)),
-        text("Total").width(Length::Fill),
-        text(report.total_debits().to_string()).width(Length::Fixed(100.0)),
-        text(report.total_credits().to_string()).width(Length::Fixed(100.0)),
-    ]);
+    let toolbar = toolbar::view(
+        &["All Accounts"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search accounts",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let balanced_note = if report.is_balanced() {
-        text("Balanced").color(colors::WHITE_POSITIVE_FRONT)
-    } else {
-        text("Not balanced").color(colors::WHITE_NEGATIVE_FRONT)
-    };
+    let balanced_note = if report.is_balanced() { "Balanced" } else { "Not balanced" };
+    let heading = section_heading::view("Account balances", balanced_note);
 
-    let mut content = column![
-        text("Trial Balance").size(24),
-        balanced_note,
-        scrollable(list).height(Length::Fill),
-        button(text("Export CSV")).on_press(Message::ExportCsv).padding(8),
-    ]
-    .spacing(16)
-    .padding(20);
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<_> = report.lines.iter().filter(|line| query.is_empty() || line.account_name.to_lowercase().contains(&query) || line.account_code.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Code", Length::FillPortion(1)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Account", Length::FillPortion(3)),
+        ColumnDef::new("Debit", Length::FillPortion(1)),
+        ColumnDef::new("Credit", Length::FillPortion(1)),
+    ];
+
+    let mut rows: Vec<Row> = filtered.iter().map(|line| Row::new(vec![Cell::text(line.account_code.clone()), Cell::text(line.account_name.clone()), Cell::text(line.debit.to_string()), Cell::text(line.credit.to_string())])).collect();
+    rows.push(Row::new(vec![Cell::text(""), Cell::text("Total"), Cell::text(report.total_debits().to_string()), Cell::text(report.total_credits().to_string())]));
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+
+    let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(colors::WHITE_POSITIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -181,5 +193,15 @@ mod tests {
         assert!(ctx.export_path("trial_balance.csv").exists());
 
         let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let ctx = ctx_with_a_posted_transaction();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("cash".into()), &ctx);
+
+        assert_eq!(state.search, "cash");
     }
 }

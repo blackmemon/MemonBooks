@@ -433,6 +433,70 @@ impl SalesRepository {
         })
     }
 
+    /// Posts a payment against exactly one invoice's own receivable --
+    /// unlike `record_customer_payment` (FIFO across the customer's
+    /// whole open balance), this never touches any other receivable,
+    /// even other open invoices for the same customer.
+    ///
+    /// The receivable is found by the `"INV-{invoice_id}"` reference
+    /// `Invoice::build_receivable` stamps it with at posting time -- the
+    /// only link between the two record types today. Rejects if there's
+    /// no open receivable for this invoice (never posted, already fully
+    /// paid, or voided) or if `amount` exceeds that receivable's own
+    /// remaining balance, same conservative reasoning as
+    /// `record_customer_payment`'s whole-balance check, just scoped to
+    /// one document.
+    pub fn record_payment_for_invoice(&self, invoice_id: i64, payment_date: chrono::NaiveDate, amount: Decimal, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
+        let invoice = self.get_invoice(invoice_id)?;
+        let payment = CustomerPayment::new(invoice.company_id, invoice.customer_id, payment_date, amount);
+        payment.validate()?;
+
+        let receivable = self.find_open_receivable_for_invoice(invoice_id, invoice.company_id)?;
+
+        if amount > receivable.balance() {
+            return Err(AppError::Validation(format!(
+                "payment amount {amount} exceeds invoice {invoice_id}'s remaining balance of {}",
+                receivable.balance()
+            )));
+        }
+
+        let transaction = payment.build_transaction(cash_account_id, ar_account_id);
+        let posted = self.accounting.post_transaction(&transaction)?;
+
+        let payment_id = self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO customer_payments (company_id, customer_id, payment_date, amount, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![payment.company_id, payment.customer_id, payment.payment_date, payment.amount.to_string(), posted.id],
+            )?;
+            Ok(conn.last_insert_rowid())
+        })?;
+
+        self.accounting.apply_receivable_payments(&[(receivable.id.unwrap_or_default(), amount)])?;
+
+        Ok(CustomerPayment {
+            id: Some(payment_id),
+            transaction_id: posted.id,
+            ..payment
+        })
+    }
+
+    fn find_open_receivable_for_invoice(&self, invoice_id: i64, company_id: i64) -> AppResult<Receivable> {
+        let reference = format!("INV-{invoice_id}");
+        self.accounting
+            .list_open_receivables_for_company(company_id)?
+            .into_iter()
+            .find(|r| r.reference.as_deref() == Some(reference.as_str()))
+            .ok_or_else(|| AppError::Validation(format!("invoice {invoice_id} has no open receivable to pay")))
+    }
+
+    /// The invoice's own remaining balance -- for prefilling a payment
+    /// form before `record_payment_for_invoice` is actually called.
+    pub fn invoice_remaining_balance(&self, invoice_id: i64) -> AppResult<Decimal> {
+        let invoice = self.get_invoice(invoice_id)?;
+        Ok(self.find_open_receivable_for_invoice(invoice_id, invoice.company_id)?.balance())
+    }
+
     // -- POS: terminals -------------------------------------------------
 
     pub fn create_terminal(&self, terminal: &Terminal) -> AppResult<Terminal> {

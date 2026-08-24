@@ -53,8 +53,24 @@ impl PurchaseService {
     }
 
     /// Applies FIFO across the vendor's whole open balance, not a single
-    /// bill -- see `PurchaseRepository::record_vendor_payment`.
+    /// bill -- see `PurchaseRepository::record_vendor_payment`. Not
+    /// currently routed to from any view; kept for a possible future
+    /// vendor-level "make a payment" action.
     pub fn record_vendor_payment(&self, payment: &VendorPayment, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
         self.purchase_repo.record_vendor_payment(payment, ap_account_id, cash_account_id)
+    }
+
+    /// Applies only to the one bill's own payable, capped at its own
+    /// remaining balance -- see `PurchaseRepository::
+    /// record_payment_for_bill`. This is what Bills' row-level "Pay"
+    /// actually calls.
+    pub fn record_payment_for_bill(&self, bill_id: i64, payment_date: chrono::NaiveDate, amount: rust_decimal::Decimal, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
+        self.purchase_repo.record_payment_for_bill(bill_id, payment_date, amount, ap_account_id, cash_account_id)
+    }
+
+    /// The bill's own remaining balance -- for prefilling a payment form
+    /// before the amount is actually submitted.
+    pub fn bill_remaining_balance(&self, bill_id: i64) -> AppResult<rust_decimal::Decimal> {
+        self.purchase_repo.bill_remaining_balance(bill_id)
     }
 }

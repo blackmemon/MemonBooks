@@ -65,8 +65,24 @@ impl SalesService {
 
     /// Applies FIFO across the customer's whole open balance, not a
     /// single invoice -- see `SalesRepository::record_customer_payment`.
+    /// Not currently routed to from any view; kept for a possible future
+    /// customer-level "make a payment" action.
     pub fn record_customer_payment(&self, payment: &CustomerPayment, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
         self.sales_repo.record_customer_payment(payment, cash_account_id, ar_account_id)
+    }
+
+    /// Applies only to the one invoice's own receivable, capped at its
+    /// own remaining balance -- see `SalesRepository::
+    /// record_payment_for_invoice`. This is what Invoices' row-level
+    /// "Record Payment" actually calls.
+    pub fn record_payment_for_invoice(&self, invoice_id: i64, payment_date: chrono::NaiveDate, amount: rust_decimal::Decimal, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
+        self.sales_repo.record_payment_for_invoice(invoice_id, payment_date, amount, cash_account_id, ar_account_id)
+    }
+
+    /// The invoice's own remaining balance -- for prefilling a payment
+    /// form before the amount is actually submitted.
+    pub fn invoice_remaining_balance(&self, invoice_id: i64) -> AppResult<rust_decimal::Decimal> {
+        self.sales_repo.invoice_remaining_balance(invoice_id)
     }
 
     pub fn list_terminals(&self, company_id: i64) -> AppResult<Vec<Terminal>> {

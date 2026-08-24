@@ -347,6 +347,66 @@ impl PurchaseRepository {
             ..payment.clone()
         })
     }
+
+    /// Posts a payment against exactly one bill's own payable -- unlike
+    /// `record_vendor_payment` (FIFO across the vendor's whole open
+    /// balance), this never touches any other payable, even other open
+    /// bills for the same vendor.
+    ///
+    /// The payable is found by the `"BILL-{bill_id}"` reference
+    /// `Bill::build_payable` stamps it with at posting time -- the only
+    /// link between the two record types today. Rejects if there's no
+    /// open payable for this bill (never posted, already fully paid, or
+    /// voided) or if `amount` exceeds that payable's own remaining
+    /// balance, same conservative reasoning as `record_vendor_payment`'s
+    /// whole-balance check, just scoped to one document.
+    pub fn record_payment_for_bill(&self, bill_id: i64, payment_date: chrono::NaiveDate, amount: Decimal, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
+        let bill = self.get_bill(bill_id)?;
+        let payment = VendorPayment::new(bill.company_id, bill.vendor_id, payment_date, amount);
+        payment.validate()?;
+
+        let payable = self.find_open_payable_for_bill(bill_id, bill.company_id)?;
+
+        if amount > payable.balance() {
+            return Err(AppError::Validation(format!("payment amount {amount} exceeds bill {bill_id}'s remaining balance of {}", payable.balance())));
+        }
+
+        let transaction = payment.build_transaction(ap_account_id, cash_account_id);
+        let posted = self.accounting.post_transaction(&transaction)?;
+
+        let payment_id = self.db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO vendor_payments (company_id, vendor_id, payment_date, amount, transaction_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![payment.company_id, payment.vendor_id, payment.payment_date, payment.amount.to_string(), posted.id],
+            )?;
+            Ok(conn.last_insert_rowid())
+        })?;
+
+        self.accounting.apply_payable_payments(&[(payable.id.unwrap_or_default(), amount)])?;
+
+        Ok(VendorPayment {
+            id: Some(payment_id),
+            transaction_id: posted.id,
+            ..payment
+        })
+    }
+
+    fn find_open_payable_for_bill(&self, bill_id: i64, company_id: i64) -> AppResult<Payable> {
+        let reference = format!("BILL-{bill_id}");
+        self.accounting
+            .list_open_payables_for_company(company_id)?
+            .into_iter()
+            .find(|p| p.reference.as_deref() == Some(reference.as_str()))
+            .ok_or_else(|| AppError::Validation(format!("bill {bill_id} has no open payable to pay")))
+    }
+
+    /// The bill's own remaining balance -- for prefilling a payment form
+    /// before `record_payment_for_bill` is actually called.
+    pub fn bill_remaining_balance(&self, bill_id: i64) -> AppResult<Decimal> {
+        let bill = self.get_bill(bill_id)?;
+        Ok(self.find_open_payable_for_bill(bill_id, bill.company_id)?.balance())
+    }
 }
 
 fn map_purchase_order(row: &Row) -> rusqlite::Result<PurchaseOrder> {

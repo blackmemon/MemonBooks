@@ -66,6 +66,10 @@ impl SalesService {
         self.sales_repo.list_terminals_for_company(company_id)
     }
 
+    pub fn create_terminal(&self, terminal: &Terminal) -> AppResult<Terminal> {
+        self.sales_repo.create_terminal(terminal)
+    }
+
     pub fn list_products(&self, company_id: i64) -> AppResult<Vec<Product>> {
         self.inventory_repo.list_products_for_company(company_id)
     }

@@ -10,6 +10,7 @@
 //! `chart_of_accounts_view.rs` and `journal_entry_view.rs` need.
 
 use crate::backend::accounting::chart_of_accounts::Account;
+use crate::backend::accounting::fiscal_periods::FiscalPeriod;
 use crate::backend::core::errors::AppResult;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::transactions::transaction::Transaction;
@@ -35,5 +36,9 @@ impl AccountingService {
 
     pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {
         self.repo.post_transaction(transaction)
+    }
+
+    pub fn create_fiscal_period(&self, period: &FiscalPeriod) -> AppResult<FiscalPeriod> {
+        self.repo.create_fiscal_period(period)
     }
 }

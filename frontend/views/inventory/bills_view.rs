@@ -4,12 +4,15 @@
 use chrono::{Days, Utc};
 use rust_decimal::Decimal;
 
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, pick_list, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::purchases::bills::{Bill, BillLine};
 use crate::backend::services::purchase_service::PurchaseService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
+use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -35,6 +38,7 @@ pub struct State {
     expense_account: Option<Choice>,
     description_input: String,
     amount_input: String,
+    search: String,
     message: Option<String>,
     error: Option<String>,
 }
@@ -47,6 +51,19 @@ pub enum Message {
     DescriptionChanged(String),
     AmountChanged(String),
     CreateAndPost,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
+}
+
+fn status_tone(status: &str) -> BadgeTone {
+    match status {
+        "posted" => BadgeTone::Positive,
+        "voided" => BadgeTone::Negative,
+        _ => BadgeTone::Neutral,
+    }
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -116,46 +133,70 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" / the
+        // per-row kebab menu are rendered by the shared toolbar/data
+        // table components now (Section 6) -- wiring real tab/filter/
+        // sort/action behavior is follow-up work, not part of this
+        // layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Bill").width(Length::Fixed(80.0)),
-        text("Date").width(Length::Fixed(100.0)),
-        text("Status").width(Length::Fixed(80.0)),
-        text("Total").width(Length::Fixed(100.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Bills", "Everything you owe vendors, in one place.", "Create & post", Message::CreateAndPost);
 
-    for bill in &state.bills {
-        list = list.push(row![
-            text(bill.id.map(|id| format!("BILL-{id}")).unwrap_or_default()).width(Length::Fixed(80.0)),
-            text(bill.bill_date.to_string()).width(Length::Fixed(100.0)),
-            text(bill.status.as_str()).width(Length::Fixed(80.0)),
-            text(bill.total().to_string()).width(Length::Fixed(100.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Bills"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search bills",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
+
+    let heading = section_heading::view("Bill list", "Every bill on this company's books.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Bill> = state.bills.iter().filter(|bill| query.is_empty() || bill.id.map(|id| format!("BILL-{id}")).unwrap_or_default().to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Bill", Length::FillPortion(1)).sorted(SortDirection::Descending),
+        ColumnDef::new("Date", Length::FillPortion(1)),
+        ColumnDef::new("Status", Length::FillPortion(1)),
+        ColumnDef::new("Total", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered
+        .iter()
+        .map(|bill| {
+            Row::new(vec![
+                Cell::text(bill.id.map(|id| format!("BILL-{id}")).unwrap_or_default()),
+                Cell::date(bill.bill_date.to_string()),
+                Cell::status(bill.status.as_str(), status_tone(bill.status.as_str())),
+                Cell::text(bill.total().to_string()),
+            ])
+        })
+        .collect();
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
 
     let form = column![
-        row![
-            pick_list(state.vendors.as_slice(), state.vendor.clone(), Message::VendorSelected).placeholder("Vendor"),
-            pick_list(state.accounts.as_slice(), state.ap_account.clone(), Message::ApAccountSelected).placeholder("AP account"),
-            pick_list(state.accounts.as_slice(), state.expense_account.clone(), Message::ExpenseAccountSelected).placeholder("Expense account"),
-        ]
-        .spacing(8),
-        row![
-            text_input("Description", &state.description_input).on_input(Message::DescriptionChanged).width(Length::Fill).padding(6),
-            text_input("Amount", &state.amount_input).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(6),
-            button(text("Create & post")).on_press(Message::CreateAndPost).padding(6),
-        ]
-        .spacing(8),
+        text("Create & post a bill").size(13),
+        pick_list(state.vendors.as_slice(), state.vendor.clone(), Message::VendorSelected).placeholder("Vendor"),
+        pick_list(state.accounts.as_slice(), state.ap_account.clone(), Message::ApAccountSelected).placeholder("AP account"),
+        pick_list(state.accounts.as_slice(), state.expense_account.clone(), Message::ExpenseAccountSelected).placeholder("Expense account"),
+        text_input("Description", &state.description_input).on_input(Message::DescriptionChanged).width(Length::Fill).padding(8),
+        text_input("Amount", &state.amount_input).on_input(Message::AmountChanged).width(Length::Fill).padding(8),
+        button(text("Create & post")).on_press(Message::CreateAndPost).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Bills").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
@@ -164,7 +205,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -276,5 +317,15 @@ mod tests {
         assert_eq!(state.bills[0].total(), rust_decimal_macros::dec!(450));
         assert!(state.description_input.is_empty());
         assert!(state.amount_input.is_empty());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let (ctx, _vendor, _ap, _expense) = ctx_with_vendor_and_accounts();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("bill-1".into()), &ctx);
+
+        assert_eq!(state.search, "bill-1");
     }
 }

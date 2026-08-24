@@ -61,6 +61,23 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             is_primary  INTEGER NOT NULL DEFAULT 0
         );
     ",
+}, Migration {
+    // 902, not 901: 901 (accounting_repository's receivables/payables
+    // schema) already claims the next slot after this file's own 900.
+    version: 902,
+    name: "customers_and_vendors_reference_code_columns",
+    sql: "
+        ALTER TABLE customers ADD COLUMN reference_code TEXT;
+        ALTER TABLE vendors ADD COLUMN reference_code TEXT;
+        -- Plain indexes, not UNIQUE column constraints on the ALTER
+        -- TABLE itself -- SQLite's ADD COLUMN doesn't support UNIQUE
+        -- constraints on new columns. NULLs (rows from before this
+        -- column existed) are never considered equal to each other
+        -- under a UNIQUE index, so pre-existing rows with no
+        -- reference_code don't collide with one another.
+        CREATE UNIQUE INDEX customers_reference_code_unique ON customers (reference_code) WHERE reference_code IS NOT NULL;
+        CREATE UNIQUE INDEX vendors_reference_code_unique ON vendors (reference_code) WHERE reference_code IS NOT NULL;
+    ",
 }];
 
 #[derive(Clone)]
@@ -79,8 +96,8 @@ impl PartyRepository {
         customer.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO customers (company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO customers (company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active, reference_code)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     customer.company_id,
                     customer.name,
@@ -90,6 +107,7 @@ impl PartyRepository {
                     customer.credit_limit.to_string(),
                     customer.payment_terms_days,
                     customer.is_active,
+                    customer.reference_code,
                 ],
             )?;
             Ok(Customer {
@@ -102,7 +120,7 @@ impl PartyRepository {
     pub fn get_customer(&self, id: i64) -> AppResult<Customer> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active
+                "SELECT id, company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active, reference_code
                  FROM customers WHERE id = ?1",
                 params![id],
                 map_customer,
@@ -115,7 +133,7 @@ impl PartyRepository {
     pub fn list_customers_for_company(&self, company_id: i64) -> AppResult<Vec<Customer>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active
+                "SELECT id, company_id, name, email, phone, tax_id, credit_limit, payment_terms_days, is_active, reference_code
                  FROM customers WHERE company_id = ?1 ORDER BY name",
             )?;
             let rows = stmt.query_map(params![company_id], map_customer)?;
@@ -156,8 +174,8 @@ impl PartyRepository {
         vendor.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO vendors (company_id, name, email, phone, tax_id, payment_terms_days, is_active)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO vendors (company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     vendor.company_id,
                     vendor.name,
@@ -166,6 +184,7 @@ impl PartyRepository {
                     vendor.tax_id,
                     vendor.payment_terms_days,
                     vendor.is_active,
+                    vendor.reference_code,
                 ],
             )?;
             Ok(Vendor {
@@ -178,7 +197,7 @@ impl PartyRepository {
     pub fn get_vendor(&self, id: i64) -> AppResult<Vendor> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code
                  FROM vendors WHERE id = ?1",
                 params![id],
                 map_vendor,
@@ -191,7 +210,7 @@ impl PartyRepository {
     pub fn list_vendors_for_company(&self, company_id: i64) -> AppResult<Vec<Vendor>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code
                  FROM vendors WHERE company_id = ?1 ORDER BY name",
             )?;
             let rows = stmt.query_map(params![company_id], map_vendor)?;
@@ -315,6 +334,7 @@ fn map_customer(row: &Row) -> rusqlite::Result<Customer> {
         credit_limit: credit_limit_text.parse().unwrap_or(rust_decimal::Decimal::ZERO),
         payment_terms_days: row.get(7)?,
         is_active: row.get(8)?,
+        reference_code: row.get(9)?,
     })
 }
 
@@ -328,6 +348,7 @@ fn map_vendor(row: &Row) -> rusqlite::Result<Vendor> {
         tax_id: row.get(5)?,
         payment_terms_days: row.get(6)?,
         is_active: row.get(7)?,
+        reference_code: row.get(8)?,
     })
 }
 

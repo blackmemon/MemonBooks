@@ -4,6 +4,7 @@
 use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::{require_max_length, require_non_empty, require_non_negative, Validate};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +19,11 @@ pub struct Customer {
     pub credit_limit: Decimal,
     pub payment_terms_days: i32,
     pub is_active: bool,
+    /// Auto-generated, collision-safe internal reference id (`CUST-
+    /// YYYYMMDDHHMMSSmmm`) -- see `core::reference_code`. `None` only
+    /// for customers created before this field existed; every customer
+    /// created through `Customer::new` gets one automatically.
+    pub reference_code: Option<String>,
 }
 
 impl Customer {
@@ -32,6 +38,7 @@ impl Customer {
             credit_limit: Decimal::ZERO,
             payment_terms_days: 30,
             is_active: true,
+            reference_code: Some(reference_code::generate_code("CUST")),
         }
     }
 }

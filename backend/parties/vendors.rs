@@ -2,6 +2,7 @@
 //! step) are owed to.
 
 use crate::backend::core::errors::{AppError, AppResult};
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::{require_max_length, require_non_empty, Validate};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,6 +15,11 @@ pub struct Vendor {
     pub tax_id: Option<String>,
     pub payment_terms_days: i32,
     pub is_active: bool,
+    /// Auto-generated, collision-safe internal reference id (`VEND-
+    /// YYYYMMDDHHMMSSmmm`) -- see `core::reference_code`. `None` only
+    /// for vendors created before this field existed; every vendor
+    /// created through `Vendor::new` gets one automatically.
+    pub reference_code: Option<String>,
 }
 
 impl Vendor {
@@ -27,6 +33,7 @@ impl Vendor {
             tax_id: None,
             payment_terms_days: 30,
             is_active: true,
+            reference_code: Some(reference_code::generate_code("VEND")),
         }
     }
 }

@@ -9,7 +9,6 @@ use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::purchases::bills::{Bill, BillLine};
-use crate::backend::purchases::payments::VendorPayment;
 use crate::backend::services::purchase_service::PurchaseService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
@@ -40,7 +39,9 @@ pub struct State {
     description_input: String,
     amount_input: String,
     search: String,
-    payment_vendor: Option<Choice>,
+    /// The bill a row's "Pay" button was last clicked for -- `None`
+    /// until then, and again after a successful submission.
+    payment_bill_id: Option<i64>,
     payment_ap_account: Option<Choice>,
     payment_cash_account: Option<Choice>,
     payment_amount_input: String,
@@ -61,11 +62,11 @@ pub enum Message {
     FiltersClicked,
     SortClicked,
     RowAction(usize),
-    /// Fired by a bill row's "Pay" button, carrying that bill's vendor
-    /// id -- pre-selects the vendor below. Payment still applies FIFO
-    /// across the vendor's whole open balance, not just the row that was
-    /// clicked (see `PurchaseService::record_vendor_payment`), so this
-    /// only seeds the form.
+    /// Fired by a bill row's "Pay" button, carrying that bill's id --
+    /// looks up its own remaining balance and prefills the amount field
+    /// with it. `SubmitPayment` posts against exactly this bill's
+    /// payable, capped at its own balance -- other open bills for the
+    /// same vendor are never touched.
     PayForRow(i64),
     PaymentApAccountSelected(Choice),
     PaymentCashAccountSelected(Choice),
@@ -155,10 +156,20 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // sort/action behavior is follow-up work, not part of this
         // layout pass.
         Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
-        Message::PayForRow(vendor_id) => {
-            state.payment_vendor = state.vendors.iter().find(|v| v.id == vendor_id).cloned();
+        Message::PayForRow(bill_id) => {
             state.message = None;
             state.error = None;
+            let service = PurchaseService::new(ctx.db.clone());
+            match service.bill_remaining_balance(bill_id) {
+                Ok(balance) => {
+                    state.payment_bill_id = Some(bill_id);
+                    state.payment_amount_input = balance.to_string();
+                }
+                Err(err) => {
+                    state.payment_bill_id = None;
+                    state.error = Some(err.to_string());
+                }
+            }
         }
         Message::PaymentApAccountSelected(choice) => state.payment_ap_account = Some(choice),
         Message::PaymentCashAccountSelected(choice) => state.payment_cash_account = Some(choice),
@@ -167,8 +178,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(vendor), Some(ap_account), Some(cash_account)) = (&state.payment_vendor, &state.payment_ap_account, &state.payment_cash_account) else {
-                state.error = Some("choose a vendor (via a row's Pay button), AP account, and cash account".into());
+            let (Some(bill_id), Some(ap_account), Some(cash_account)) = (state.payment_bill_id, &state.payment_ap_account, &state.payment_cash_account) else {
+                state.error = Some("choose a bill (via a row's Pay button), AP account, and cash account".into());
                 return;
             };
             let amount: Decimal = match state.payment_amount_input.parse() {
@@ -180,12 +191,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
 
             let today = Utc::now().date_naive();
-            let payment = VendorPayment::new(ctx.company_id, vendor.id, today, amount);
             let service = PurchaseService::new(ctx.db.clone());
-            match service.record_vendor_payment(&payment, ap_account.id, cash_account.id) {
+            match service.record_payment_for_bill(bill_id, today, amount, ap_account.id, cash_account.id) {
                 Ok(recorded) => {
-                    state.message = Some(format!("Recorded payment #{} to {}.", recorded.id.unwrap_or_default(), vendor.label));
+                    state.message = Some(format!("Recorded payment #{} against BILL-{bill_id}.", recorded.id.unwrap_or_default()));
                     state.payment_amount_input.clear();
+                    state.payment_bill_id = None;
                 }
                 Err(err) => state.error = Some(err.to_string()),
             }
@@ -234,8 +245,8 @@ pub fn view(state: &State) -> Element<'_, Message> {
         })
         .collect();
 
-    let vendor_ids: Vec<i64> = filtered.iter().map(|bill| bill.vendor_id).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(vendor_ids[index]));
+    let bill_ids: Vec<i64> = filtered.iter().map(|bill| bill.id.unwrap_or_default()).collect();
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(bill_ids[index]));
 
     let form = column![
         text("Create & post a bill").size(13),
@@ -248,10 +259,17 @@ pub fn view(state: &State) -> Element<'_, Message> {
     ]
     .spacing(8);
 
-    let payment_vendor_label = state.payment_vendor.as_ref().map(|v| v.label.clone()).unwrap_or_else(|| "Click a row's Pay button to choose a vendor".to_string());
+    let payment_target_label = state
+        .payment_bill_id
+        .and_then(|id| state.bills.iter().find(|bill| bill.id == Some(id)).map(|bill| (id, bill.vendor_id)))
+        .map(|(id, vendor_id)| {
+            let vendor_name = state.vendors.iter().find(|v| v.id == vendor_id).map(|v| v.label.clone()).unwrap_or_else(|| "unknown vendor".to_string());
+            format!("BILL-{id} ({vendor_name})")
+        })
+        .unwrap_or_else(|| "Click a row's Pay button to choose a bill".to_string());
     let payment_form = column![
-        text("Pay a vendor").size(13),
-        text(format!("Vendor: {payment_vendor_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
+        text("Pay a bill").size(13),
+        text(format!("Bill: {payment_target_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
         pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).placeholder("AP account"),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
         text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
@@ -392,38 +410,50 @@ mod tests {
         assert_eq!(state.search, "bill-1");
     }
 
-    #[test]
-    fn paying_from_a_row_preselects_that_bill_s_vendor() {
-        let (ctx, vendor, _ap, _expense) = ctx_with_vendor_and_accounts();
-        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
-
-        update(&mut state, Message::PayForRow(vendor.id), &ctx);
-
-        assert_eq!(state.payment_vendor, Some(vendor));
+    /// Creates and posts a bill for `amount` and returns its id.
+    fn create_and_post_bill(state: &mut State, ctx: &Ctx, vendor: &Choice, ap: &Choice, expense: &Choice, amount: &str) -> i64 {
+        state.vendor = Some(vendor.clone());
+        state.ap_account = Some(ap.clone());
+        state.expense_account = Some(expense.clone());
+        state.description_input = "Office supplies".into();
+        state.amount_input = amount.into();
+        update(state, Message::CreateAndPost, ctx);
+        state.bills.last().unwrap().id.unwrap()
     }
 
     #[test]
-    fn submitting_a_payment_without_choosing_a_vendor_and_both_accounts_sets_an_error() {
+    fn paying_from_a_row_prefills_the_amount_with_that_bill_s_own_balance() {
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
+
+        update(&mut state, Message::PayForRow(bill_id), &ctx);
+
+        assert_eq!(state.payment_bill_id, Some(bill_id));
+        assert_eq!(state.payment_amount_input, "450");
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn submitting_a_payment_without_choosing_a_bill_and_both_accounts_sets_an_error() {
         let (ctx, _vendor, _ap, _expense) = ctx_with_vendor_and_accounts();
         let mut state = State::default();
 
         update(&mut state, Message::SubmitPayment, &ctx);
 
-        assert_eq!(state.error.as_deref(), Some("choose a vendor (via a row's Pay button), AP account, and cash account"));
+        assert_eq!(state.error.as_deref(), Some("choose a bill (via a row's Pay button), AP account, and cash account"));
     }
 
     #[test]
     fn submitting_a_payment_with_a_non_numeric_amount_sets_an_error() {
-        let (ctx, vendor, ap, _expense) = ctx_with_vendor_and_accounts();
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
         let cash = ap.clone();
-        let mut state = State {
-            vendors: vec![vendor.clone()],
-            payment_vendor: Some(vendor),
-            payment_ap_account: Some(ap),
-            payment_cash_account: Some(cash),
-            payment_amount_input: "not a number".into(),
-            ..Default::default()
-        };
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
+        state.payment_bill_id = Some(bill_id);
+        state.payment_ap_account = Some(ap);
+        state.payment_cash_account = Some(cash);
+        state.payment_amount_input = "not a number".into();
 
         update(&mut state, Message::SubmitPayment, &ctx);
 
@@ -431,25 +461,87 @@ mod tests {
     }
 
     #[test]
-    fn submitting_a_payment_that_exceeds_the_open_balance_is_rejected() {
-        let (ctx, vendor, ap, _expense) = ctx_with_vendor_and_accounts();
+    fn a_payment_exactly_equal_to_the_bill_s_balance_fully_settles_it() {
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
         let cash = ap.clone();
-        let mut state = State {
-            vendors: vec![vendor.clone()],
-            payment_vendor: Some(vendor),
-            payment_ap_account: Some(ap),
-            payment_cash_account: Some(cash),
-            payment_amount_input: "500".into(),
-            ..Default::default()
-        };
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
 
-        // No posted bill exists yet for this vendor, so any positive
-        // payment exceeds their (zero) open balance -- proves the amount
-        // actually reaches PurchaseService::record_vendor_payment rather
-        // than silently succeeding.
+        update(&mut state, Message::PayForRow(bill_id), &ctx);
+        update(&mut state, Message::PaymentApAccountSelected(ap), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+        assert!(state.message.as_deref().unwrap_or_default().contains(&format!("BILL-{bill_id}")));
+        assert!(state.payment_bill_id.is_none());
+
+        let service = PurchaseService::new(ctx.db.clone());
+        assert!(service.bill_remaining_balance(bill_id).is_err(), "a fully-settled bill has no open payable left");
+    }
+
+    #[test]
+    fn a_partial_payment_reduces_only_that_bill_s_balance() {
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
+        let cash = ap.clone();
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
+
+        update(&mut state, Message::PayForRow(bill_id), &ctx);
+        state.payment_amount_input = "200".into();
+        update(&mut state, Message::PaymentApAccountSelected(ap), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+        let service = PurchaseService::new(ctx.db.clone());
+        assert_eq!(service.bill_remaining_balance(bill_id).unwrap(), rust_decimal_macros::dec!(250));
+    }
+
+    #[test]
+    fn an_overpayment_attempt_beyond_the_bill_s_own_balance_is_rejected() {
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
+        let cash = ap.clone();
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
+
+        update(&mut state, Message::PayForRow(bill_id), &ctx);
+        state.payment_amount_input = "600".into();
+        update(&mut state, Message::PaymentApAccountSelected(ap), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
         update(&mut state, Message::SubmitPayment, &ctx);
 
         assert!(state.error.as_deref().unwrap_or_default().contains("exceeds"));
         assert!(state.message.is_none());
+
+        let service = PurchaseService::new(ctx.db.clone());
+        assert_eq!(service.bill_remaining_balance(bill_id).unwrap(), rust_decimal_macros::dec!(450), "a rejected overpayment must not touch the bill's balance at all");
+    }
+
+    /// Regression test for the exact bug this feature replaces: paying
+    /// one bill via its row must never touch a *different* open bill for
+    /// the same vendor, even partially.
+    #[test]
+    fn paying_one_bill_via_its_row_leaves_the_vendor_s_other_open_bill_completely_untouched() {
+        let (ctx, vendor, ap, expense) = ctx_with_vendor_and_accounts();
+        let cash = ap.clone();
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+        let first_bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "450");
+        let second_bill_id = create_and_post_bill(&mut state, &ctx, &vendor, &ap, &expense, "300");
+
+        update(&mut state, Message::PayForRow(first_bill_id), &ctx);
+        update(&mut state, Message::PaymentApAccountSelected(ap), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+
+        let service = PurchaseService::new(ctx.db.clone());
+        assert!(service.bill_remaining_balance(first_bill_id).is_err(), "the paid bill should be fully settled");
+        assert_eq!(
+            service.bill_remaining_balance(second_bill_id).unwrap(),
+            rust_decimal_macros::dec!(300),
+            "the vendor's other open bill must be completely untouched"
+        );
     }
 }

@@ -8,7 +8,6 @@ use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::sales::invoices::{Invoice, InvoiceLine};
-use crate::backend::sales::payments::CustomerPayment;
 use crate::backend::services::sales_service::SalesService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
@@ -39,7 +38,9 @@ pub struct State {
     description_input: String,
     amount_input: String,
     search: String,
-    payment_customer: Option<Choice>,
+    /// The invoice a row's "Record Payment" button was last clicked for
+    /// -- `None` until then, and again after a successful submission.
+    payment_invoice_id: Option<i64>,
     payment_cash_account: Option<Choice>,
     payment_ar_account: Option<Choice>,
     payment_amount_input: String,
@@ -61,10 +62,10 @@ pub enum Message {
     SortClicked,
     RowAction(usize),
     /// Fired by an invoice row's "Record Payment" button, carrying that
-    /// invoice's customer id -- pre-selects the customer below. Payment
-    /// still applies FIFO across the customer's whole open balance, not
-    /// just the row that was clicked (see `SalesService::
-    /// record_customer_payment`), so this only seeds the form.
+    /// invoice's id -- looks up its own remaining balance and prefills
+    /// the amount field with it. `SubmitPayment` posts against exactly
+    /// this invoice's receivable, capped at its own balance -- other
+    /// open invoices for the same customer are never touched.
     RecordPaymentForRow(i64),
     PaymentCashAccountSelected(Choice),
     PaymentArAccountSelected(Choice),
@@ -155,10 +156,20 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // sort/action behavior is follow-up work, not part of this
         // layout pass.
         Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
-        Message::RecordPaymentForRow(customer_id) => {
-            state.payment_customer = state.customers.iter().find(|c| c.id == customer_id).cloned();
+        Message::RecordPaymentForRow(invoice_id) => {
             state.message = None;
             state.error = None;
+            let service = SalesService::new(ctx.db.clone());
+            match service.invoice_remaining_balance(invoice_id) {
+                Ok(balance) => {
+                    state.payment_invoice_id = Some(invoice_id);
+                    state.payment_amount_input = balance.to_string();
+                }
+                Err(err) => {
+                    state.payment_invoice_id = None;
+                    state.error = Some(err.to_string());
+                }
+            }
         }
         Message::PaymentCashAccountSelected(choice) => state.payment_cash_account = Some(choice),
         Message::PaymentArAccountSelected(choice) => state.payment_ar_account = Some(choice),
@@ -167,8 +178,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(customer), Some(cash_account), Some(ar_account)) = (&state.payment_customer, &state.payment_cash_account, &state.payment_ar_account) else {
-                state.error = Some("choose a customer (via a row's Record Payment button), cash account, and AR account".into());
+            let (Some(invoice_id), Some(cash_account), Some(ar_account)) = (state.payment_invoice_id, &state.payment_cash_account, &state.payment_ar_account) else {
+                state.error = Some("choose an invoice (via a row's Record Payment button), cash account, and AR account".into());
                 return;
             };
             let amount: Decimal = match state.payment_amount_input.parse() {
@@ -180,12 +191,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
 
             let today = Utc::now().date_naive();
-            let payment = CustomerPayment::new(ctx.company_id, customer.id, today, amount);
             let service = SalesService::new(ctx.db.clone());
-            match service.record_customer_payment(&payment, cash_account.id, ar_account.id) {
+            match service.record_payment_for_invoice(invoice_id, today, amount, cash_account.id, ar_account.id) {
                 Ok(recorded) => {
-                    state.message = Some(format!("Recorded payment #{} for {}.", recorded.id.unwrap_or_default(), customer.label));
+                    state.message = Some(format!("Recorded payment #{} against INV-{invoice_id}.", recorded.id.unwrap_or_default()));
                     state.payment_amount_input.clear();
+                    state.payment_invoice_id = None;
                 }
                 Err(err) => state.error = Some(err.to_string()),
             }
@@ -238,8 +249,8 @@ pub fn view(state: &State) -> Element<'_, Message> {
         })
         .collect();
 
-    let customer_ids: Vec<i64> = filtered.iter().map(|invoice| invoice.customer_id).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordPaymentForRow(customer_ids[index]));
+    let invoice_ids: Vec<i64> = filtered.iter().map(|invoice| invoice.id.unwrap_or_default()).collect();
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordPaymentForRow(invoice_ids[index]));
 
     let form = column![
         text("Create & post an invoice").size(13),
@@ -252,10 +263,17 @@ pub fn view(state: &State) -> Element<'_, Message> {
     ]
     .spacing(8);
 
-    let payment_customer_label = state.payment_customer.as_ref().map(|c| c.label.clone()).unwrap_or_else(|| "Click a row's Record Payment button to choose a customer".to_string());
+    let payment_target_label = state
+        .payment_invoice_id
+        .and_then(|id| state.invoices.iter().find(|invoice| invoice.id == Some(id)).map(|invoice| (id, invoice.customer_id)))
+        .map(|(id, customer_id)| {
+            let customer_name = state.customers.iter().find(|c| c.id == customer_id).map(|c| c.label.clone()).unwrap_or_else(|| "unknown customer".to_string());
+            format!("INV-{id} ({customer_name})")
+        })
+        .unwrap_or_else(|| "Click a row's Record Payment button to choose an invoice".to_string());
     let payment_form = column![
         text("Record a payment").size(13),
-        text(format!("Customer: {payment_customer_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
+        text(format!("Invoice: {payment_target_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
         pick_list(state.accounts.as_slice(), state.payment_ar_account.clone(), Message::PaymentArAccountSelected).placeholder("AR account"),
         text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
@@ -396,38 +414,50 @@ mod tests {
         assert_eq!(state.search, "inv-1");
     }
 
-    #[test]
-    fn recording_a_row_s_payment_preselects_that_invoice_s_customer() {
-        let (ctx, customer, _ar, _revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-
-        update(&mut state, Message::RecordPaymentForRow(customer.id), &ctx);
-
-        assert_eq!(state.payment_customer, Some(customer));
+    /// Creates and posts an invoice for `amount` and returns its id.
+    fn create_and_post_invoice(state: &mut State, ctx: &Ctx, customer: &Choice, ar: &Choice, revenue: &Choice, amount: &str) -> i64 {
+        state.customer = Some(customer.clone());
+        state.ar_account = Some(ar.clone());
+        state.revenue_account = Some(revenue.clone());
+        state.description_input = "Consulting".into();
+        state.amount_input = amount.into();
+        update(state, Message::CreateAndPost, ctx);
+        state.invoices.last().unwrap().id.unwrap()
     }
 
     #[test]
-    fn submitting_a_payment_without_choosing_a_customer_and_both_accounts_sets_an_error() {
+    fn recording_a_row_s_payment_prefills_the_amount_with_that_invoice_s_own_balance() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+
+        update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
+
+        assert_eq!(state.payment_invoice_id, Some(invoice_id));
+        assert_eq!(state.payment_amount_input, "1000");
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn submitting_a_payment_without_choosing_an_invoice_and_both_accounts_sets_an_error() {
         let (ctx, _customer, _ar, _revenue) = ctx_with_customer_and_accounts();
         let mut state = State::default();
 
         update(&mut state, Message::SubmitPayment, &ctx);
 
-        assert_eq!(state.error.as_deref(), Some("choose a customer (via a row's Record Payment button), cash account, and AR account"));
+        assert_eq!(state.error.as_deref(), Some("choose an invoice (via a row's Record Payment button), cash account, and AR account"));
     }
 
     #[test]
     fn submitting_a_payment_with_a_non_numeric_amount_sets_an_error() {
-        let (ctx, customer, ar, _revenue) = ctx_with_customer_and_accounts();
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State {
-            customers: vec![customer.clone()],
-            payment_customer: Some(customer),
-            payment_cash_account: Some(cash),
-            payment_ar_account: Some(ar),
-            payment_amount_input: "not a number".into(),
-            ..Default::default()
-        };
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        state.payment_invoice_id = Some(invoice_id);
+        state.payment_cash_account = Some(cash);
+        state.payment_ar_account = Some(ar);
+        state.payment_amount_input = "not a number".into();
 
         update(&mut state, Message::SubmitPayment, &ctx);
 
@@ -435,25 +465,87 @@ mod tests {
     }
 
     #[test]
-    fn submitting_a_valid_payment_that_exceeds_the_open_balance_is_rejected() {
-        let (ctx, customer, ar, _revenue) = ctx_with_customer_and_accounts();
+    fn a_payment_exactly_equal_to_the_invoice_s_balance_fully_settles_it() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State {
-            customers: vec![customer.clone()],
-            payment_customer: Some(customer),
-            payment_cash_account: Some(cash),
-            payment_ar_account: Some(ar),
-            payment_amount_input: "500".into(),
-            ..Default::default()
-        };
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
-        // No posted invoice exists yet for this customer, so any positive
-        // payment exceeds their (zero) open balance -- proves the amount
-        // actually reaches SalesService::record_customer_payment rather
-        // than silently succeeding.
+        update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+        assert!(state.message.as_deref().unwrap_or_default().contains(&format!("INV-{invoice_id}")));
+        assert!(state.payment_invoice_id.is_none());
+
+        let service = SalesService::new(ctx.db.clone());
+        assert!(service.invoice_remaining_balance(invoice_id).is_err(), "a fully-settled invoice has no open receivable left");
+    }
+
+    #[test]
+    fn a_partial_payment_reduces_only_that_invoice_s_balance() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let cash = ar.clone();
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+
+        update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
+        state.payment_amount_input = "400".into();
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+        let service = SalesService::new(ctx.db.clone());
+        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(600));
+    }
+
+    #[test]
+    fn an_overpayment_attempt_beyond_the_invoice_s_own_balance_is_rejected() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let cash = ar.clone();
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+
+        update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
+        state.payment_amount_input = "1500".into();
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
         update(&mut state, Message::SubmitPayment, &ctx);
 
         assert!(state.error.as_deref().unwrap_or_default().contains("exceeds"));
         assert!(state.message.is_none());
+
+        let service = SalesService::new(ctx.db.clone());
+        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(1000), "a rejected overpayment must not touch the invoice's balance at all");
+    }
+
+    /// Regression test for the exact bug this feature replaces: paying
+    /// one invoice via its row must never touch a *different* open
+    /// invoice for the same customer, even partially.
+    #[test]
+    fn paying_one_invoice_via_its_row_leaves_the_customer_s_other_open_invoice_completely_untouched() {
+        let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
+        let cash = ar.clone();
+        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let first_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let second_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "500");
+
+        update(&mut state, Message::RecordPaymentForRow(first_invoice_id), &ctx);
+        update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
+        update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.is_none());
+
+        let service = SalesService::new(ctx.db.clone());
+        assert!(service.invoice_remaining_balance(first_invoice_id).is_err(), "the paid invoice should be fully settled");
+        assert_eq!(
+            service.invoice_remaining_balance(second_invoice_id).unwrap(),
+            rust_decimal_macros::dec!(500),
+            "the customer's other open invoice must be completely untouched"
+        );
     }
 }

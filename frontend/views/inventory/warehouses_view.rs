@@ -1,11 +1,14 @@
 //! List warehouses and add new ones.
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::core::validation::Validate;
 use crate::backend::inventory::warehouses::Warehouse;
 use crate::backend::services::inventory_service::InventoryService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
+use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -14,6 +17,7 @@ pub struct State {
     warehouses: Vec<Warehouse>,
     name_input: String,
     code_input: String,
+    search: String,
     error: Option<String>,
 }
 
@@ -22,6 +26,11 @@ pub enum Message {
     NameChanged(String),
     CodeChanged(String),
     Create,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -53,35 +62,72 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" / the
+        // per-row kebab menu are rendered by the shared toolbar/data
+        // table components now (Section 6) -- wiring real tab/filter/
+        // sort/action behavior is follow-up work, not part of this
+        // layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![text("Code").width(Length::Fixed(100.0)), text("Name").width(Length::Fill)]].spacing(4);
+    let header = page_header::view("Warehouses", "Every stock location on this company's books.", "Add warehouse", Message::Create);
 
-    for warehouse in &state.warehouses {
-        list = list.push(row![
-            text(warehouse.code.clone()).width(Length::Fixed(100.0)),
-            text(warehouse.name.clone()).width(Length::Fill),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Warehouses"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search warehouses",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let form = row![
-        text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fixed(100.0)).padding(6),
-        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(6),
-        button(text("Add warehouse")).on_press(Message::Create).padding(6),
+    let heading = section_heading::view("Warehouse list", "Every warehouse on this company's books.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Warehouse> =
+        state.warehouses.iter().filter(|warehouse| query.is_empty() || warehouse.name.to_lowercase().contains(&query) || warehouse.code.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Warehouse", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Code", Length::FillPortion(1)),
+        ColumnDef::new("Status", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered
+        .iter()
+        .map(|warehouse| {
+            Row::new(vec![
+                Cell::text(warehouse.name.clone()),
+                Cell::text(warehouse.code.clone()),
+                if warehouse.is_active { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+            ])
+        })
+        .collect();
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+
+    let form = column![
+        text("Add a warehouse").size(13),
+        text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        button(text("Add warehouse")).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Warehouses").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -139,5 +185,15 @@ mod tests {
         assert_eq!(state.warehouses[0].code, "MAIN");
         assert!(state.name_input.is_empty());
         assert!(state.code_input.is_empty());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("main".into()), &ctx);
+
+        assert_eq!(state.search, "main");
     }
 }

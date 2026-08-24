@@ -4,13 +4,19 @@
 
 use crate::backend::accounting::accounting_rules::{AccountType, NormalBalance};
 use crate::backend::core::errors::{AppError, AppResult};
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::{require_max_length, require_non_empty, Validate};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Account {
     pub id: Option<i64>,
     pub company_id: i64,
-    /// Account number, e.g. "1000". Unique within a company.
+    /// Account number, e.g. "1000". Unique within a company. This is
+    /// the short, human-assigned number that drives sorting, the "1000-
+    /// 1999 Current Assets"-style hierarchy, and every account picker
+    /// label in the app -- it stays exactly as-is; `reference_code`
+    /// below is a separate, auto-generated internal ID, not a
+    /// replacement for it.
     pub code: String,
     pub name: String,
     pub account_type: AccountType,
@@ -18,6 +24,11 @@ pub struct Account {
     /// Cash" rolling up into a "1000-1999 Current Assets" heading).
     pub parent_id: Option<i64>,
     pub is_active: bool,
+    /// Auto-generated, collision-safe internal reference id (`COA-
+    /// YYYYMMDDHHMMSSmmm`) -- see `core::reference_code`. `None` only
+    /// for accounts created before this field existed; every account
+    /// created through `Account::new` gets one automatically.
+    pub reference_code: Option<String>,
 }
 
 impl Account {
@@ -30,6 +41,7 @@ impl Account {
             account_type,
             parent_id: None,
             is_active: true,
+            reference_code: Some(reference_code::generate_code("COA")),
         }
     }
 

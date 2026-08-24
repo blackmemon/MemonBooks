@@ -52,6 +52,24 @@ pub const MIGRATIONS: &[Migration] = &[
         ",
     },
     Migration {
+        // 501, not part of migration 500's own SQL: retrofits a column
+        // onto a table that migration 500 already shipped, same pattern
+        // as inventory_repository's "products_barcode_column" (version
+        // 1600) -- editing already-applied migration SQL isn't safe.
+        version: 501,
+        name: "accounts_reference_code_column",
+        sql: "
+            ALTER TABLE accounts ADD COLUMN reference_code TEXT;
+            -- A plain index, not a UNIQUE column constraint on the
+            -- ALTER TABLE itself -- SQLite's ADD COLUMN doesn't support
+            -- UNIQUE constraints on new columns. NULLs (accounts from
+            -- before this column existed) are never considered equal
+            -- to each other under a UNIQUE index, so pre-existing rows
+            -- with no reference_code don't collide with one another.
+            CREATE UNIQUE INDEX accounts_reference_code_unique ON accounts (reference_code) WHERE reference_code IS NOT NULL;
+        ",
+    },
+    Migration {
         version: 600,
         name: "transactions_and_transaction_lines_schema",
         sql: "
@@ -128,8 +146,8 @@ impl AccountingRepository {
         account.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO accounts (company_id, code, name, account_type, parent_id, is_active)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO accounts (company_id, code, name, account_type, parent_id, is_active, reference_code)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     account.company_id,
                     account.code,
@@ -137,6 +155,7 @@ impl AccountingRepository {
                     account.account_type.as_str(),
                     account.parent_id,
                     account.is_active,
+                    account.reference_code,
                 ],
             )?;
             Ok(Account {
@@ -149,7 +168,7 @@ impl AccountingRepository {
     pub fn get_account(&self, id: i64) -> AppResult<Account> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active FROM accounts WHERE id = ?1",
+                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code FROM accounts WHERE id = ?1",
                 params![id],
                 map_account,
             )
@@ -161,7 +180,7 @@ impl AccountingRepository {
     pub fn get_account_by_code(&self, company_id: i64, code: &str) -> AppResult<Option<Account>> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active
+                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code
                  FROM accounts WHERE company_id = ?1 AND code = ?2",
                 params![company_id, code],
                 map_account,
@@ -174,7 +193,7 @@ impl AccountingRepository {
     pub fn list_accounts_for_company(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active
+                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code
                  FROM accounts WHERE company_id = ?1 ORDER BY code",
             )?;
             let rows = stmt.query_map(params![company_id], map_account)?;
@@ -746,6 +765,7 @@ fn map_account(row: &Row) -> rusqlite::Result<Account> {
         account_type,
         parent_id: row.get(5)?,
         is_active: row.get(6)?,
+        reference_code: row.get(7)?,
     })
 }
 

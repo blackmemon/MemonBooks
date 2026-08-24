@@ -5,17 +5,20 @@
 
 use chrono::Utc;
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Length};
 
 use crate::backend::fixed_assets::assets::Asset;
 use crate::backend::services::fixed_asset_service::FixedAssetService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
     assets: Vec<Asset>,
+    search: String,
     message: Option<String>,
     error: Option<String>,
 }
@@ -24,6 +27,10 @@ pub struct State {
 pub enum Message {
     RecordDepreciation(i64),
     Refresh,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -53,33 +60,52 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" are
+        // rendered by the shared toolbar component now (Section 6) --
+        // wiring real tab/filter/sort behavior is follow-up work, not
+        // part of this layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Asset").width(Length::Fill),
-        text("Cost").width(Length::Fixed(100.0)),
-        text("Accum. Depr.").width(Length::Fixed(100.0)),
-        text("Book Value").width(Length::Fixed(100.0)),
-        text("").width(Length::Fixed(140.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Fixed Assets", "Everything this company owns and depreciates.", "Refresh", Message::Refresh);
 
-    for asset in &state.assets {
-        let id = asset.id.unwrap_or_default();
-        list = list.push(row![
-            text(asset.name.clone()).width(Length::Fill),
-            text(asset.acquisition_cost.to_string()).width(Length::Fixed(100.0)),
-            text(asset.accumulated_depreciation.to_string()).width(Length::Fixed(100.0)),
-            text(asset.book_value().to_string()).width(Length::Fixed(100.0)),
-            button(text("Depreciate")).on_press(Message::RecordDepreciation(id)).padding(4).width(Length::Fixed(140.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Assets"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search assets",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let mut content = column![text("Fixed Assets").size(24), scrollable(list).height(Length::Fill)]
-        .spacing(16)
-        .padding(20);
+    let heading = section_heading::view("Asset list", "Cost, accumulated depreciation, and current book value.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Asset> = state.assets.iter().filter(|asset| query.is_empty() || asset.name.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Asset", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Cost", Length::FillPortion(1)),
+        ColumnDef::new("Accum. Depr.", Length::FillPortion(1)),
+        ColumnDef::new("Book Value", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered
+        .iter()
+        .map(|asset| Row::new(vec![Cell::text(asset.name.clone()), Cell::text(asset.acquisition_cost.to_string()), Cell::text(asset.accumulated_depreciation.to_string()), Cell::text(asset.book_value().to_string())]))
+        .collect();
+
+    let asset_ids: Vec<i64> = filtered.iter().map(|asset| asset.id.unwrap_or_default()).collect();
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::Refresh, move |index| Message::RecordDepreciation(asset_ids[index]));
+
+    let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
@@ -88,7 +114,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -173,5 +199,15 @@ mod tests {
 
         assert!(state.error.is_some());
         assert!(state.message.is_none());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let (ctx, _asset_id) = ctx_with_one_asset();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("laptop".into()), &ctx);
+
+        assert_eq!(state.search, "laptop");
     }
 }

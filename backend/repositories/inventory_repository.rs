@@ -102,6 +102,42 @@ impl InventoryRepository {
         })
     }
 
+    pub fn update_warehouse(&self, warehouse: &Warehouse) -> AppResult<()> {
+        warehouse.validate()?;
+        let id = warehouse.id.ok_or_else(|| AppError::Validation("cannot update a warehouse without an id".into()))?;
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE warehouses SET name = ?1, code = ?2, address = ?3, is_active = ?4 WHERE id = ?5",
+                params![warehouse.name, warehouse.code, warehouse.address, warehouse.is_active, id],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("warehouse {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the warehouse is still referenced elsewhere -- stock movements
+    /// reference a warehouse by id, and that foreign key is enforced.
+    pub fn delete_warehouse(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM warehouses WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("warehouse {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete warehouse {id}: it's still referenced by stock movements or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     // -- categories -----------------------------------------------------
 
     pub fn create_category(&self, category: &Category) -> AppResult<Category> {
@@ -183,6 +219,55 @@ impl InventoryRepository {
             let rows = stmt.query_map(params![company_id], map_product)?;
             rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
         })
+    }
+
+    pub fn update_product(&self, product: &Product) -> AppResult<()> {
+        product.validate()?;
+        let id = product.id.ok_or_else(|| AppError::Validation("cannot update a product without an id".into()))?;
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE products SET sku = ?1, name = ?2, barcode = ?3, category_id = ?4, unit_of_measure = ?5, cost_price = ?6, sale_price = ?7, track_inventory = ?8, is_active = ?9
+                 WHERE id = ?10",
+                params![
+                    product.sku,
+                    product.name,
+                    product.barcode,
+                    product.category_id,
+                    product.unit_of_measure,
+                    product.cost_price.to_string(),
+                    product.sale_price.to_string(),
+                    product.track_inventory,
+                    product.is_active,
+                    id,
+                ],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("product {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the product is still referenced elsewhere -- stock movements and
+    /// POS sale lines reference a product by id, and those foreign keys
+    /// are enforced.
+    pub fn delete_product(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM products WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("product {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete product {id}: it's still referenced by stock movements, sales, or other records"))
+                } else {
+                    err
+                }
+            })
     }
 
     // -- stock movements --------------------------------------------------
@@ -338,6 +423,74 @@ mod tests {
         let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
         let fetched = repo.get_product(created.id.unwrap()).unwrap();
         assert_eq!(fetched.sku, "WIDGET-1");
+    }
+
+    #[test]
+    fn update_product_persists_changed_fields() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+
+        repo.update_product(&Product { name: "Deluxe Widget".into(), ..created.clone() }).unwrap();
+
+        assert_eq!(repo.get_product(created.id.unwrap()).unwrap().name, "Deluxe Widget");
+    }
+
+    #[test]
+    fn delete_product_removes_an_unreferenced_product() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+
+        repo.delete_product(created.id.unwrap()).unwrap();
+
+        assert!(repo.get_product(created.id.unwrap()).is_err());
+    }
+
+    #[test]
+    fn delete_product_is_rejected_with_a_clear_message_when_still_referenced_by_a_stock_movement() {
+        let (repo, company_id) = repo_with_company();
+        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        repo.record_movement(&StockMovement::new(company_id, product.id.unwrap(), warehouse.id.unwrap(), date(2026, 1, 1), MovementType::Purchase, dec!(100))).unwrap();
+
+        let result = repo.delete_product(product.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
+        assert!(repo.get_product(product.id.unwrap()).is_ok());
+    }
+
+    #[test]
+    fn update_warehouse_persists_changed_fields() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+
+        repo.update_warehouse(&Warehouse { name: "Central Warehouse".into(), ..created.clone() }).unwrap();
+
+        let updated = repo.list_warehouses_for_company(company_id).unwrap();
+        assert_eq!(updated[0].name, "Central Warehouse");
+    }
+
+    #[test]
+    fn delete_warehouse_removes_an_unreferenced_warehouse() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+
+        repo.delete_warehouse(created.id.unwrap()).unwrap();
+
+        assert!(repo.list_warehouses_for_company(company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_warehouse_is_rejected_with_a_clear_message_when_still_referenced_by_a_stock_movement() {
+        let (repo, company_id) = repo_with_company();
+        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        repo.record_movement(&StockMovement::new(company_id, product.id.unwrap(), warehouse.id.unwrap(), date(2026, 1, 1), MovementType::Purchase, dec!(100))).unwrap();
+
+        let result = repo.delete_warehouse(warehouse.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
     }
 
     #[test]

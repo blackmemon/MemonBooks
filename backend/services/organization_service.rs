@@ -67,6 +67,14 @@ impl OrganizationService {
         self.repo.create_employee(employee)
     }
 
+    pub fn update_employee(&self, employee: &Employee) -> AppResult<()> {
+        self.repo.update_employee(employee)
+    }
+
+    pub fn delete_employee(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_employee(id)
+    }
+
     pub fn create_salary_structure(&self, structure: &SalaryStructure) -> AppResult<SalaryStructure> {
         self.repo.create_salary_structure(structure)
     }

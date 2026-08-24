@@ -29,6 +29,14 @@ impl TaxService {
         self.tax_repo.create_tax_rate(tax_rate)
     }
 
+    pub fn update_tax_rate(&self, tax_rate: &TaxRate) -> AppResult<()> {
+        self.tax_repo.update_tax_rate(tax_rate)
+    }
+
+    pub fn delete_tax_rate(&self, id: i64) -> AppResult<()> {
+        self.tax_repo.delete_tax_rate(id)
+    }
+
     pub fn list_gl_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.accounting_repo.list_accounts_for_company(company_id)
     }

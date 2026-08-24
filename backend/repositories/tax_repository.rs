@@ -102,6 +102,42 @@ impl TaxRepository {
         })
     }
 
+    pub fn update_tax_rate(&self, rate: &TaxRate) -> AppResult<()> {
+        rate.validate()?;
+        let id = rate.id.ok_or_else(|| AppError::Validation("cannot update a tax rate without an id".into()))?;
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE tax_rates SET name = ?1, rate_percent = ?2, direction = ?3, gl_account_id = ?4, is_active = ?5 WHERE id = ?6",
+                params![rate.name, rate.rate_percent.to_string(), rate.direction.as_str(), rate.gl_account_id, rate.is_active, id],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("tax rate {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the tax rate is still referenced elsewhere -- tax transactions
+    /// reference a tax rate by id, and that foreign key is enforced.
+    pub fn delete_tax_rate(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM tax_rates WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("tax rate {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete tax rate {id}: it's still referenced by tax transactions or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     // -- tax transactions ---------------------------------------------
 
     /// Posts the tax's GL transaction and stores it linked, atomically.
@@ -236,6 +272,39 @@ mod tests {
             output_rate_id: output_rate.id.unwrap(),
             ar_account_id: ar_account.id.unwrap(),
         }
+    }
+
+    #[test]
+    fn update_tax_rate_persists_changed_fields() {
+        let f = fixture();
+        let rate = f.tax.list_tax_rates_for_company(f.company_id).unwrap().into_iter().next().unwrap();
+
+        f.tax.update_tax_rate(&TaxRate { name: "Standard VAT 16%".into(), rate_percent: dec!(16), ..rate }).unwrap();
+
+        let updated = f.tax.list_tax_rates_for_company(f.company_id).unwrap();
+        assert_eq!(updated[0].name, "Standard VAT 16%");
+        assert_eq!(updated[0].rate_percent, dec!(16));
+    }
+
+    #[test]
+    fn delete_tax_rate_removes_an_unreferenced_tax_rate() {
+        let f = fixture();
+
+        f.tax.delete_tax_rate(f.output_rate_id).unwrap();
+
+        assert!(f.tax.list_tax_rates_for_company(f.company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_tax_rate_is_rejected_with_a_clear_message_when_still_referenced_by_a_tax_transaction() {
+        let f = fixture();
+        let tax_transaction = TaxTransaction::new(f.company_id, f.output_rate_id, date(2026, 1, 10), dec!(1000), dec!(150), TaxDirection::Output);
+        f.tax.post_tax(&tax_transaction, f.ar_account_id).unwrap();
+
+        let result = f.tax.delete_tax_rate(f.output_rate_id);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
     }
 
     #[test]

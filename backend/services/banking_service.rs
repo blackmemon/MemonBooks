@@ -40,6 +40,14 @@ impl BankingService {
         self.banking_repo.create_bank_account(bank_account)
     }
 
+    pub fn update_bank_account(&self, bank_account: &BankAccount) -> AppResult<()> {
+        self.banking_repo.update_bank_account(bank_account)
+    }
+
+    pub fn delete_bank_account(&self, id: i64) -> AppResult<()> {
+        self.banking_repo.delete_bank_account(id)
+    }
+
     pub fn list_gl_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.accounting_repo.list_accounts_for_company(company_id)
     }

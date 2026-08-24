@@ -25,11 +25,27 @@ impl InventoryService {
         self.repo.create_product(product)
     }
 
+    pub fn update_product(&self, product: &Product) -> AppResult<()> {
+        self.repo.update_product(product)
+    }
+
+    pub fn delete_product(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_product(id)
+    }
+
     pub fn list_warehouses(&self, company_id: i64) -> AppResult<Vec<Warehouse>> {
         self.repo.list_warehouses_for_company(company_id)
     }
 
     pub fn create_warehouse(&self, warehouse: &Warehouse) -> AppResult<Warehouse> {
         self.repo.create_warehouse(warehouse)
+    }
+
+    pub fn update_warehouse(&self, warehouse: &Warehouse) -> AppResult<()> {
+        self.repo.update_warehouse(warehouse)
+    }
+
+    pub fn delete_warehouse(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_warehouse(id)
     }
 }

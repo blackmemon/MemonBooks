@@ -78,6 +78,43 @@ impl BankingRepository {
         })
     }
 
+    pub fn update_bank_account(&self, account: &BankAccount) -> AppResult<()> {
+        account.validate()?;
+        let id = account.id.ok_or_else(|| AppError::Validation("cannot update a bank account without an id".into()))?;
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE bank_accounts SET gl_account_id = ?1, bank_name = ?2, account_number = ?3, currency_code = ?4, is_active = ?5 WHERE id = ?6",
+                params![account.gl_account_id, account.bank_name, account.account_number, account.currency_code, account.is_active, id],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("bank account {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the bank account is still referenced elsewhere -- bank
+    /// transactions reference a bank account by id, and that foreign
+    /// key is enforced.
+    pub fn delete_bank_account(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM bank_accounts WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("bank account {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete bank account {id}: it's still referenced by bank transactions or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     // -- bank transactions (reconciliation staging) ------------------
 
     pub fn create_bank_transaction(&self, transaction: &BankTransaction) -> AppResult<BankTransaction> {
@@ -263,6 +300,37 @@ mod tests {
             bank_account_id: bank_account.id.unwrap(),
             expense_account_id: expense_account.id.unwrap(),
         }
+    }
+
+    #[test]
+    fn update_bank_account_persists_changed_fields() {
+        let f = fixture();
+        let account = f.banking.list_bank_accounts_for_company(f.company_id).unwrap().into_iter().next().unwrap();
+
+        f.banking.update_bank_account(&BankAccount { bank_name: "Second National".into(), ..account }).unwrap();
+
+        let updated = f.banking.list_bank_accounts_for_company(f.company_id).unwrap();
+        assert_eq!(updated[0].bank_name, "Second National");
+    }
+
+    #[test]
+    fn delete_bank_account_removes_an_unreferenced_bank_account() {
+        let f = fixture();
+
+        f.banking.delete_bank_account(f.bank_account_id).unwrap();
+
+        assert!(f.banking.list_bank_accounts_for_company(f.company_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_bank_account_is_rejected_with_a_clear_message_when_still_referenced_by_a_bank_transaction() {
+        let f = fixture();
+        f.banking.create_bank_transaction(&BankTransaction::new(f.company_id, f.bank_account_id, date(2026, 1, 5), "Customer payment", dec!(500))).unwrap();
+
+        let result = f.banking.delete_bank_account(f.bank_account_id);
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
     }
 
     #[test]

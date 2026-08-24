@@ -449,6 +449,56 @@ impl OrganizationRepository {
         })
     }
 
+    pub fn update_employee(&self, employee: &Employee) -> AppResult<()> {
+        employee.validate()?;
+        let id = employee.id.ok_or_else(|| AppError::Validation("cannot update an employee without an id".into()))?;
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE employees SET branch_id = ?1, department_id = ?2, user_id = ?3, employee_code = ?4, full_name = ?5, email = ?6, phone = ?7, hire_date = ?8, termination_date = ?9, is_active = ?10
+                 WHERE id = ?11",
+                params![
+                    employee.branch_id,
+                    employee.department_id,
+                    employee.user_id,
+                    employee.employee_code,
+                    employee.full_name,
+                    employee.email,
+                    employee.phone,
+                    employee.hire_date,
+                    employee.termination_date,
+                    employee.is_active,
+                    id,
+                ],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("employee {id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the employee is still referenced elsewhere -- salary structures,
+    /// payroll run lines, and expense claims all reference an employee
+    /// by id, and every one of those foreign keys is enforced.
+    pub fn delete_employee(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM employees WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("employee {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete employee {id}: it's still referenced by payroll, salary, or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     pub fn list_employees_for_company(&self, company_id: i64) -> AppResult<Vec<Employee>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
@@ -778,6 +828,44 @@ mod tests {
         let department = repo.create_department(&department).unwrap();
         assert_eq!(department.branch_id, branch.id);
         assert_eq!(repo.list_departments_for_company(company_id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn update_employee_persists_changed_fields() {
+        let repo = repo_with_schema();
+        let company_id = repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let created = repo.create_employee(&Employee::new(company_id, "EMP-001", "Jane Doe", date(2026, 1, 1))).unwrap();
+
+        repo.update_employee(&Employee { full_name: "Jane Smith".into(), ..created.clone() }).unwrap();
+
+        assert_eq!(repo.get_employee(created.id.unwrap()).unwrap().full_name, "Jane Smith");
+    }
+
+    #[test]
+    fn delete_employee_removes_an_unreferenced_employee() {
+        let repo = repo_with_schema();
+        let company_id = repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let created = repo.create_employee(&Employee::new(company_id, "EMP-001", "Jane Doe", date(2026, 1, 1))).unwrap();
+
+        repo.delete_employee(created.id.unwrap()).unwrap();
+
+        assert!(repo.get_employee(created.id.unwrap()).is_err());
+    }
+
+    #[test]
+    fn delete_employee_is_rejected_with_a_clear_message_when_still_referenced_by_a_salary_structure() {
+        let repo = repo_with_schema();
+        let company_id = repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let employee = repo.create_employee(&Employee::new(company_id, "EMP-001", "Jane Doe", date(2026, 1, 1))).unwrap();
+        let mut structure = SalaryStructure::new(employee.id.unwrap(), date(2026, 1, 1));
+        structure.components.push(crate::backend::hr::salary::SalaryComponent::addition("Base Salary", dec!(1000)));
+        repo.create_salary_structure(&structure).unwrap();
+
+        let result = repo.delete_employee(employee.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
+        assert!(repo.get_employee(employee.id.unwrap()).is_ok());
     }
 
     #[test]

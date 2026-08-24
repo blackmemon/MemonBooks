@@ -21,6 +21,7 @@ use crate::backend::repositories::inventory_repository::InventoryRepository;
 use crate::backend::repositories::party_repository::PartyRepository;
 use crate::backend::repositories::sales_repository::SalesRepository;
 use crate::backend::sales::invoices::Invoice;
+use crate::backend::sales::payments::CustomerPayment;
 use crate::backend::transactions::transaction::Transaction;
 use crate::database::database::Database;
 
@@ -60,6 +61,12 @@ impl SalesService {
 
     pub fn post_invoice(&self, invoice_id: i64, ar_account_id: i64) -> AppResult<(Invoice, Transaction, Receivable)> {
         self.sales_repo.post_invoice(invoice_id, ar_account_id)
+    }
+
+    /// Applies FIFO across the customer's whole open balance, not a
+    /// single invoice -- see `SalesRepository::record_customer_payment`.
+    pub fn record_customer_payment(&self, payment: &CustomerPayment, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
+        self.sales_repo.record_customer_payment(payment, cash_account_id, ar_account_id)
     }
 
     pub fn list_terminals(&self, company_id: i64) -> AppResult<Vec<Terminal>> {

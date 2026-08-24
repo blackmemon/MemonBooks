@@ -9,6 +9,7 @@ use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::core::errors::AppResult;
 use crate::backend::parties::vendors::Vendor;
 use crate::backend::purchases::bills::Bill;
+use crate::backend::purchases::payments::VendorPayment;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::repositories::party_repository::PartyRepository;
 use crate::backend::repositories::purchase_repository::PurchaseRepository;
@@ -49,5 +50,11 @@ impl PurchaseService {
 
     pub fn post_bill(&self, bill_id: i64, ap_account_id: i64) -> AppResult<(Bill, Transaction, Payable)> {
         self.purchase_repo.post_bill(bill_id, ap_account_id)
+    }
+
+    /// Applies FIFO across the vendor's whole open balance, not a single
+    /// bill -- see `PurchaseRepository::record_vendor_payment`.
+    pub fn record_vendor_payment(&self, payment: &VendorPayment, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
+        self.purchase_repo.record_vendor_payment(payment, ap_account_id, cash_account_id)
     }
 }

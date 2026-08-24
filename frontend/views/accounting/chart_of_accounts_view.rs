@@ -119,7 +119,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
 
     let rows = filtered.iter().map(|account| Row::new(vec![Cell::text(account.code.clone()), Cell::text(account.name.clone()), Cell::text(account.account_type.as_str())])).collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let form = column![
         text("Add an account").size(13),

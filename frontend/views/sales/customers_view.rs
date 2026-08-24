@@ -119,7 +119,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         })
         .collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let form = column![
         text("Add a customer").size(13),

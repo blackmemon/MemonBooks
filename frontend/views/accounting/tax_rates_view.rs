@@ -138,7 +138,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
 
     let rows = filtered.iter().map(|rate| Row::new(vec![Cell::text(rate.name.clone()), Cell::text(rate.rate_percent.to_string()), Cell::status(rate.direction.as_str(), BadgeTone::Neutral)])).collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let form = column![
         text("Add a tax rate").size(13),

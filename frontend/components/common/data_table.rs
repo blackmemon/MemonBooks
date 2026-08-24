@@ -64,24 +64,43 @@ impl Cell {
 
 pub struct Row {
     pub cells: Vec<Cell>,
+    pub primary_action_label: Option<String>,
 }
 
 impl Row {
     pub fn new(cells: Vec<Cell>) -> Self {
-        Self { cells }
+        Self { cells, primary_action_label: None }
+    }
+
+    /// Gives this row a visible primary-action button (e.g. "Switch to",
+    /// "Depreciate", "Record Payment") -- for the action that *is* the
+    /// row's main purpose, as opposed to secondary actions (edit, delete,
+    /// view details) which stay behind the kebab menu. Rows within the
+    /// same table may mix "has a primary action" and "doesn't" freely;
+    /// rows without one just reserve the same width as blank space, so
+    /// columns stay aligned.
+    pub fn with_primary_action(mut self, label: impl Into<String>) -> Self {
+        self.primary_action_label = Some(label.into());
+        self
     }
 }
 
+const PRIMARY_ACTION_WIDTH: f32 = 132.0;
+
 /// `on_row_action(row_index)` fires from either the row itself or its
-/// trailing kebab (⋮) button -- callers decide what that opens; this
-/// component only renders the affordance. Pass `None` for `show_checkbox`
-/// selection state to omit the leading checkbox column entirely.
+/// trailing kebab (⋮) button -- callers decide what that opens; this is
+/// for secondary actions (edit, delete, view details). `on_primary_action`
+/// fires from a row's visible primary-action button, when
+/// `Row::with_primary_action` gave it one -- for the action that is the
+/// row's main purpose. Pass `None` for `show_checkbox` selection state to
+/// omit the leading checkbox column entirely.
 pub fn view<'a, Message: Clone + 'a>(
     columns: Vec<ColumnDef<'a>>,
     rows: Vec<Row>,
     selected: Option<&'a [bool]>,
     on_row_select: impl Fn(usize, bool) -> Message + Clone + 'a,
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
+    on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
     let show_checkbox = selected.is_some();
 
@@ -97,6 +116,7 @@ pub fn view<'a, Message: Clone + 'a>(
         };
         header = header.push(text(format!("{}{}", column_def.label, arrow)).size(12).color(colors::WHITE_NEUTRAL_FRONT).width(column_def.width));
     }
+    header = header.push(Space::with_width(Length::Fixed(PRIMARY_ACTION_WIDTH)));
     header = header.push(Space::with_width(Length::Fixed(32.0)));
 
     let header_container = container(header).style(table_style::header_row());
@@ -113,6 +133,11 @@ pub fn view<'a, Message: Clone + 'a>(
         for (cell, column_def) in table_row.cells.into_iter().zip(columns.iter()) {
             cells_row = cells_row.push(container(cell_view::<Message>(cell)).width(column_def.width));
         }
+        let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
+            Some(label) => button(text(label).size(12)).style(primary_row_button).padding([6.0, 14.0]).on_press(on_primary_action(row_index)).into(),
+            None => Space::with_width(Length::Shrink).into(),
+        };
+        cells_row = cells_row.push(container(primary_action_slot).width(Length::Fixed(PRIMARY_ACTION_WIDTH)).align_x(iced::alignment::Horizontal::Left));
         cells_row = cells_row.push(
             container(
                 button(text("\u{22EE}").size(14).color(colors::WHITE_NEUTRAL_FRONT))
@@ -186,4 +211,20 @@ fn cell_view<'a, Message: 'a>(cell: Cell) -> Element<'a, Message> {
 fn kebab_button(_theme: &Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
     let background = if matches!(status, iced::widget::button::Status::Hovered) { Some(Background::Color(colors::WHITE_NEUTRAL_BG)) } else { None };
     iced::widget::button::Style { background, text_color: colors::WHITE_NEUTRAL_FRONT, border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
+}
+
+/// A row's visible primary-action button: an outline in `white_primary`
+/// rather than a solid fill, so a table full of them doesn't compete
+/// visually with the page-level primary action in the header.
+fn primary_row_button(_theme: &Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
+    let background = match status {
+        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.1, ..colors::WHITE_PRIMARY },
+        _ => Color::TRANSPARENT,
+    };
+    iced::widget::button::Style {
+        background: Some(Background::Color(background)),
+        text_color: colors::WHITE_PRIMARY,
+        border: Border { color: colors::WHITE_PRIMARY, width: 1.0, radius: borders::RADIUS_SM.into() },
+        shadow: iced::Shadow::default(),
+    }
 }

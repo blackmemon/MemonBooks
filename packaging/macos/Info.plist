@@ -8,9 +8,15 @@
   available in this environment to actually produce or codesign a .app;
   this plist is written to the real bundle schema and ready for someone
   on macOS with Xcode to package):
-    1. cargo build --release --target aarch64-apple-darwin
-       cargo build --release --target x86_64-apple-darwin
+    1. cargo build --release --target aarch64-apple-darwin --bin memonbooks
+       cargo build --release --target x86_64-apple-darwin --bin memonbooks
        lipo -create -output memonbooks target/*/release/memonbooks   (universal binary)
+       (--bin memonbooks explicitly on both builds, not a bare
+       `cargo build --release` -- the crate also has seed_demo_data and
+       clear_demo_data admin binaries under src/bin/, which must never
+       ship in the bundle; lipo's own target/*/release/memonbooks path
+       already only matches a file literally named memonbooks, but the
+       build step itself should never produce the other two at all)
     2. Lay out MemonBooks.app/Contents/{MacOS/memonbooks, Info.plist (this file),
        Resources/AppIcon.icns (packaging/macos/AppIcon.icns -- a simple
        placeholder MB monogram; swap for real designed artwork before

@@ -39,7 +39,13 @@ modules:
   - name: memonbooks
     buildsystem: simple
     build-commands:
-      - cargo build --release --offline || cargo build --release
+      # --bin memonbooks explicitly, not a bare `cargo build --release`
+      # -- the crate also has seed_demo_data and clear_demo_data admin
+      # binaries under src/bin/ (for manual testing only, never run as
+      # part of normal app startup), which must never ship in the
+      # Flatpak. This is the one and only binary this manifest builds,
+      # names, or installs.
+      - cargo build --release --offline --bin memonbooks || cargo build --release --bin memonbooks
       - install -Dm755 target/release/memonbooks /app/bin/memonbooks
       - install -Dm644 packaging/linux/flatpak/com.memonbooks.MemonBooks.desktop
           /app/share/applications/com.memonbooks.MemonBooks.desktop

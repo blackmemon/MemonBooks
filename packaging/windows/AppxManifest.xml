@@ -9,7 +9,11 @@
   makeappx.exe / signtool.exe were available to actually produce or
   sign a .msix here; this manifest is written to the real MSIX schema
   and is ready for someone with the SDK to package and sign):
-    1. cargo build --release
+    1. cargo build --release --bin memonbooks
+       (--bin memonbooks explicitly, not a bare `cargo build --release`
+       -- the crate also has seed_demo_data and clear_demo_data admin
+       binaries under src/bin/, which must never ship in the package;
+       this is the one and only binary this manifest names or expects)
     2. Lay out a package root:
          MemonBooks/
            memonbooks.exe          (from target/release/)

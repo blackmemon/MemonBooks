@@ -5,12 +5,14 @@
 
 use chrono::Utc;
 
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, pick_list, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::banking::bank_accounts::BankAccount;
 use crate::backend::services::banking_service::BankingService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -33,6 +35,7 @@ pub struct State {
     gl_account: Option<Choice>,
     bank_name_input: String,
     account_number_input: String,
+    search: String,
     error: Option<String>,
 }
 
@@ -42,6 +45,11 @@ pub enum Message {
     BankNameChanged(String),
     AccountNumberChanged(String),
     Create,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -95,42 +103,64 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" / the
+        // per-row kebab menu are rendered by the shared toolbar/data
+        // table components now (Section 6) -- wiring real tab/filter/
+        // sort/action behavior is follow-up work, not part of this
+        // layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Bank").width(Length::Fill),
-        text("Account #").width(Length::Fixed(150.0)),
-        text("Book Balance").width(Length::Fixed(120.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Bank Accounts", "Every bank account on this company's books.", "Add bank account", Message::Create);
 
-    for (account, balance) in &state.bank_accounts {
-        list = list.push(row![
-            text(account.bank_name.clone()).width(Length::Fill),
-            text(account.account_number.clone()).width(Length::Fixed(150.0)),
-            text(balance.clone()).width(Length::Fixed(120.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Bank Accounts"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search bank accounts",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let form = row![
+    let heading = section_heading::view("Bank account list", "Book balance as of today for every account.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&(BankAccount, String)> =
+        state.bank_accounts.iter().filter(|(account, _)| query.is_empty() || account.bank_name.to_lowercase().contains(&query) || account.account_number.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Bank", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Account #", Length::FillPortion(2)),
+        ColumnDef::new("Book Balance", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered.iter().map(|(account, balance)| Row::new(vec![Cell::text(account.bank_name.clone()), Cell::text(account.account_number.clone()), Cell::text(balance.clone())])).collect();
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+
+    let form = column![
+        text("Add a bank account").size(13),
         pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).placeholder("GL account"),
-        text_input("Bank name", &state.bank_name_input).on_input(Message::BankNameChanged).width(Length::Fill).padding(6),
-        text_input("Account number", &state.account_number_input).on_input(Message::AccountNumberChanged).width(Length::Fixed(150.0)).padding(6),
-        button(text("Add bank account")).on_press(Message::Create).padding(6),
+        text_input("Bank name", &state.bank_name_input).on_input(Message::BankNameChanged).width(Length::Fill).padding(8),
+        text_input("Account number", &state.account_number_input).on_input(Message::AccountNumberChanged).width(Length::Fill).padding(8),
+        button(text("Add bank account")).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Bank Accounts").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -205,5 +235,15 @@ mod tests {
         assert_eq!(state.bank_accounts[0].1, "0");
         assert!(state.bank_name_input.is_empty());
         assert!(state.account_number_input.is_empty());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let (ctx, _gl_account) = ctx_with_a_gl_account();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("first".into()), &ctx);
+
+        assert_eq!(state.search, "first");
     }
 }

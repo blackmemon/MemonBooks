@@ -25,11 +25,27 @@ impl PartyService {
         self.repo.create_customer(customer)
     }
 
+    pub fn update_customer(&self, customer: &Customer) -> AppResult<()> {
+        self.repo.update_customer(customer)
+    }
+
+    pub fn delete_customer(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_customer(id)
+    }
+
     pub fn list_vendors(&self, company_id: i64) -> AppResult<Vec<Vendor>> {
         self.repo.list_vendors_for_company(company_id)
     }
 
     pub fn create_vendor(&self, vendor: &Vendor) -> AppResult<Vendor> {
         self.repo.create_vendor(vendor)
+    }
+
+    pub fn update_vendor(&self, vendor: &Vendor) -> AppResult<()> {
+        self.repo.update_vendor(vendor)
+    }
+
+    pub fn delete_vendor(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_vendor(id)
     }
 }

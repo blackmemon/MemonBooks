@@ -34,6 +34,14 @@ impl AccountingService {
         self.repo.create_account(account)
     }
 
+    pub fn update_account(&self, account: &Account) -> AppResult<()> {
+        self.repo.update_account(account)
+    }
+
+    pub fn delete_account(&self, id: i64) -> AppResult<()> {
+        self.repo.delete_account(id)
+    }
+
     pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {
         self.repo.post_transaction(transaction)
     }

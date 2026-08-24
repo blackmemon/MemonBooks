@@ -168,6 +168,28 @@ impl PartyRepository {
         })
     }
 
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the customer is still referenced elsewhere -- invoices,
+    /// quotations, credit notes, and receivables all reference a
+    /// customer by id, and every one of those foreign keys is enforced.
+    pub fn delete_customer(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM customers WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("customer {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete customer {id}: it's still referenced by invoices or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     // -- vendors ------------------------------------------------------
 
     pub fn create_vendor(&self, vendor: &Vendor) -> AppResult<Vendor> {
@@ -242,6 +264,28 @@ impl PartyRepository {
             }
             Ok(())
         })
+    }
+
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the vendor is still referenced elsewhere -- bills, purchase
+    /// orders, debit notes, and payables all reference a vendor by id,
+    /// and every one of those foreign keys is enforced.
+    pub fn delete_vendor(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM vendors WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("vendor {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete vendor {id}: it's still referenced by bills or other records"))
+                } else {
+                    err
+                }
+            })
     }
 
     // -- addresses and contacts (shared by customers and vendors) ------
@@ -418,11 +462,107 @@ mod tests {
     }
 
     #[test]
+    fn delete_customer_removes_an_unreferenced_customer() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+
+        repo.delete_customer(created.id.unwrap()).unwrap();
+
+        assert!(repo.get_customer(created.id.unwrap()).is_err());
+    }
+
+    #[test]
+    fn delete_customer_is_rejected_with_a_clear_message_when_still_referenced_by_an_invoice() {
+        use crate::backend::accounting::accounting_rules::AccountType;
+        use crate::backend::accounting::chart_of_accounts::Account;
+        use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+        use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+        use crate::backend::repositories::sales_repository::{self, SalesRepository};
+        use crate::backend::sales::invoices::{Invoice, InvoiceLine};
+
+        let (repo, company_id) = repo_with_company();
+        repo.db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        repo.db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        repo.db.run_migrations(sales_repository::MIGRATIONS).unwrap();
+
+        let customer = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+
+        let accounting = AccountingRepository::new(repo.db.clone());
+        accounting
+            .create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31)))
+            .unwrap();
+        let ar = accounting.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
+        let revenue = accounting.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+
+        let sales = SalesRepository::new(repo.db.clone());
+        let mut invoice = Invoice::new(company_id, customer.id.unwrap(), date(2026, 1, 5), date(2026, 2, 4));
+        invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(500)));
+        let created_invoice = sales.create_invoice(&invoice).unwrap();
+        sales.post_invoice(created_invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+
+        let result = repo.delete_customer(customer.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
+        assert!(repo.get_customer(customer.id.unwrap()).is_ok());
+    }
+
+    fn date(y: i32, m: u32, d: u32) -> chrono::NaiveDate {
+        chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
     fn creates_and_fetches_a_vendor() {
         let (repo, company_id) = repo_with_company();
         let created = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd")).unwrap();
         let fetched = repo.get_vendor(created.id.unwrap()).unwrap();
         assert_eq!(fetched.name, "Acme Supplies Ltd");
+    }
+
+    #[test]
+    fn delete_vendor_removes_an_unreferenced_vendor() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies")).unwrap();
+
+        repo.delete_vendor(created.id.unwrap()).unwrap();
+
+        assert!(repo.get_vendor(created.id.unwrap()).is_err());
+    }
+
+    #[test]
+    fn delete_vendor_is_rejected_with_a_clear_message_when_still_referenced_by_a_bill() {
+        use crate::backend::accounting::accounting_rules::AccountType;
+        use crate::backend::accounting::chart_of_accounts::Account;
+        use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+        use crate::backend::purchases::bills::{Bill, BillLine};
+        use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
+        use crate::backend::repositories::purchase_repository::{self, PurchaseRepository};
+
+        let (repo, company_id) = repo_with_company();
+        repo.db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+        repo.db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        repo.db.run_migrations(purchase_repository::MIGRATIONS).unwrap();
+
+        let vendor = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies")).unwrap();
+
+        let accounting = AccountingRepository::new(repo.db.clone());
+        accounting
+            .create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31)))
+            .unwrap();
+        let ap = accounting.create_account(&Account::new(company_id, "2000", "Accounts Payable", AccountType::Liability)).unwrap();
+        let expense = accounting.create_account(&Account::new(company_id, "6000", "Office Supplies", AccountType::Expense)).unwrap();
+
+        let purchases = PurchaseRepository::new(repo.db.clone());
+        let mut bill = Bill::new(company_id, vendor.id.unwrap(), date(2026, 1, 5), date(2026, 2, 4));
+        bill.lines.push(BillLine::new(expense.id.unwrap(), "Office supplies", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(300)));
+        let created_bill = purchases.create_bill(&bill).unwrap();
+        purchases.post_bill(created_bill.id.unwrap(), ap.id.unwrap()).unwrap();
+
+        let result = repo.delete_vendor(vendor.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
+        assert!(repo.get_vendor(vendor.id.unwrap()).is_ok());
     }
 
     #[test]

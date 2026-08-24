@@ -32,6 +32,18 @@ pub enum AppError {
     Internal(String),
 }
 
+impl AppError {
+    /// True when this is a SQLite constraint violation -- most commonly
+    /// a foreign-key violation from deleting a record something else
+    /// still references. Repositories match on this to turn a raw
+    /// SQLite failure into a clear, domain-specific message instead of
+    /// leaking the SQLite error text (e.g. "FOREIGN KEY constraint
+    /// failed") up to a view.
+    pub fn is_constraint_violation(&self) -> bool {
+        matches!(self, AppError::Database(rusqlite::Error::SqliteFailure(err, _)) if err.code == rusqlite::ErrorCode::ConstraintViolation)
+    }
+}
+
 pub type AppResult<T> = Result<T, AppError>;
 
 #[cfg(test)]
@@ -110,5 +122,35 @@ mod tests {
     fn database_variant_preserves_the_rusqlite_error_as_its_source() {
         let err = AppError::Database(a_real_rusqlite_error());
         assert!(err.source().is_some());
+    }
+
+    #[test]
+    fn is_constraint_violation_true_for_a_real_foreign_key_failure() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE parents (id INTEGER PRIMARY KEY);
+             CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL REFERENCES parents(id));
+             INSERT INTO parents (id) VALUES (1);
+             INSERT INTO children (id, parent_id) VALUES (1, 1);",
+        )
+        .unwrap();
+
+        let rusqlite_err = conn.execute("DELETE FROM parents WHERE id = 1", []).unwrap_err();
+        let err = AppError::Database(rusqlite_err);
+
+        assert!(err.is_constraint_violation());
+    }
+
+    #[test]
+    fn is_constraint_violation_false_for_an_unrelated_database_error() {
+        let err = AppError::Database(a_real_rusqlite_error());
+        assert!(!err.is_constraint_violation());
+    }
+
+    #[test]
+    fn is_constraint_violation_false_for_non_database_variants() {
+        assert!(!AppError::NotFound("x".into()).is_constraint_violation());
+        assert!(!AppError::Validation("x".into()).is_constraint_violation());
     }
 }

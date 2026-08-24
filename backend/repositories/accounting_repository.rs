@@ -218,6 +218,30 @@ impl AccountingRepository {
         })
     }
 
+    /// Rejects with a clear message, rather than a raw SQLite one, when
+    /// the account is still referenced elsewhere -- posted transaction
+    /// lines, another account's `parent_id`, tax rates, fixed asset
+    /// categories, and more all reference an account by id, and every
+    /// one of those foreign keys is enforced (`PRAGMA foreign_keys` is
+    /// on for every connection this app opens).
+    pub fn delete_account(&self, id: i64) -> AppResult<()> {
+        self.db
+            .with_connection(|conn| {
+                let affected = conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
+                if affected == 0 {
+                    return Err(AppError::NotFound(format!("account {id} not found")));
+                }
+                Ok(())
+            })
+            .map_err(|err| {
+                if err.is_constraint_violation() {
+                    AppError::Validation(format!("cannot delete account {id}: it's still referenced by transactions or other records"))
+                } else {
+                    err
+                }
+            })
+    }
+
     // -- fiscal periods -------------------------------------------------
 
     pub fn create_fiscal_period(&self, period: &FiscalPeriod) -> AppResult<FiscalPeriod> {
@@ -904,6 +928,49 @@ mod tests {
         repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
         let result = repo.create_account(&Account::new(company_id, "1000", "Duplicate", AccountType::Asset));
         assert!(matches!(result, Err(AppError::Database(_))));
+    }
+
+    #[test]
+    fn update_account_persists_changed_fields() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+
+        repo.update_account(&Account { name: "Petty Cash".into(), ..created.clone() }).unwrap();
+
+        let fetched = repo.get_account(created.id.unwrap()).unwrap();
+        assert_eq!(fetched.name, "Petty Cash");
+    }
+
+    #[test]
+    fn delete_account_removes_an_unreferenced_account() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+
+        repo.delete_account(created.id.unwrap()).unwrap();
+
+        assert!(repo.get_account(created.id.unwrap()).is_err());
+    }
+
+    #[test]
+    fn delete_account_is_rejected_with_a_clear_message_when_still_referenced() {
+        let (repo, company_id) = repo_with_company();
+        let cash = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let capital = repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
+        repo.post_transaction(
+            &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
+                .with_line(TransactionLine::debit(cash.id.unwrap(), rust_decimal_macros::dec!(100)))
+                .with_line(TransactionLine::credit(capital.id.unwrap(), rust_decimal_macros::dec!(100))),
+        )
+        .unwrap();
+
+        let result = repo.delete_account(cash.id.unwrap());
+
+        assert!(matches!(result, Err(AppError::Validation(_))));
+        assert!(result.unwrap_err().to_string().contains("still referenced"));
+        // Confirms this is a real rejection, not a silent no-op that
+        // happens to also leave the row in place.
+        assert!(repo.get_account(cash.id.unwrap()).is_ok());
     }
 
     #[test]

@@ -103,7 +103,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut rows: Vec<Row> = filtered.iter().map(|line| Row::new(vec![Cell::text(line.account_code.clone()), Cell::text(line.account_name.clone()), Cell::text(line.debit.to_string()), Cell::text(line.credit.to_string())])).collect();
     rows.push(Row::new(vec![Cell::text(""), Cell::text("Total"), Cell::text(report.total_debits().to_string()), Cell::text(report.total_credits().to_string())]));
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 

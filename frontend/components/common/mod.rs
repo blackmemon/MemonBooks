@@ -1,3 +1,4 @@
+pub mod bulk_action_bar;
 pub mod button;
 pub mod calendar;
 pub mod confirmation;

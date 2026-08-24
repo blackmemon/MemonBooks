@@ -143,7 +143,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
 
     let rows = filtered.iter().map(|(account, balance)| Row::new(vec![Cell::text(account.bank_name.clone()), Cell::text(account.account_number.clone()), Cell::text(balance.clone())])).collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let form = column![
         text("Add a bank account").size(13),

@@ -106,7 +106,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .map(|employee| Row::new(vec![Cell::person(employee.full_name.clone(), employee.employee_code.clone()), Cell::date(employee.hire_date.to_string())]))
         .collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let form = column![
         text("Add an employee").size(13),

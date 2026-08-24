@@ -114,7 +114,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let asset_ids: Vec<i64> = filtered.iter().map(|asset| asset.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
 
     let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 

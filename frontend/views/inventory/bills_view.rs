@@ -246,7 +246,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let bill_ids: Vec<i64> = filtered.iter().map(|bill| bill.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(bill_ids[index]));
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(bill_ids[index]));
 
     let form = column![
         text("Create & post a bill").size(13),

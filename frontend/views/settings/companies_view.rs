@@ -117,7 +117,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let company_ids: Vec<i64> = filtered.iter().map(|company| company.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
 
     let form = column![
         text("Create a company").size(13),

@@ -92,21 +92,26 @@ const PRIMARY_ACTION_WIDTH: f32 = 132.0;
 /// for secondary actions (edit, delete, view details). `on_primary_action`
 /// fires from a row's visible primary-action button, when
 /// `Row::with_primary_action` gave it one -- for the action that is the
-/// row's main purpose. Pass `None` for `show_checkbox` selection state to
-/// omit the leading checkbox column entirely.
+/// row's main purpose. Pass `None` for `selected` to omit the leading
+/// checkbox column (and the header's "select all" checkbox) entirely;
+/// `on_select_all(true)` fires when every row is checked and the header
+/// checkbox is unchecked (select all currently-visible rows), and
+/// `on_select_all(false)` fires when it's checked (clear the selection).
 pub fn view<'a, Message: Clone + 'a>(
     columns: Vec<ColumnDef<'a>>,
     rows: Vec<Row>,
-    selected: Option<&'a [bool]>,
+    selected: Option<Vec<bool>>,
     on_row_select: impl Fn(usize, bool) -> Message + Clone + 'a,
+    on_select_all: impl Fn(bool) -> Message + 'a,
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
     on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
     let show_checkbox = selected.is_some();
 
     let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
-    if show_checkbox {
-        header = header.push(Space::with_width(Length::Fixed(24.0)));
+    if let Some(selected) = &selected {
+        let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
+        header = header.push(container(checkbox("", all_selected).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
     }
     for column_def in &columns {
         let arrow = match column_def.sort {
@@ -126,7 +131,7 @@ pub fn view<'a, Message: Clone + 'a>(
     for (row_index, table_row) in rows.into_iter().enumerate() {
         let mut cells_row = row![].spacing(spacing::MD).padding([spacing::SM, spacing::MD]).align_y(Alignment::Center);
         if show_checkbox {
-            let is_checked = selected.and_then(|s| s.get(row_index)).copied().unwrap_or(false);
+            let is_checked = selected.as_ref().and_then(|s| s.get(row_index)).copied().unwrap_or(false);
             let select_this_row = on_row_select.clone();
             cells_row = cells_row.push(container(checkbox("", is_checked).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
         }

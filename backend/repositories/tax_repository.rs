@@ -39,6 +39,19 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             transaction_id      INTEGER REFERENCES transactions(id)
         );
     ",
+}, Migration {
+    version: 1401,
+    name: "tax_rates_reference_code_column",
+    sql: "
+        ALTER TABLE tax_rates ADD COLUMN reference_code TEXT;
+        -- A plain index, not a UNIQUE column constraint on the ALTER
+        -- TABLE itself -- SQLite's ADD COLUMN doesn't support UNIQUE
+        -- constraints on new columns. NULLs (tax rates from before this
+        -- column existed) are never considered equal to each other
+        -- under a UNIQUE index, so pre-existing rows with no
+        -- reference_code don't collide with one another.
+        CREATE UNIQUE INDEX tax_rates_reference_code_unique ON tax_rates (reference_code) WHERE reference_code IS NOT NULL;
+    ",
 }];
 
 #[derive(Clone)]
@@ -59,9 +72,9 @@ impl TaxRepository {
         rate.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO tax_rates (company_id, name, rate_percent, direction, gl_account_id, is_active)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![rate.company_id, rate.name, rate.rate_percent.to_string(), rate.direction.as_str(), rate.gl_account_id, rate.is_active],
+                "INSERT INTO tax_rates (company_id, name, rate_percent, direction, gl_account_id, is_active, reference_code)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![rate.company_id, rate.name, rate.rate_percent.to_string(), rate.direction.as_str(), rate.gl_account_id, rate.is_active, rate.reference_code],
             )?;
             Ok(TaxRate { id: Some(conn.last_insert_rowid()), ..rate.clone() })
         })
@@ -70,7 +83,7 @@ impl TaxRepository {
     pub fn get_tax_rate(&self, id: i64) -> AppResult<TaxRate> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, name, rate_percent, direction, gl_account_id, is_active FROM tax_rates WHERE id = ?1",
+                "SELECT id, company_id, name, rate_percent, direction, gl_account_id, is_active, reference_code FROM tax_rates WHERE id = ?1",
                 params![id],
                 map_tax_rate,
             )
@@ -82,7 +95,7 @@ impl TaxRepository {
     pub fn list_tax_rates_for_company(&self, company_id: i64) -> AppResult<Vec<TaxRate>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, rate_percent, direction, gl_account_id, is_active FROM tax_rates WHERE company_id = ?1 ORDER BY name",
+                "SELECT id, company_id, name, rate_percent, direction, gl_account_id, is_active, reference_code FROM tax_rates WHERE company_id = ?1 ORDER BY name",
             )?;
             let rows = stmt.query_map(params![company_id], map_tax_rate)?;
             rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
@@ -149,6 +162,7 @@ fn map_tax_rate(row: &Row) -> rusqlite::Result<TaxRate> {
         direction,
         gl_account_id: row.get(5)?,
         is_active: row.get(6)?,
+        reference_code: row.get(7)?,
     })
 }
 

@@ -5,6 +5,7 @@
 use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::{require_non_empty, require_non_negative, Validate};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,6 +46,11 @@ pub struct TaxRate {
     pub direction: TaxDirection,
     pub gl_account_id: i64,
     pub is_active: bool,
+    /// Auto-generated, collision-safe internal reference id (`TAX-
+    /// YYYYMMDDHHMMSSmmm`) -- see `core::reference_code`. `None` only
+    /// for tax rates created before this field existed; every tax rate
+    /// created through `TaxRate::new` gets one automatically.
+    pub reference_code: Option<String>,
 }
 
 impl TaxRate {
@@ -57,6 +63,7 @@ impl TaxRate {
             direction,
             gl_account_id,
             is_active: true,
+            reference_code: Some(reference_code::generate_code("TAX")),
         }
     }
 }

@@ -1,11 +1,14 @@
 //! List customers and add new ones.
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::customers::Customer;
 use crate::backend::services::party_service::PartyService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
+use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -14,6 +17,7 @@ pub struct State {
     customers: Vec<Customer>,
     name_input: String,
     email_input: String,
+    search: String,
     error: Option<String>,
 }
 
@@ -22,6 +26,11 @@ pub enum Message {
     NameChanged(String),
     EmailChanged(String),
     Create,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -56,41 +65,77 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" / the
+        // per-row kebab menu are rendered by the shared toolbar/data
+        // table components now (Section 6) -- wiring real tab/filter/
+        // sort/action behavior is follow-up work, not part of this
+        // layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Name").width(Length::Fill),
-        text("Email").width(Length::Fill),
-        text("Terms (days)").width(Length::Fixed(100.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Customers", "Everyone you invoice, in one place.", "Add customer", Message::Create);
 
-    for customer in &state.customers {
-        list = list.push(row![
-            text(customer.name.clone()).width(Length::Fill),
-            text(customer.email.clone().unwrap_or_default()).width(Length::Fill),
-            text(customer.payment_terms_days.to_string()).width(Length::Fixed(100.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Customers"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search customers",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let form = row![
-        text_input("Customer name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(6),
-        text_input("Email (optional)", &state.email_input).on_input(Message::EmailChanged).width(Length::Fill).padding(6),
-        button(text("Add customer")).on_press(Message::Create).padding(6),
+    let heading = section_heading::view("Customer list", "Every customer on this company's books.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Customer> = state
+        .customers
+        .iter()
+        .filter(|customer| query.is_empty() || customer.name.to_lowercase().contains(&query) || customer.email.as_deref().unwrap_or_default().to_lowercase().contains(&query))
+        .collect();
+
+    let columns = vec![
+        ColumnDef::new("Customer", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Phone", Length::FillPortion(2)),
+        ColumnDef::new("Terms", Length::FillPortion(1)),
+        ColumnDef::new("Status", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered
+        .iter()
+        .map(|customer| {
+            Row::new(vec![
+                Cell::person(customer.name.clone(), customer.email.clone().unwrap_or_default()),
+                Cell::text(customer.phone.clone().unwrap_or_else(|| "--".to_string())),
+                Cell::text(format!("{} days", customer.payment_terms_days)),
+                if customer.is_active { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+            ])
+        })
+        .collect();
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
+
+    let form = column![
+        text("Add a customer").size(13),
+        text_input("Customer name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Email (optional)", &state.email_input).on_input(Message::EmailChanged).width(Length::Fill).padding(8),
+        button(text("Add customer")).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Customers").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -159,5 +204,15 @@ mod tests {
         assert_eq!(state.customers[0].email.as_deref(), Some("ar@acmeretail.test"));
         assert!(state.name_input.is_empty());
         assert!(state.email_input.is_empty());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("acme".into()), &ctx);
+
+        assert_eq!(state.search, "acme");
     }
 }

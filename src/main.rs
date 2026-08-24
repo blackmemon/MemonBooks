@@ -12,7 +12,7 @@
 
 use chrono::{Datelike, Utc};
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{container, row};
 use iced::{Element, Length, Task};
 
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
@@ -26,7 +26,7 @@ use memonbooks::backend::repositories::organization_repository::OrganizationRepo
 use memonbooks::backend::repositories::user_repository::UserRepository;
 use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::Database;
-use memonbooks::frontend::styles::colors;
+use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
@@ -122,7 +122,15 @@ fn main() -> iced::Result {
         export_dir: config.data_dir.join("exports"),
     };
 
-    iced::application("MemonBooks", MemonBooks::update, MemonBooks::view).run_with(move || (MemonBooks::new(ctx), Task::none()))
+    iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
+        .window(iced::window::Settings {
+            size: iced::Size::new(1280.0, 800.0),
+            min_size: Some(iced::Size::new(960.0, 600.0)),
+            position: iced::window::Position::Centered,
+            resizable: true,
+            ..iced::window::Settings::default()
+        })
+        .run_with(move || (MemonBooks::new(ctx), Task::none()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,10 +180,17 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::SwitchUser, "Switch User"),
 ];
 
+/// Routes rendered in the sidebar's secondary section (below the divider)
+/// instead of the primary nav list.
+fn is_secondary_route(route: Route) -> bool {
+    matches!(route, Route::Settings | Route::Companies | Route::SwitchUser)
+}
+
 struct MemonBooks {
     ctx: Ctx,
     session: Option<User>,
     route: Route,
+    sidebar_collapsed: bool,
     login: login_view::State,
     password_change: password_change_view::State,
     dashboard: dashboard_view::State,
@@ -203,6 +218,7 @@ struct MemonBooks {
 #[derive(Debug, Clone)]
 enum Message {
     Navigate(Route),
+    ToggleSidebar,
     Logout,
     Login(login_view::Message),
     PasswordChange(password_change_view::Message),
@@ -234,6 +250,7 @@ impl MemonBooks {
             ctx,
             session: None,
             route: Route::Dashboard,
+            sidebar_collapsed: false,
             login: login_view::State::default(),
             password_change: password_change_view::State::default(),
             dashboard: dashboard_view::State::default(),
@@ -292,6 +309,7 @@ impl MemonBooks {
                 self.route = route;
                 self.load_route(route);
             }
+            Message::ToggleSidebar => self.sidebar_collapsed = !self.sidebar_collapsed,
             Message::Logout => {
                 self.session = None;
                 self.ctx.current_user_id = None;
@@ -363,15 +381,27 @@ impl MemonBooks {
             return password_change_view::view(&self.password_change).map(Message::PasswordChange);
         }
 
-        let mut nav = column![text(format!("Signed in as {}", user.display_name)).size(12).color(colors::WHITE_PRIMARY)].spacing(6).padding(12);
-        for (route, label) in NAV_ITEMS {
-            let is_active = *route == self.route;
-            let label_text = if is_active { text(*label).color(colors::WHITE_PRIMARY) } else { text(*label) };
-            nav = nav.push(button(label_text).on_press(Message::Navigate(*route)).width(Length::Fill));
-        }
-        nav = nav.push(button(text("Log out")).on_press(Message::Logout).width(Length::Fill));
+        let primary_routes: Vec<(Route, &str)> = NAV_ITEMS.iter().copied().filter(|(route, _)| !is_secondary_route(*route)).collect();
+        let secondary_routes: Vec<(Route, &str)> = NAV_ITEMS.iter().copied().filter(|(route, _)| is_secondary_route(*route)).collect();
 
-        let sidebar = container(scrollable(nav)).width(Length::Fixed(220.0)).height(Length::Fill);
+        let primary_entries: Vec<NavEntry> = primary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
+        let secondary_entries: Vec<NavEntry> = secondary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
+
+        let primary_targets: Vec<Route> = primary_routes.iter().map(|(route, _)| *route).collect();
+        let secondary_targets: Vec<Route> = secondary_routes.iter().map(|(route, _)| *route).collect();
+
+        let sidebar = sidebar::view(
+            "MemonBooks",
+            self.sidebar_collapsed,
+            Message::ToggleSidebar,
+            primary_entries,
+            move |index| Message::Navigate(primary_targets[index]),
+            secondary_entries,
+            move |index| Message::Navigate(secondary_targets[index]),
+            &user.display_name,
+            "Signed in",
+            Message::Logout,
+        );
 
         let screen: Element<'_, Message> = match self.route {
             Route::Dashboard => dashboard_view::view(&self.dashboard).map(Message::Dashboard),

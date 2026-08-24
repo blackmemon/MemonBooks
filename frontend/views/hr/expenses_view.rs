@@ -15,13 +15,14 @@ use std::collections::HashMap;
 use chrono::Utc;
 use rust_decimal::Decimal;
 
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input};
+use iced::widget::{column, container, pick_list, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::expenses::expense_categories::ExpenseCategory;
 use crate::backend::expenses::expenses::Expense;
 use crate::backend::services::expense_service::ExpenseService;
+use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -134,8 +135,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut content = column![
-        text("Expenses").size(24),
+    let header = page_header::view("Expenses", "Record a direct expense and post it.", "Record expense", Message::Record);
+
+    let form = column![
         text("Expense account"),
         pick_list(state.expense_accounts.as_slice(), state.expense_account.clone(), Message::ExpenseAccountSelected).placeholder("Expense account"),
         text("Payment account"),
@@ -145,10 +147,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
             text_input("Amount", &state.amount_input).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(6),
         ]
         .spacing(8),
-        button(text("Record expense")).on_press(Message::Record).padding(8),
     ]
-    .spacing(10)
-    .padding(20);
+    .spacing(10);
+
+    let mut content = column![header, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
@@ -157,7 +159,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(scrollable(content)).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]

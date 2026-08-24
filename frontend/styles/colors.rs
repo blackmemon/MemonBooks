@@ -34,3 +34,12 @@ pub const WHITE_NEGATIVE_FRONT: Color = rgb8(0x9C, 0x00, 0x0A);
 pub const WHITE_WARNING_BG: Color = rgb8(0xFF, 0xEB, 0xA0);
 /// Warning text & icon color.
 pub const WHITE_WARNING_FRONT: Color = rgb8(0x9C, 0x5A, 0x00);
+
+/// Neutral background -- status pills with no positive/negative/warning
+/// meaning (e.g. "Draft"), muted panels.
+pub const WHITE_NEUTRAL_BG: Color = rgb8(0xE5, 0xE7, 0xEB);
+/// Neutral text & icon color. Doubles as the app's one muted/secondary
+/// text tone (descriptions, secondary avatar lines, inactive tabs) and as
+/// the subtle border/divider color for cards and table rows, so the shell
+/// never needs a hex literal outside this file for those either.
+pub const WHITE_NEUTRAL_FRONT: Color = rgb8(0x4B, 0x55, 0x63);

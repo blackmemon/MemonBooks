@@ -5,11 +5,13 @@
 //! them" screen -- part of onboarding, not yet a full company admin
 //! screen (no delete/archive here).
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -17,6 +19,7 @@ use crate::frontend::views::Ctx;
 pub struct State {
     companies: Vec<Company>,
     name_input: String,
+    search: String,
     error: Option<String>,
 }
 
@@ -25,6 +28,10 @@ pub enum Message {
     NameChanged(String),
     Create,
     Switch(i64),
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
 }
 
 pub enum Event {
@@ -63,40 +70,64 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
             }
         }
         Message::Switch(company_id) => Event::Switched(company_id),
+        Message::SearchChanged(value) => {
+            state.search = value;
+            Event::None
+        }
+        // This view only has one tab, and "Filters" / "Sort by" are
+        // rendered by the shared toolbar component now (Section 6) --
+        // wiring real tab/filter/sort behavior is follow-up work, not
+        // part of this layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => Event::None,
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Company").width(Length::Fill),
-        text("Currency").width(Length::Fixed(80.0)),
-        text("").width(Length::Fixed(100.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Companies", "Every company on this installation's books.", "Create company", Message::Create);
 
-    for company in &state.companies {
-        list = list.push(row![
-            text(company.name.clone()).width(Length::Fill),
-            text(company.base_currency_code.clone()).width(Length::Fixed(80.0)),
-            button(text("Switch to")).on_press(Message::Switch(company.id.unwrap_or_default())).padding(4).width(Length::Fixed(100.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Companies"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search companies",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
 
-    let form = row![
-        text_input("New company name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(6),
-        button(text("Create company")).on_press(Message::Create).padding(6),
+    let heading = section_heading::view("Company list", "Click a company's row to switch the rest of the app into it.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Company> = state.companies.iter().filter(|company| query.is_empty() || company.name.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Company", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Currency", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered.iter().map(|company| Row::new(vec![Cell::text(company.name.clone()), Cell::text(company.base_currency_code.clone())])).collect();
+
+    let company_ids: Vec<i64> = filtered.iter().map(|company| company.id.unwrap_or_default()).collect();
+    let switch_ids = company_ids.clone();
+    let table = data_table::view(columns, rows, None, move |index, _checked| Message::Switch(switch_ids[index]), move |index| Message::Switch(company_ids[index]));
+
+    let form = column![
+        text("Create a company").size(13),
+        text_input("New company name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        button(text("Create company")).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Companies").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -185,5 +216,15 @@ mod tests {
         let event = update(&mut state, Message::Switch(company_id), &ctx);
 
         assert!(matches!(event, Event::Switched(id) if id == company_id));
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let (ctx, _company_id) = ctx_with_a_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("acme".into()), &ctx);
+
+        assert_eq!(state.search, "acme");
     }
 }

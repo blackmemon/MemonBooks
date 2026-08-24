@@ -4,12 +4,15 @@
 
 use rust_decimal::Decimal;
 
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input};
+use iced::widget::{button, column, container, pick_list, scrollable, text, text_input};
 use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::services::tax_service::TaxService;
 use crate::backend::tax::tax_rates::{TaxDirection, TaxRate};
+use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::common::{page_header, section_heading, toolbar};
+use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors;
 use crate::frontend::views::Ctx;
 
@@ -35,6 +38,7 @@ pub struct State {
     direction: Option<TaxDirection>,
     name_input: String,
     rate_input: String,
+    search: String,
     error: Option<String>,
 }
 
@@ -45,6 +49,11 @@ pub enum Message {
     GlAccountSelected(Choice),
     DirectionSelected(TaxDirection),
     Create,
+    SearchChanged(String),
+    TabSelected(usize),
+    FiltersClicked,
+    SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -90,49 +99,64 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
+        Message::SearchChanged(value) => state.search = value,
+        // This view only has one tab, and "Filters" / "Sort by" / the
+        // per-row kebab menu are rendered by the shared toolbar/data
+        // table components now (Section 6) -- wiring real tab/filter/
+        // sort/action behavior is follow-up work, not part of this
+        // layout pass.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
-    let mut list = column![row![
-        text("Name").width(Length::Fill),
-        text("Rate %").width(Length::Fixed(80.0)),
-        text("Direction").width(Length::Fixed(80.0)),
-    ]]
-    .spacing(4);
+    let header = page_header::view("Tax Rates", "Every tax rate on this company's books.", "Add tax rate", Message::Create);
 
-    for rate in &state.tax_rates {
-        list = list.push(row![
-            text(rate.name.clone()).width(Length::Fill),
-            text(rate.rate_percent.to_string()).width(Length::Fixed(80.0)),
-            text(rate.direction.as_str()).width(Length::Fixed(80.0)),
-        ]);
-    }
+    let toolbar = toolbar::view(
+        &["All Tax Rates"],
+        0,
+        Message::TabSelected,
+        &state.search,
+        "Search tax rates",
+        Message::SearchChanged,
+        "Filters",
+        Message::FiltersClicked,
+        "Sort by",
+        Message::SortClicked,
+    );
+
+    let heading = section_heading::view("Tax rate list", "Every output and input tax rate configured.");
+
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&TaxRate> = state.tax_rates.iter().filter(|rate| query.is_empty() || rate.name.to_lowercase().contains(&query)).collect();
+
+    let columns = vec![
+        ColumnDef::new("Name", Length::FillPortion(3)).sorted(SortDirection::Ascending),
+        ColumnDef::new("Rate %", Length::FillPortion(1)),
+        ColumnDef::new("Direction", Length::FillPortion(1)),
+    ];
+
+    let rows = filtered.iter().map(|rate| Row::new(vec![Cell::text(rate.name.clone()), Cell::text(rate.rate_percent.to_string()), Cell::status(rate.direction.as_str(), BadgeTone::Neutral)])).collect();
+
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction);
 
     let form = column![
-        row![
-            text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(6),
-            text_input("Rate %", &state.rate_input).on_input(Message::RateChanged).width(Length::Fixed(80.0)).padding(6),
-        ]
-        .spacing(8),
-        row![
-            pick_list(DIRECTIONS, state.direction, Message::DirectionSelected).placeholder("Direction"),
-            pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).placeholder("GL account"),
-            button(text("Add tax rate")).on_press(Message::Create).padding(6),
-        ]
-        .spacing(8),
+        text("Add a tax rate").size(13),
+        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Rate %", &state.rate_input).on_input(Message::RateChanged).width(Length::Fill).padding(8),
+        pick_list(DIRECTIONS, state.direction, Message::DirectionSelected).placeholder("Direction"),
+        pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).placeholder("GL account"),
+        button(text("Add tax rate")).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 
-    let mut content = column![text("Tax Rates").size(24), scrollable(list).height(Length::Fill), form]
-        .spacing(16)
-        .padding(20);
+    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
     }
 
-    container(content).into()
+    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
 }
 
 #[cfg(test)]
@@ -224,5 +248,15 @@ mod tests {
         assert_eq!(state.tax_rates[0].name, "Sales Tax");
         assert!(state.name_input.is_empty());
         assert!(state.rate_input.is_empty());
+    }
+
+    #[test]
+    fn search_changed_updates_the_search_field() {
+        let (ctx, _gl_account) = ctx_with_a_gl_account();
+        let mut state = State::default();
+
+        update(&mut state, Message::SearchChanged("sales".into()), &ctx);
+
+        assert_eq!(state.search, "sales");
     }
 }

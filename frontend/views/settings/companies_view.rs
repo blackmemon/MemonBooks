@@ -32,6 +32,7 @@ pub enum Message {
     TabSelected(usize),
     FiltersClicked,
     SortClicked,
+    RowAction(usize),
 }
 
 pub enum Event {
@@ -74,11 +75,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
             state.search = value;
             Event::None
         }
-        // This view only has one tab, and "Filters" / "Sort by" are
-        // rendered by the shared toolbar component now (Section 6) --
-        // wiring real tab/filter/sort behavior is follow-up work, not
-        // part of this layout pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => Event::None,
+        // This view only has one tab, "Filters" / "Sort by" are rendered
+        // by the shared toolbar component now (Section 6), and the kebab
+        // menu has no secondary action yet -- wiring real tab/filter/
+        // sort/secondary-action behavior is follow-up work, not part of
+        // this layout pass. Switching companies is this row's primary
+        // action (the visible button), not a kebab action.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => Event::None,
     }
 }
 
@@ -108,11 +111,13 @@ pub fn view(state: &State) -> Element<'_, Message> {
         ColumnDef::new("Currency", Length::FillPortion(1)),
     ];
 
-    let rows = filtered.iter().map(|company| Row::new(vec![Cell::text(company.name.clone()), Cell::text(company.base_currency_code.clone())])).collect();
+    let rows = filtered
+        .iter()
+        .map(|company| Row::new(vec![Cell::text(company.name.clone()), Cell::text(company.base_currency_code.clone())]).with_primary_action("Switch to"))
+        .collect();
 
     let company_ids: Vec<i64> = filtered.iter().map(|company| company.id.unwrap_or_default()).collect();
-    let switch_ids = company_ids.clone();
-    let table = data_table::view(columns, rows, None, move |index, _checked| Message::Switch(switch_ids[index]), move |index| Message::Switch(company_ids[index]));
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
 
     let form = column![
         text("Create a company").size(13),

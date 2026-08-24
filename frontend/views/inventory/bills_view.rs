@@ -9,6 +9,7 @@ use iced::{Element, Length};
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::purchases::bills::{Bill, BillLine};
+use crate::backend::purchases::payments::VendorPayment;
 use crate::backend::services::purchase_service::PurchaseService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
@@ -39,6 +40,10 @@ pub struct State {
     description_input: String,
     amount_input: String,
     search: String,
+    payment_vendor: Option<Choice>,
+    payment_ap_account: Option<Choice>,
+    payment_cash_account: Option<Choice>,
+    payment_amount_input: String,
     message: Option<String>,
     error: Option<String>,
 }
@@ -56,6 +61,16 @@ pub enum Message {
     FiltersClicked,
     SortClicked,
     RowAction(usize),
+    /// Fired by a bill row's "Pay" button, carrying that bill's vendor
+    /// id -- pre-selects the vendor below. Payment still applies FIFO
+    /// across the vendor's whole open balance, not just the row that was
+    /// clicked (see `PurchaseService::record_vendor_payment`), so this
+    /// only seeds the form.
+    PayForRow(i64),
+    PaymentApAccountSelected(Choice),
+    PaymentCashAccountSelected(Choice),
+    PaymentAmountChanged(String),
+    SubmitPayment,
 }
 
 fn status_tone(status: &str) -> BadgeTone {
@@ -140,6 +155,41 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // sort/action behavior is follow-up work, not part of this
         // layout pass.
         Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
+        Message::PayForRow(vendor_id) => {
+            state.payment_vendor = state.vendors.iter().find(|v| v.id == vendor_id).cloned();
+            state.message = None;
+            state.error = None;
+        }
+        Message::PaymentApAccountSelected(choice) => state.payment_ap_account = Some(choice),
+        Message::PaymentCashAccountSelected(choice) => state.payment_cash_account = Some(choice),
+        Message::PaymentAmountChanged(value) => state.payment_amount_input = value,
+        Message::SubmitPayment => {
+            state.message = None;
+            state.error = None;
+
+            let (Some(vendor), Some(ap_account), Some(cash_account)) = (&state.payment_vendor, &state.payment_ap_account, &state.payment_cash_account) else {
+                state.error = Some("choose a vendor (via a row's Pay button), AP account, and cash account".into());
+                return;
+            };
+            let amount: Decimal = match state.payment_amount_input.parse() {
+                Ok(amount) => amount,
+                Err(_) => {
+                    state.error = Some("amount is not a valid number".into());
+                    return;
+                }
+            };
+
+            let today = Utc::now().date_naive();
+            let payment = VendorPayment::new(ctx.company_id, vendor.id, today, amount);
+            let service = PurchaseService::new(ctx.db.clone());
+            match service.record_vendor_payment(&payment, ap_account.id, cash_account.id) {
+                Ok(recorded) => {
+                    state.message = Some(format!("Recorded payment #{} to {}.", recorded.id.unwrap_or_default(), vendor.label));
+                    state.payment_amount_input.clear();
+                }
+                Err(err) => state.error = Some(err.to_string()),
+            }
+        }
     }
 }
 
@@ -180,10 +230,12 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 Cell::status(bill.status.as_str(), status_tone(bill.status.as_str())),
                 Cell::text(bill.total().to_string()),
             ])
+            .with_primary_action("Pay")
         })
         .collect();
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let vendor_ids: Vec<i64> = filtered.iter().map(|bill| bill.vendor_id).collect();
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(vendor_ids[index]));
 
     let form = column![
         text("Create & post a bill").size(13),
@@ -196,7 +248,18 @@ pub fn view(state: &State) -> Element<'_, Message> {
     ]
     .spacing(8);
 
-    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
+    let payment_vendor_label = state.payment_vendor.as_ref().map(|v| v.label.clone()).unwrap_or_else(|| "Click a row's Pay button to choose a vendor".to_string());
+    let payment_form = column![
+        text("Pay a vendor").size(13),
+        text(format!("Vendor: {payment_vendor_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
+        pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).placeholder("AP account"),
+        pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
+        text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
+        button(text("Record payment")).on_press(Message::SubmitPayment).padding(8),
+    ]
+    .spacing(8);
+
+    let mut content = column![header, toolbar, heading, table, form, payment_form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
@@ -327,5 +390,66 @@ mod tests {
         update(&mut state, Message::SearchChanged("bill-1".into()), &ctx);
 
         assert_eq!(state.search, "bill-1");
+    }
+
+    #[test]
+    fn paying_from_a_row_preselects_that_bill_s_vendor() {
+        let (ctx, vendor, _ap, _expense) = ctx_with_vendor_and_accounts();
+        let mut state = State { vendors: vec![vendor.clone()], ..Default::default() };
+
+        update(&mut state, Message::PayForRow(vendor.id), &ctx);
+
+        assert_eq!(state.payment_vendor, Some(vendor));
+    }
+
+    #[test]
+    fn submitting_a_payment_without_choosing_a_vendor_and_both_accounts_sets_an_error() {
+        let (ctx, _vendor, _ap, _expense) = ctx_with_vendor_and_accounts();
+        let mut state = State::default();
+
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("choose a vendor (via a row's Pay button), AP account, and cash account"));
+    }
+
+    #[test]
+    fn submitting_a_payment_with_a_non_numeric_amount_sets_an_error() {
+        let (ctx, vendor, ap, _expense) = ctx_with_vendor_and_accounts();
+        let cash = ap.clone();
+        let mut state = State {
+            vendors: vec![vendor.clone()],
+            payment_vendor: Some(vendor),
+            payment_ap_account: Some(ap),
+            payment_cash_account: Some(cash),
+            payment_amount_input: "not a number".into(),
+            ..Default::default()
+        };
+
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert_eq!(state.error.as_deref(), Some("amount is not a valid number"));
+    }
+
+    #[test]
+    fn submitting_a_payment_that_exceeds_the_open_balance_is_rejected() {
+        let (ctx, vendor, ap, _expense) = ctx_with_vendor_and_accounts();
+        let cash = ap.clone();
+        let mut state = State {
+            vendors: vec![vendor.clone()],
+            payment_vendor: Some(vendor),
+            payment_ap_account: Some(ap),
+            payment_cash_account: Some(cash),
+            payment_amount_input: "500".into(),
+            ..Default::default()
+        };
+
+        // No posted bill exists yet for this vendor, so any positive
+        // payment exceeds their (zero) open balance -- proves the amount
+        // actually reaches PurchaseService::record_vendor_payment rather
+        // than silently succeeding.
+        update(&mut state, Message::SubmitPayment, &ctx);
+
+        assert!(state.error.as_deref().unwrap_or_default().contains("exceeds"));
+        assert!(state.message.is_none());
     }
 }

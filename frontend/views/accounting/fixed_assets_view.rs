@@ -31,6 +31,7 @@ pub enum Message {
     TabSelected(usize),
     FiltersClicked,
     SortClicked,
+    RowAction(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -61,11 +62,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::SearchChanged(value) => state.search = value,
-        // This view only has one tab, and "Filters" / "Sort by" are
-        // rendered by the shared toolbar component now (Section 6) --
-        // wiring real tab/filter/sort behavior is follow-up work, not
-        // part of this layout pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => {}
+        // This view only has one tab, "Filters" / "Sort by" are rendered
+        // by the shared toolbar component now (Section 6), and the kebab
+        // menu has no secondary action yet -- wiring real tab/filter/
+        // sort/secondary-action behavior is follow-up work, not part of
+        // this layout pass. Depreciating is this row's primary action
+        // (the visible button), not a kebab action.
+        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
     }
 }
 
@@ -99,11 +102,19 @@ pub fn view(state: &State) -> Element<'_, Message> {
 
     let rows = filtered
         .iter()
-        .map(|asset| Row::new(vec![Cell::text(asset.name.clone()), Cell::text(asset.acquisition_cost.to_string()), Cell::text(asset.accumulated_depreciation.to_string()), Cell::text(asset.book_value().to_string())]))
+        .map(|asset| {
+            Row::new(vec![
+                Cell::text(asset.name.clone()),
+                Cell::text(asset.acquisition_cost.to_string()),
+                Cell::text(asset.accumulated_depreciation.to_string()),
+                Cell::text(asset.book_value().to_string()),
+            ])
+            .with_primary_action("Depreciate")
+        })
         .collect();
 
     let asset_ids: Vec<i64> = filtered.iter().map(|asset| asset.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::Refresh, move |index| Message::RecordDepreciation(asset_ids[index]));
+    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
 
     let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 

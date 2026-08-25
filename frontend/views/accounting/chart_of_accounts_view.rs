@@ -3,17 +3,19 @@
 
 use std::collections::HashSet;
 
-use iced::widget::{button, column, container, pick_list, scrollable, text, text_input};
-use iced::{Element, Length};
+use iced::widget::{button, column, container, mouse_area, opaque, pick_list, row, scrollable, stack, text, text_input, Space};
+use iced::{Background, Color, Element, Length};
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::Validate;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::borders;
 use crate::frontend::views::Ctx;
 
 const ACCOUNT_TYPES: [AccountType; 5] = [
@@ -36,6 +38,18 @@ pub struct State {
     /// double duty as "save changes" in that state.
     editing_id: Option<i64>,
     selected: HashSet<i64>,
+    /// Whether the "Add Account" slide-over panel is open. Hidden by
+    /// default; opens only via the header's "Add account" action and
+    /// closes on Save, Cancel, or clicking outside it.
+    add_panel_open: bool,
+    /// The reference code shown (read-only) in the open panel --
+    /// generated fresh the moment the panel opens, and carried through
+    /// unchanged into the saved account so what the user saw is exactly
+    /// what gets persisted (`Account::new` would otherwise generate its
+    /// own, different, one internally). A cancelled value is simply
+    /// discarded, never reused, since opening the panel again always
+    /// regenerates it.
+    add_reference_code: String,
     message: Option<String>,
     error: Option<String>,
 }
@@ -46,6 +60,8 @@ pub enum Message {
     NameChanged(String),
     TypeSelected(AccountType),
     Create,
+    OpenAddPanel,
+    CloseAddPanel,
     EditRow(i64),
     CancelEdit,
     RowSelected(i64, bool),
@@ -109,7 +125,20 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 return;
             }
 
-            let account = Account::new(ctx.company_id, state.code_input.clone(), state.name_input.clone(), account_type);
+            let mut account = Account::new(ctx.company_id, state.code_input.clone(), state.name_input.clone(), account_type);
+            // Overrides whatever `Account::new` generated internally --
+            // the panel already showed `add_reference_code` to the user
+            // as the account's reference code, so that's the value that
+            // must actually be saved, not a second, different one. Only
+            // when the panel actually supplied one: skipping straight to
+            // `Create` without opening it first (every pre-panel test,
+            // and any future caller that does the same) must keep
+            // `Account::new`'s own generated code rather than collide
+            // every such account on the same blank string against the
+            // `reference_code` unique index.
+            if !state.add_reference_code.is_empty() {
+                account.reference_code = Some(state.add_reference_code.clone());
+            }
             if let Err(err) = account.validate() {
                 state.error = Some(err.to_string());
                 return;
@@ -122,9 +151,27 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                     state.code_input.clear();
                     state.name_input.clear();
                     state.type_input = None;
+                    state.add_panel_open = false;
+                    state.add_reference_code.clear();
                 }
                 Err(err) => state.error = Some(err.to_string()),
             }
+        }
+        Message::OpenAddPanel => {
+            state.message = None;
+            state.error = None;
+            state.add_panel_open = true;
+            state.add_reference_code = reference_code::generate_code("coa");
+            state.code_input.clear();
+            state.name_input.clear();
+            state.type_input = None;
+        }
+        Message::CloseAddPanel => {
+            state.add_panel_open = false;
+            state.code_input.clear();
+            state.name_input.clear();
+            state.type_input = None;
+            state.error = None;
         }
         Message::EditRow(id) => {
             state.message = None;
@@ -208,7 +255,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add account" };
-    let header = page_header::view(theme, "Chart of Accounts", "Every general ledger account on this company's books.", header_label, Message::Create);
+    let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
+    let header = page_header::view(theme, "Chart of Accounts", "Every general ledger account on this company's books.", header_label, header_action);
 
     let toolbar = toolbar::view(
         theme,
@@ -255,34 +303,31 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let form_heading = if state.editing_id.is_some() { "Edit account" } else { "Add an account" };
-    let mut form = column![
-        text(form_heading).size(13),
-        text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
-        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).placeholder("Type"),
-    ]
-    .spacing(8);
-
-    if state.editing_id.is_some() {
-        form = form.push(
-            iced::widget::row![
-                button(text("Save changes")).on_press(Message::Create).padding(8),
-                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
-            ]
-            .spacing(8),
-        );
-    } else {
-        form = form.push(button(text("Add account")).on_press(Message::Create).padding(8));
-    }
-
     let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
 
     if !state.selected.is_empty() {
         content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
     }
 
-    content = content.push(table).push(form);
+    content = content.push(table);
+
+    // Editing stays an inline form below the table, unchanged -- only
+    // adding a new account moved to the slide-over panel below.
+    if state.editing_id.is_some() {
+        let form = column![
+            text("Edit account").size(13),
+            text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+            text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+            pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).placeholder("Type"),
+            iced::widget::row![
+                button(text("Save changes")).on_press(Message::Create).padding(8),
+                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
+            ]
+            .spacing(8),
+        ]
+        .spacing(8);
+        content = content.push(form);
+    }
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));
@@ -291,7 +336,62 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
+
+    if !state.add_panel_open {
+        return base;
+    }
+
+    let backdrop = mouse_area(
+        container(Space::new(Length::Fill, Length::Fill))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_iced_theme: &iced::Theme| container::Style {
+                background: Some(Background::Color(Color { a: 0.35, ..Color::BLACK })),
+                ..container::Style::default()
+            }),
+    )
+    .on_press(Message::CloseAddPanel);
+
+    let panel_row = row![Space::with_width(Length::Fill), add_panel(state, theme)];
+
+    stack(vec![base, backdrop.into(), opaque(panel_row)]).into()
+}
+
+/// The "Add Account" slide-over: hidden until `OpenAddPanel`, anchored
+/// to the right edge via the `Space` pushed ahead of it in `view`'s
+/// `panel_row`. `opaque` (wrapping this in `view`) keeps a click here
+/// from falling through to the backdrop underneath and closing the
+/// panel it's supposed to be interacting with.
+fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
+    let content = column![
+        text("Add an account").size(15),
+        column![text("Reference Code").size(12).color(theme.neutral_front()), text(state.add_reference_code.clone()).size(14)].spacing(4),
+        column![
+            text("Account Number").size(12).color(theme.neutral_front()),
+            text_input("e.g. 1000", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+        ]
+        .spacing(4),
+        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).placeholder("Type"),
+        iced::widget::row![
+            button(text("Save")).on_press(Message::Create).padding(8),
+            button(text("Cancel")).on_press(Message::CloseAddPanel).padding(8),
+        ]
+        .spacing(8),
+    ]
+    .spacing(12)
+    .padding(24)
+    .width(Length::Fixed(380.0))
+    .height(Length::Fill);
+
+    container(content)
+        .style(move |_iced_theme: &iced::Theme| container::Style {
+            background: Some(Background::Color(theme.surface())),
+            border: borders::card(theme, borders::RADIUS_LG),
+            ..container::Style::default()
+        })
+        .into()
 }
 
 #[cfg(test)]
@@ -531,6 +631,75 @@ mod tests {
         let error = state.error.as_deref().unwrap_or_default();
         assert!(error.contains("Deleted 1"));
         assert!(error.contains("still referenced"));
+    }
+
+    #[test]
+    fn open_add_panel_shows_it_with_a_fresh_reference_code_and_a_cleared_form() {
+        let ctx = ctx_with_company();
+        let mut state = State { code_input: "stale".into(), name_input: "Stale".into(), type_input: Some(AccountType::Asset), ..Default::default() };
+
+        update(&mut state, Message::OpenAddPanel, &ctx);
+
+        assert!(state.add_panel_open);
+        assert!(state.add_reference_code.starts_with("coa-"));
+        assert!(state.code_input.is_empty());
+        assert!(state.name_input.is_empty());
+        assert!(state.type_input.is_none());
+    }
+
+    #[test]
+    fn close_add_panel_hides_it_and_clears_the_form() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+        update(&mut state, Message::OpenAddPanel, &ctx);
+        state.code_input = "1000".into();
+        state.name_input = "Cash".into();
+
+        update(&mut state, Message::CloseAddPanel, &ctx);
+
+        assert!(!state.add_panel_open);
+        assert!(state.code_input.is_empty());
+        assert!(state.name_input.is_empty());
+    }
+
+    #[test]
+    fn reopening_the_panel_after_cancel_generates_a_fresh_code_not_the_cancelled_one() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::OpenAddPanel, &ctx);
+        let first_code = state.add_reference_code.clone();
+        update(&mut state, Message::CloseAddPanel, &ctx);
+        update(&mut state, Message::OpenAddPanel, &ctx);
+
+        assert_ne!(state.add_reference_code, first_code, "a cancelled code must never be reused");
+        assert!(state.add_reference_code.starts_with("coa-"));
+    }
+
+    #[test]
+    fn creating_via_the_panel_saves_the_generated_code_the_entered_name_and_the_selected_type() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+        update(&mut state, Message::OpenAddPanel, &ctx);
+        let shown_reference_code = state.add_reference_code.clone();
+
+        update(&mut state, Message::CodeChanged("1000".into()), &ctx);
+        update(&mut state, Message::NameChanged("Cash".into()), &ctx);
+        update(&mut state, Message::TypeSelected(AccountType::Asset), &ctx);
+        update(&mut state, Message::Create, &ctx);
+
+        assert!(state.error.is_none());
+        assert!(!state.add_panel_open, "saving must close the panel");
+        assert_eq!(state.accounts.len(), 1);
+        assert_eq!(state.accounts[0].code, "1000");
+        assert_eq!(state.accounts[0].name, "Cash");
+        assert_eq!(state.accounts[0].account_type, AccountType::Asset);
+        assert_eq!(state.accounts[0].reference_code.as_deref(), Some(shown_reference_code.as_str()), "the saved reference code must match exactly what the panel showed");
+
+        // Persisted, not just held in the in-memory list.
+        let service = AccountingService::new(ctx.db.clone());
+        let reloaded = service.list_accounts(ctx.company_id).unwrap();
+        assert_eq!(reloaded[0].reference_code.as_deref(), Some(shown_reference_code.as_str()));
     }
 
     #[test]

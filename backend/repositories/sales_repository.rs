@@ -451,7 +451,7 @@ impl SalesRepository {
         let payment = CustomerPayment::new(invoice.company_id, invoice.customer_id, payment_date, amount);
         payment.validate()?;
 
-        let receivable = self.find_open_receivable_for_invoice(invoice_id, invoice.company_id)?;
+        let receivable = self.open_receivable_for_invoice(invoice_id)?;
 
         if amount > receivable.balance() {
             return Err(AppError::Validation(format!(
@@ -481,20 +481,42 @@ impl SalesRepository {
         })
     }
 
-    fn find_open_receivable_for_invoice(&self, invoice_id: i64, company_id: i64) -> AppResult<Receivable> {
+    /// The invoice's own open receivable, found by the `"INV-{invoice_id}"`
+    /// reference `Invoice::build_receivable` stamps it with at posting
+    /// time -- the only link between the two record types today. `pub`
+    /// (not just an internal helper) since both `invoice_remaining_balance`
+    /// and credit-note posting need this exact scoped lookup.
+    pub fn open_receivable_for_invoice(&self, invoice_id: i64) -> AppResult<Receivable> {
+        let invoice = self.get_invoice(invoice_id)?;
         let reference = format!("INV-{invoice_id}");
         self.accounting
-            .list_open_receivables_for_company(company_id)?
+            .list_open_receivables_for_company(invoice.company_id)?
             .into_iter()
             .find(|r| r.reference.as_deref() == Some(reference.as_str()))
-            .ok_or_else(|| AppError::Validation(format!("invoice {invoice_id} has no open receivable to pay")))
+            .ok_or_else(|| AppError::Validation(format!("invoice {invoice_id} has no open receivable")))
     }
 
     /// The invoice's own remaining balance -- for prefilling a payment
-    /// form before `record_payment_for_invoice` is actually called.
+    /// or credit-note form before it's actually submitted.
     pub fn invoice_remaining_balance(&self, invoice_id: i64) -> AppResult<Decimal> {
+        Ok(self.open_receivable_for_invoice(invoice_id)?.balance())
+    }
+
+    /// Voids a draft invoice -- skips the ledger entirely, unlike a
+    /// posted invoice, which already has GL/receivable impact and must
+    /// be corrected with a credit note instead of unwound in place.
+    /// Rejects anything not currently Draft (already posted, or already
+    /// voided), same guard style as `post_invoice`.
+    pub fn void_invoice(&self, invoice_id: i64) -> AppResult<Invoice> {
         let invoice = self.get_invoice(invoice_id)?;
-        Ok(self.find_open_receivable_for_invoice(invoice_id, invoice.company_id)?.balance())
+        if invoice.status != InvoiceStatus::Draft {
+            return Err(AppError::Validation("only a draft invoice can be voided".into()));
+        }
+        self.db.with_connection(|conn| {
+            conn.execute("UPDATE invoices SET status = ?1 WHERE id = ?2", params![InvoiceStatus::Voided.as_str(), invoice_id])?;
+            Ok(())
+        })?;
+        Ok(Invoice { status: InvoiceStatus::Voided, ..invoice })
     }
 
     // -- POS: terminals -------------------------------------------------

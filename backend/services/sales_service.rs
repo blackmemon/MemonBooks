@@ -20,6 +20,7 @@ use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::repositories::inventory_repository::InventoryRepository;
 use crate::backend::repositories::party_repository::PartyRepository;
 use crate::backend::repositories::sales_repository::SalesRepository;
+use crate::backend::sales::credit_notes::{CreditNote, CreditNoteLine};
 use crate::backend::sales::invoices::Invoice;
 use crate::backend::sales::payments::CustomerPayment;
 use crate::backend::transactions::transaction::Transaction;
@@ -80,9 +81,38 @@ impl SalesService {
     }
 
     /// The invoice's own remaining balance -- for prefilling a payment
-    /// form before the amount is actually submitted.
+    /// or credit-note form before the amount is actually submitted.
     pub fn invoice_remaining_balance(&self, invoice_id: i64) -> AppResult<rust_decimal::Decimal> {
         self.sales_repo.invoice_remaining_balance(invoice_id)
+    }
+
+    /// Voids a draft invoice -- see `SalesRepository::void_invoice`.
+    pub fn void_invoice(&self, invoice_id: i64) -> AppResult<Invoice> {
+        self.sales_repo.void_invoice(invoice_id)
+    }
+
+    /// Creates and posts a credit note against exactly one invoice's own
+    /// receivable, in one step -- mirrors `record_payment_for_invoice`'s
+    /// scoping: `SalesRepository::post_credit_note` rejects (rather than
+    /// caps) an amount exceeding that invoice's own remaining balance,
+    /// and never touches any other open invoice for the same customer.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_and_post_credit_note_for_invoice(
+        &self,
+        invoice_id: i64,
+        credit_note_date: chrono::NaiveDate,
+        revenue_account_id: i64,
+        description: String,
+        amount: rust_decimal::Decimal,
+        ar_account_id: i64,
+    ) -> AppResult<(CreditNote, Transaction)> {
+        let invoice = self.sales_repo.get_invoice(invoice_id)?;
+        let receivable = self.sales_repo.open_receivable_for_invoice(invoice_id)?;
+        let mut credit_note = CreditNote::new(invoice.company_id, invoice.customer_id, credit_note_date);
+        credit_note.receivable_id = receivable.id;
+        credit_note.lines.push(CreditNoteLine::new(revenue_account_id, description, amount));
+        let created = self.sales_repo.create_credit_note(&credit_note)?;
+        self.sales_repo.post_credit_note(created.id.unwrap_or_default(), ar_account_id)
     }
 
     pub fn list_terminals(&self, company_id: i64) -> AppResult<Vec<Terminal>> {

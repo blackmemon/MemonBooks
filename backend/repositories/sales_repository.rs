@@ -257,6 +257,51 @@ impl SalesRepository {
         })
     }
 
+    /// Updates a draft invoice's customer, dates, and lines in place --
+    /// only a Draft can be edited; once posted, corrections go through a
+    /// credit note instead of a raw rewrite (see
+    /// `create_and_post_credit_note_for_invoice`).
+    pub fn update_invoice(&self, invoice: &Invoice) -> AppResult<()> {
+        invoice.validate()?;
+        let invoice_id = invoice.id.ok_or_else(|| AppError::Validation("cannot update an invoice without an id".into()))?;
+        let existing = self.get_invoice(invoice_id)?;
+        if existing.status != InvoiceStatus::Draft {
+            return Err(AppError::Validation("only a draft invoice can be edited".into()));
+        }
+
+        self.db.with_transaction(|tx| {
+            tx.execute(
+                "UPDATE invoices SET customer_id = ?1, invoice_date = ?2, due_date = ?3 WHERE id = ?4",
+                params![invoice.customer_id, invoice.invoice_date, invoice.due_date, invoice_id],
+            )?;
+            tx.execute("DELETE FROM invoice_lines WHERE invoice_id = ?1", params![invoice_id])?;
+            for (line_number, line) in invoice.lines.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO invoice_lines (invoice_id, revenue_account_id, description, quantity, unit_price, line_number)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![invoice_id, line.revenue_account_id, line.description, line.quantity.to_string(), line.unit_price.to_string(), line_number as i64],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Deletes a draft invoice outright -- only a Draft has no ledger
+    /// impact yet (no transaction, no receivable), so nothing else
+    /// references it. A posted invoice must stay (correct it with a
+    /// credit note); a voided one is kept too, for audit continuity.
+    pub fn delete_invoice(&self, invoice_id: i64) -> AppResult<()> {
+        let invoice = self.get_invoice(invoice_id)?;
+        if invoice.status != InvoiceStatus::Draft {
+            return Err(AppError::Validation("only a draft invoice can be deleted".into()));
+        }
+        self.db.with_transaction(|tx| {
+            tx.execute("DELETE FROM invoice_lines WHERE invoice_id = ?1", params![invoice_id])?;
+            tx.execute("DELETE FROM invoices WHERE id = ?1", params![invoice_id])?;
+            Ok(())
+        })
+    }
+
     /// Headers only (no line items) -- enough for a list view; call
     /// `get_invoice` for the full detail of one invoice.
     pub fn list_invoices_for_company(&self, company_id: i64) -> AppResult<Vec<Invoice>> {

@@ -60,6 +60,25 @@ impl SalesService {
         self.sales_repo.create_invoice(invoice)
     }
 
+    /// Full detail (with lines) of one invoice -- `list_invoices` only
+    /// returns headers, so editing a draft needs this to prefill its
+    /// line.
+    pub fn get_invoice(&self, invoice_id: i64) -> AppResult<Invoice> {
+        self.sales_repo.get_invoice(invoice_id)
+    }
+
+    /// Updates a draft invoice in place -- see
+    /// `SalesRepository::update_invoice`. Rejects anything not Draft.
+    pub fn update_invoice(&self, invoice: &Invoice) -> AppResult<()> {
+        self.sales_repo.update_invoice(invoice)
+    }
+
+    /// Deletes a draft invoice outright -- see
+    /// `SalesRepository::delete_invoice`. Rejects anything not Draft.
+    pub fn delete_invoice(&self, invoice_id: i64) -> AppResult<()> {
+        self.sales_repo.delete_invoice(invoice_id)
+    }
+
     pub fn post_invoice(&self, invoice_id: i64, ar_account_id: i64) -> AppResult<(Invoice, Transaction, Receivable)> {
         self.sales_repo.post_invoice(invoice_id, ar_account_id)
     }

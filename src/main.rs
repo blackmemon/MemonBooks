@@ -31,7 +31,7 @@ use memonbooks::configs::theme_preference;
 use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::colors::Theme;
-use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entry_view, tax_rates_view, trial_balance_view};
+use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
 use memonbooks::frontend::views::hr::{employees_view, expenses_view};
@@ -169,6 +169,7 @@ enum Route {
     Dashboard,
     ChartOfAccounts,
     JournalEntry,
+    JournalEntries,
     TrialBalance,
     FixedAssets,
     TaxRates,
@@ -193,6 +194,7 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Dashboard, "Dashboard"),
     (Route::ChartOfAccounts, "Chart of Accounts"),
     (Route::JournalEntry, "New Journal Entry"),
+    (Route::JournalEntries, "Journal Entries"),
     (Route::TrialBalance, "Trial Balance"),
     (Route::FixedAssets, "Fixed Assets"),
     (Route::TaxRates, "Tax Rates"),
@@ -241,6 +243,7 @@ struct MemonBooks {
     dashboard: dashboard_view::State,
     chart_of_accounts: chart_of_accounts_view::State,
     journal_entry: journal_entry_view::State,
+    journal_entries: journal_entries_view::State,
     trial_balance: trial_balance_view::State,
     fixed_assets: fixed_assets_view::State,
     tax_rates: tax_rates_view::State,
@@ -272,6 +275,7 @@ enum Message {
     Dashboard(dashboard_view::Message),
     ChartOfAccounts(chart_of_accounts_view::Message),
     JournalEntry(journal_entry_view::Message),
+    JournalEntries(journal_entries_view::Message),
     TrialBalance(trial_balance_view::Message),
     FixedAssets(fixed_assets_view::Message),
     TaxRates(tax_rates_view::Message),
@@ -307,6 +311,7 @@ impl MemonBooks {
             dashboard: dashboard_view::State::default(),
             chart_of_accounts: chart_of_accounts_view::State::default(),
             journal_entry: journal_entry_view::State::default(),
+            journal_entries: journal_entries_view::State::default(),
             trial_balance: trial_balance_view::State::default(),
             fixed_assets: fixed_assets_view::State::default(),
             tax_rates: tax_rates_view::State::default(),
@@ -335,6 +340,7 @@ impl MemonBooks {
             Route::Dashboard => self.dashboard = dashboard_view::load(&self.ctx),
             Route::ChartOfAccounts => self.chart_of_accounts = chart_of_accounts_view::load(&self.ctx),
             Route::JournalEntry => self.journal_entry = journal_entry_view::load(&self.ctx),
+            Route::JournalEntries => self.journal_entries = journal_entries_view::load(&self.ctx),
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
             Route::FixedAssets => self.fixed_assets = fixed_assets_view::load(&self.ctx),
             Route::TaxRates => self.tax_rates = tax_rates_view::load(&self.ctx),
@@ -401,6 +407,7 @@ impl MemonBooks {
             Message::Dashboard(inner) => dashboard_view::update(&mut self.dashboard, inner, &self.ctx),
             Message::ChartOfAccounts(inner) => chart_of_accounts_view::update(&mut self.chart_of_accounts, inner, &self.ctx),
             Message::JournalEntry(inner) => journal_entry_view::update(&mut self.journal_entry, inner, &self.ctx),
+            Message::JournalEntries(inner) => journal_entries_view::update(&mut self.journal_entries, inner, &self.ctx),
             Message::TrialBalance(inner) => trial_balance_view::update(&mut self.trial_balance, inner, &self.ctx),
             Message::FixedAssets(inner) => fixed_assets_view::update(&mut self.fixed_assets, inner, &self.ctx),
             Message::TaxRates(inner) => tax_rates_view::update(&mut self.tax_rates, inner, &self.ctx),
@@ -485,6 +492,7 @@ impl MemonBooks {
             Route::Dashboard => dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard),
             Route::ChartOfAccounts => chart_of_accounts_view::view(&self.chart_of_accounts, self.theme).map(Message::ChartOfAccounts),
             Route::JournalEntry => journal_entry_view::view(&self.journal_entry, self.theme).map(Message::JournalEntry),
+            Route::JournalEntries => journal_entries_view::view(&self.journal_entries, self.theme).map(Message::JournalEntries),
             Route::TrialBalance => trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance),
             Route::FixedAssets => fixed_assets_view::view(&self.fixed_assets, self.theme).map(Message::FixedAssets),
             Route::TaxRates => tax_rates_view::view(&self.tax_rates, self.theme).map(Message::TaxRates),

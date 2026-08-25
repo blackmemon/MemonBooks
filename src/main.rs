@@ -35,7 +35,7 @@ use memonbooks::frontend::views::inventory::{bills_view, products_view, vendors_
 use memonbooks::frontend::views::pos::pos_view;
 use memonbooks::frontend::views::reports::{bank_accounts_view, reports_view};
 use memonbooks::frontend::views::sales::{customers_view, invoices_view};
-use memonbooks::frontend::views::settings::{companies_view, settings_view};
+use memonbooks::frontend::views::settings::{companies_view, settings_view, users_view};
 use memonbooks::frontend::views::Ctx;
 
 /// First run: no companies exist yet. Creates one and an open fiscal
@@ -155,6 +155,7 @@ enum Route {
     Settings,
     Companies,
     SwitchUser,
+    Users,
 }
 
 const NAV_ITEMS: &[(Route, &str)] = &[
@@ -178,17 +179,25 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Settings, "Settings"),
     (Route::Companies, "Companies"),
     (Route::SwitchUser, "Switch User"),
+    (Route::Users, "Users"),
 ];
 
 /// Routes rendered in the sidebar's secondary section (below the divider)
 /// instead of the primary nav list.
 fn is_secondary_route(route: Route) -> bool {
-    matches!(route, Route::Settings | Route::Companies | Route::SwitchUser)
+    matches!(route, Route::Settings | Route::Companies | Route::SwitchUser | Route::Users)
 }
 
 struct MemonBooks {
     ctx: Ctx,
     session: Option<User>,
+    /// Cached at login/switch-user time (not recomputed in `view()`, to
+    /// keep it a pure render function) -- whether the signed-in user's
+    /// role currently grants `users.manage`. Filters the "Users" nav
+    /// entry out of the sidebar when false; the real security boundary
+    /// is still `AuthService::require_permission` inside every mutating
+    /// call `users_view` makes, not this cosmetic gate.
+    can_manage_users: bool,
     route: Route,
     sidebar_collapsed: bool,
     login: login_view::State,
@@ -213,6 +222,7 @@ struct MemonBooks {
     settings: settings_view::State,
     companies: companies_view::State,
     switch_user: switch_user_view::State,
+    users: users_view::State,
 }
 
 #[derive(Debug, Clone)]
@@ -242,6 +252,7 @@ enum Message {
     Settings(settings_view::Message),
     Companies(companies_view::Message),
     SwitchUser(switch_user_view::Message),
+    Users(users_view::Message),
 }
 
 impl MemonBooks {
@@ -249,6 +260,7 @@ impl MemonBooks {
         Self {
             ctx,
             session: None,
+            can_manage_users: false,
             route: Route::Dashboard,
             sidebar_collapsed: false,
             login: login_view::State::default(),
@@ -273,6 +285,7 @@ impl MemonBooks {
             settings: settings_view::State::default(),
             companies: companies_view::State::default(),
             switch_user: switch_user_view::State::default(),
+            users: users_view::State::default(),
         }
     }
 
@@ -300,6 +313,7 @@ impl MemonBooks {
             Route::Settings => self.settings = settings_view::load(&self.ctx),
             Route::Companies => self.companies = companies_view::load(&self.ctx),
             Route::SwitchUser => self.switch_user = switch_user_view::load(&self.ctx),
+            Route::Users => self.users = users_view::load(&self.ctx),
         }
     }
 
@@ -318,6 +332,9 @@ impl MemonBooks {
             Message::Login(inner) => {
                 if let login_view::Event::LoggedIn(user) = login_view::update(&mut self.login, inner, &self.ctx) {
                     self.ctx.current_user_id = user.id;
+                    self.can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(self.ctx.db.clone())
+                        .has_permission(&user, "users.manage")
+                        .unwrap_or(false);
                     self.session = Some(user);
                     self.login = login_view::State::default();
                     self.route = Route::Dashboard;
@@ -361,11 +378,18 @@ impl MemonBooks {
             Message::SwitchUser(inner) => {
                 if let switch_user_view::Event::SwitchedTo(user) = switch_user_view::update(&mut self.switch_user, inner, &self.ctx) {
                     self.ctx.current_user_id = user.id;
+                    self.can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(self.ctx.db.clone())
+                        .has_permission(&user, "users.manage")
+                        .unwrap_or(false);
                     self.session = Some(user);
                     self.switch_user = switch_user_view::State::default();
                     self.route = Route::Dashboard;
                     self.load_route(Route::Dashboard);
                 }
+            }
+            Message::Users(inner) => {
+                let Some(user) = self.session.clone() else { return };
+                users_view::update(&mut self.users, inner, &self.ctx, &user);
             }
         }
     }
@@ -382,7 +406,11 @@ impl MemonBooks {
         }
 
         let primary_routes: Vec<(Route, &str)> = NAV_ITEMS.iter().copied().filter(|(route, _)| !is_secondary_route(*route)).collect();
-        let secondary_routes: Vec<(Route, &str)> = NAV_ITEMS.iter().copied().filter(|(route, _)| is_secondary_route(*route)).collect();
+        let secondary_routes: Vec<(Route, &str)> = NAV_ITEMS
+            .iter()
+            .copied()
+            .filter(|(route, _)| is_secondary_route(*route) && (*route != Route::Users || self.can_manage_users))
+            .collect();
 
         let primary_entries: Vec<NavEntry> = primary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
         let secondary_entries: Vec<NavEntry> = secondary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
@@ -424,6 +452,7 @@ impl MemonBooks {
             Route::Settings => settings_view::view(&self.settings).map(Message::Settings),
             Route::Companies => companies_view::view(&self.companies).map(Message::Companies),
             Route::SwitchUser => switch_user_view::view(&self.switch_user).map(Message::SwitchUser),
+            Route::Users => users_view::view(&self.users).map(Message::Users),
         };
 
         row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()

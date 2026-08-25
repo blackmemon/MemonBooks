@@ -56,6 +56,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     version: 402,
     name: "users_must_change_password",
     sql: "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;",
+}, Migration {
+    version: 403,
+    name: "users_is_reset_requested",
+    sql: "ALTER TABLE users ADD COLUMN is_reset_requested INTEGER NOT NULL DEFAULT 0;",
 }];
 
 #[derive(Clone)]
@@ -150,8 +154,8 @@ impl UserRepository {
         user.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO users (username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO users (username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password, is_reset_requested)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     user.username,
                     user.display_name,
@@ -161,6 +165,7 @@ impl UserRepository {
                     user.two_factor_enabled,
                     user.two_factor_secret,
                     user.must_change_password,
+                    user.is_reset_requested,
                 ],
             )?;
             Ok(User {
@@ -173,7 +178,7 @@ impl UserRepository {
     pub fn get_user(&self, id: i64) -> AppResult<User> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password, is_reset_requested
                  FROM users WHERE id = ?1",
                 params![id],
                 map_user,
@@ -187,7 +192,7 @@ impl UserRepository {
         let username = username.to_ascii_lowercase();
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password, is_reset_requested
                  FROM users WHERE username = ?1",
                 params![username],
                 map_user,
@@ -200,7 +205,7 @@ impl UserRepository {
     pub fn list_users(&self) -> AppResult<Vec<User>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password
+                "SELECT id, username, display_name, password_hash, role_id, is_active, two_factor_enabled, two_factor_secret, must_change_password, is_reset_requested
                  FROM users ORDER BY username",
             )?;
             let rows = stmt.query_map([], map_user)?;
@@ -216,7 +221,7 @@ impl UserRepository {
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE users SET username = ?1, display_name = ?2, password_hash = ?3, role_id = ?4,
-                 is_active = ?5, two_factor_enabled = ?6, two_factor_secret = ?7, must_change_password = ?8 WHERE id = ?9",
+                 is_active = ?5, two_factor_enabled = ?6, two_factor_secret = ?7, must_change_password = ?8, is_reset_requested = ?9 WHERE id = ?10",
                 params![
                     user.username,
                     user.display_name,
@@ -226,6 +231,7 @@ impl UserRepository {
                     user.two_factor_enabled,
                     user.two_factor_secret,
                     user.must_change_password,
+                    user.is_reset_requested,
                     id,
                 ],
             )?;
@@ -246,6 +252,36 @@ impl UserRepository {
                 "UPDATE users SET password_hash = ?1, must_change_password = 0 WHERE id = ?2",
                 params![new_password_hash, user_id],
             )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("user {user_id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// An administrator-triggered password reset: sets a new (randomly
+    /// generated, by the caller) hash and, unlike `set_password`,
+    /// *forces* a change on next login -- the new password is a
+    /// temporary one the administrator generated, not one the user
+    /// chose themselves, so it must not be allowed to persist silently.
+    /// Also clears any pending reset request, since this satisfies it.
+    pub fn reset_password_by_admin(&self, user_id: i64, new_password_hash: &str) -> AppResult<()> {
+        self.db.with_connection(|conn| {
+            let affected = conn.execute(
+                "UPDATE users SET password_hash = ?1, must_change_password = 1, is_reset_requested = 0 WHERE id = ?2",
+                params![new_password_hash, user_id],
+            )?;
+            if affected == 0 {
+                return Err(AppError::NotFound(format!("user {user_id} not found")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Flags (or clears) `user_id`'s pending password-reset request.
+    pub fn set_reset_requested(&self, user_id: i64, requested: bool) -> AppResult<()> {
+        self.db.with_connection(|conn| {
+            let affected = conn.execute("UPDATE users SET is_reset_requested = ?1 WHERE id = ?2", params![requested, user_id])?;
             if affected == 0 {
                 return Err(AppError::NotFound(format!("user {user_id} not found")));
             }
@@ -314,6 +350,7 @@ fn map_user(row: &Row) -> rusqlite::Result<User> {
         two_factor_enabled: row.get(6)?,
         two_factor_secret: row.get(7)?,
         must_change_password: row.get(8)?,
+        is_reset_requested: row.get(9)?,
     })
 }
 
@@ -395,6 +432,36 @@ mod tests {
 
         let result = repo.create_user(&User::new("alice", "Someone Else", "hash2", role.id.unwrap()));
         assert!(matches!(result, Err(AppError::Database(_))));
+    }
+
+    #[test]
+    fn reset_password_by_admin_sets_the_hash_forces_a_change_and_clears_a_pending_request() {
+        let repo = repo_with_schema();
+        let role = repo.create_role(&admin_role()).unwrap();
+        let mut user = User::new("alice", "Alice Smith", "old-hash", role.id.unwrap());
+        user.is_reset_requested = true;
+        let created = repo.create_user(&user).unwrap();
+
+        repo.reset_password_by_admin(created.id.unwrap(), "new-hash").unwrap();
+
+        let reloaded = repo.get_user(created.id.unwrap()).unwrap();
+        assert_eq!(reloaded.password_hash, "new-hash");
+        assert!(reloaded.must_change_password);
+        assert!(!reloaded.is_reset_requested);
+    }
+
+    #[test]
+    fn set_reset_requested_toggles_the_flag() {
+        let repo = repo_with_schema();
+        let role = repo.create_role(&admin_role()).unwrap();
+        let created = repo.create_user(&User::new("alice", "Alice Smith", "hash", role.id.unwrap())).unwrap();
+        assert!(!created.is_reset_requested);
+
+        repo.set_reset_requested(created.id.unwrap(), true).unwrap();
+        assert!(repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
+
+        repo.set_reset_requested(created.id.unwrap(), false).unwrap();
+        assert!(!repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
     }
 
     #[test]

@@ -20,6 +20,12 @@ pub struct User {
     /// account so a freshly-installed system's freshly-logged
     /// credential doesn't stay live indefinitely.
     pub must_change_password: bool,
+    /// Set by the account owner from the logged-out "Forgot Password"
+    /// screen, cleared once an administrator resets the password (or
+    /// dismisses the request) from the Users screen. Doesn't reset
+    /// anything by itself -- only a human administrator can do that;
+    /// this just flags the account so they know to.
+    pub is_reset_requested: bool,
 }
 
 impl User {
@@ -34,6 +40,7 @@ impl User {
             two_factor_enabled: false,
             two_factor_secret: None,
             must_change_password: false,
+            is_reset_requested: false,
         }
     }
 }

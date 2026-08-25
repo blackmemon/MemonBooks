@@ -16,6 +16,13 @@ pub struct State {
     password: String,
     two_factor_code: String,
     pending_user: Option<User>,
+    /// Shows the "Forgot Password" screen instead of the credentials
+    /// form when set. Doesn't reset anything itself -- only an
+    /// administrator can do that from the Users screen; this just lets
+    /// the account owner flag their account so an admin knows to.
+    forgot_password: bool,
+    reset_request_username: String,
+    reset_request_submitted: bool,
     error: Option<String>,
 }
 
@@ -26,6 +33,10 @@ pub enum Message {
     TwoFactorCodeChanged(String),
     SubmitCredentials,
     SubmitTwoFactorCode,
+    ForgotPasswordClicked,
+    BackToLoginClicked,
+    ResetRequestUsernameChanged(String),
+    SubmitResetRequest,
 }
 
 pub enum Event {
@@ -75,13 +86,57 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
                 }
             }
         }
+        Message::ForgotPasswordClicked => {
+            state.forgot_password = true;
+            state.reset_request_username = state.username.clone();
+            state.reset_request_submitted = false;
+            state.error = None;
+            Event::None
+        }
+        Message::BackToLoginClicked => {
+            state.forgot_password = false;
+            state.reset_request_submitted = false;
+            Event::None
+        }
+        Message::ResetRequestUsernameChanged(value) => {
+            state.reset_request_username = value;
+            Event::None
+        }
+        Message::SubmitResetRequest => {
+            let service = AuthService::new(ctx.db.clone());
+            // Always shows the same confirmation regardless of outcome
+            // -- see `AuthService::request_password_reset`'s doc
+            // comment for why this can't reveal whether the username
+            // exists.
+            let _ = service.request_password_reset(&state.reset_request_username);
+            state.reset_request_submitted = true;
+            Event::None
+        }
     }
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
     let title = text("MemonBooks").size(24).color(colors::WHITE_PRIMARY);
 
-    let form: Element<'_, Message> = if state.pending_user.is_some() {
+    let form: Element<'_, Message> = if state.forgot_password {
+        if state.reset_request_submitted {
+            column![
+                text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(13),
+                button(text("Back to login")).on_press(Message::BackToLoginClicked).padding(8),
+            ]
+            .spacing(12)
+            .into()
+        } else {
+            column![
+                text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(13),
+                text_input("Username", &state.reset_request_username).on_input(Message::ResetRequestUsernameChanged).padding(8),
+                button(text("Request Reset")).on_press(Message::SubmitResetRequest).padding(8),
+                button(text("Back to login")).on_press(Message::BackToLoginClicked).padding(8),
+            ]
+            .spacing(12)
+            .into()
+        }
+    } else if state.pending_user.is_some() {
         column![
             text("Enter your two-factor authentication code"),
             text_input("6-digit code", &state.two_factor_code)
@@ -99,6 +154,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 .secure(true)
                 .padding(8),
             button(text("Log in")).on_press(Message::SubmitCredentials).padding(8),
+            button(text("Forgot Password?")).on_press(Message::ForgotPasswordClicked).padding(8),
         ]
         .spacing(12)
         .into()
@@ -233,6 +289,57 @@ mod tests {
         let event = update(&mut state, Message::SubmitTwoFactorCode, &ctx);
 
         assert!(matches!(event, Event::None));
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn forgot_password_clicked_switches_to_the_reset_request_screen_prefilled_with_the_typed_username() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { username: "alice".into(), ..Default::default() };
+
+        update(&mut state, Message::ForgotPasswordClicked, &ctx);
+
+        assert!(state.forgot_password);
+        assert_eq!(state.reset_request_username, "alice");
+        assert!(!state.reset_request_submitted);
+    }
+
+    #[test]
+    fn back_to_login_clicked_returns_to_the_credentials_screen() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { forgot_password: true, reset_request_submitted: true, ..Default::default() };
+
+        update(&mut state, Message::BackToLoginClicked, &ctx);
+
+        assert!(!state.forgot_password);
+        assert!(!state.reset_request_submitted);
+    }
+
+    #[test]
+    fn submitting_a_reset_request_for_a_real_username_flags_the_account() {
+        use crate::backend::repositories::user_repository::UserRepository;
+
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { forgot_password: true, reset_request_username: "alice".into(), ..Default::default() };
+
+        update(&mut state, Message::SubmitResetRequest, &ctx);
+
+        assert!(state.reset_request_submitted);
+        let repo = UserRepository::new(ctx.db.clone());
+        let user = repo.find_user_by_username("alice").unwrap().unwrap();
+        assert!(user.is_reset_requested);
+    }
+
+    #[test]
+    fn submitting_a_reset_request_for_an_unknown_username_still_shows_the_same_confirmation() {
+        let ctx = ctx_with_user("alice", "correct horse battery staple", None);
+        let mut state = State { forgot_password: true, reset_request_username: "nobody-by-this-name".into(), ..Default::default() };
+
+        update(&mut state, Message::SubmitResetRequest, &ctx);
+
+        // No error, no distinguishable outcome -- proves this can't be
+        // used to probe which usernames exist.
+        assert!(state.reset_request_submitted);
         assert!(state.error.is_none());
     }
 }

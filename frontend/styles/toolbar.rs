@@ -3,22 +3,23 @@
 //! hairline border so they read as one aligned row.
 
 use iced::widget::button;
-use iced::{Background, Color, Theme};
+use iced::{Background, Theme as IcedTheme};
 
-use crate::frontend::styles::{borders, colors};
+use crate::frontend::styles::borders;
+use crate::frontend::styles::colors::Theme;
 
 pub const CONTROL_HEIGHT: f32 = 36.0;
 
-pub fn dropdown_button() -> impl Fn(&Theme, button::Status) -> button::Style {
-    |_theme: &Theme, status: button::Status| {
+pub fn dropdown_button(theme: Theme) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
+    move |_iced_theme: &IcedTheme, status: button::Status| {
         let background = match status {
-            button::Status::Hovered | button::Status::Pressed => Color { a: 0.6, ..colors::WHITE_NEUTRAL_BG },
-            _ => Color::WHITE,
+            button::Status::Hovered | button::Status::Pressed => iced::Color { a: 0.6, ..theme.neutral_bg() },
+            _ => theme.surface(),
         };
         button::Style {
             background: Some(Background::Color(background)),
-            text_color: colors::WHITE_NEUTRAL_FRONT,
-            border: borders::card(borders::RADIUS_SM),
+            text_color: theme.neutral_front(),
+            border: borders::card(theme, borders::RADIUS_SM),
             shadow: iced::Shadow::default(),
         }
     }

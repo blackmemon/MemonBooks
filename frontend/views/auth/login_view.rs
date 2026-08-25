@@ -7,7 +7,7 @@ use iced::{Element, Length};
 use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -115,8 +115,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let title = text("MemonBooks").size(24).color(colors::WHITE_PRIMARY);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let title = text("MemonBooks").size(24).color(theme.primary());
 
     let form: Element<'_, Message> = if state.forgot_password {
         if state.reset_request_submitted {
@@ -161,7 +161,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     };
 
     let error: Element<'_, Message> = match &state.error {
-        Some(message) => text(message.clone()).color(colors::WHITE_NEGATIVE_FRONT).into(),
+        Some(message) => text(message.clone()).color(theme.negative_front()).into(),
         None => text("").into(),
     };
 

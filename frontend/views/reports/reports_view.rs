@@ -11,7 +11,7 @@ use iced::{Element, Length};
 use crate::backend::reports::{balance_sheet, profit_loss};
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -101,9 +101,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if let Some(error) = &state.error {
-        return container(text(format!("Could not load reports: {error}")).color(colors::WHITE_NEGATIVE_FRONT)).padding(20).into();
+        return container(text(format!("Could not load reports: {error}")).color(theme.negative_front())).padding(20).into();
     }
     let (Some(balance_sheet), Some(profit_and_loss)) = (&state.balance_sheet, &state.profit_and_loss) else {
         return container(text("Loading...")).padding(20).into();
@@ -117,9 +117,9 @@ pub fn view(state: &State) -> Element<'_, Message> {
     ]
     .spacing(6);
     bs_column = bs_column.push(if balance_sheet.is_balanced() {
-        text("Balanced").color(colors::WHITE_POSITIVE_FRONT)
+        text("Balanced").color(theme.positive_front())
     } else {
-        text("Not balanced").color(colors::WHITE_NEGATIVE_FRONT)
+        text("Not balanced").color(theme.negative_front())
     });
     bs_column = bs_column.push(button(text("Export CSV")).on_press(Message::ExportBalanceSheetCsv).padding(6));
 
@@ -135,7 +135,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![text("Reports").size(24), row![bs_column, pl_column].spacing(40)].spacing(16).padding(20);
 
     if let Some(export_message) = &state.export_message {
-        content = content.push(text(export_message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(export_message.clone()).color(theme.positive_front()));
     }
 
     scrollable(container(content).width(Length::Fill)).into()

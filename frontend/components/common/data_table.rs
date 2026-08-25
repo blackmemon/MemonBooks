@@ -7,10 +7,11 @@
 //! a colored status pill, and a progress bar with a percentage label).
 
 use iced::widget::{button, checkbox, column, container, progress_bar, row, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
-use crate::frontend::styles::{borders, colors, panels, spacing, table as table_style};
+use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::{borders, panels, spacing, table as table_style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -97,7 +98,9 @@ const PRIMARY_ACTION_WIDTH: f32 = 132.0;
 /// `on_select_all(true)` fires when every row is checked and the header
 /// checkbox is unchecked (select all currently-visible rows), and
 /// `on_select_all(false)` fires when it's checked (clear the selection).
+#[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
+    theme: Theme,
     columns: Vec<ColumnDef<'a>>,
     rows: Vec<Row>,
     selected: Option<Vec<bool>>,
@@ -119,12 +122,12 @@ pub fn view<'a, Message: Clone + 'a>(
             SortDirection::Descending => " \u{25BC}",
             SortDirection::None => "",
         };
-        header = header.push(text(format!("{}{}", column_def.label, arrow)).size(12).color(colors::WHITE_NEUTRAL_FRONT).width(column_def.width));
+        header = header.push(text(format!("{}{}", column_def.label, arrow)).size(12).color(theme.neutral_front()).width(column_def.width));
     }
     header = header.push(Space::with_width(Length::Fixed(PRIMARY_ACTION_WIDTH)));
     header = header.push(Space::with_width(Length::Fixed(32.0)));
 
-    let header_container = container(header).style(table_style::header_row());
+    let header_container = container(header).style(table_style::header_row(theme));
 
     let mut body = column![];
     let row_count = rows.len();
@@ -136,28 +139,32 @@ pub fn view<'a, Message: Clone + 'a>(
             cells_row = cells_row.push(container(checkbox("", is_checked).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
         }
         for (cell, column_def) in table_row.cells.into_iter().zip(columns.iter()) {
-            cells_row = cells_row.push(container(cell_view::<Message>(cell)).width(column_def.width));
+            cells_row = cells_row.push(container(cell_view::<Message>(theme, cell)).width(column_def.width));
         }
         let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
-            Some(label) => button(text(label).size(12)).style(primary_row_button).padding([6.0, 14.0]).on_press(on_primary_action(row_index)).into(),
+            Some(label) => button(text(label).size(12))
+                .style(move |_iced_theme: &IcedTheme, status| primary_row_button(theme, status))
+                .padding([6.0, 14.0])
+                .on_press(on_primary_action(row_index))
+                .into(),
             None => Space::with_width(Length::Shrink).into(),
         };
         cells_row = cells_row.push(container(primary_action_slot).width(Length::Fixed(PRIMARY_ACTION_WIDTH)).align_x(iced::alignment::Horizontal::Left));
         cells_row = cells_row.push(
             container(
-                button(text("\u{22EE}").size(14).color(colors::WHITE_NEUTRAL_FRONT))
-                    .style(kebab_button)
+                button(text("\u{22EE}").size(14).color(theme.neutral_front()))
+                    .style(move |_iced_theme: &IcedTheme, status| kebab_button(theme, status))
                     .on_press(on_row_action(row_index)),
             )
             .width(Length::Fixed(32.0)),
         );
 
-        let interactive_row = button(cells_row).style(table_style::row()).on_press(on_row_action(row_index)).width(Length::Fill);
+        let interactive_row = button(cells_row).style(table_style::row(theme)).on_press(on_row_action(row_index)).width(Length::Fill);
 
         body = body.push(interactive_row);
         if row_index + 1 < row_count {
-            body = body.push(container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_theme: &Theme| container::Style {
-                background: Some(Background::Color(table_style::divider_color())),
+            body = body.push(container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_iced_theme: &IcedTheme| container::Style {
+                background: Some(Background::Color(table_style::divider_color(theme))),
                 ..container::Style::default()
             }));
         }
@@ -165,13 +172,13 @@ pub fn view<'a, Message: Clone + 'a>(
 
     let card = column![header_container, body].width(Length::Fill);
 
-    container(card).style(panels::flat_card(borders::RADIUS_MD)).width(Length::Fill).into()
+    container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill).into()
 }
 
-fn cell_view<'a, Message: 'a>(cell: Cell) -> Element<'a, Message> {
+fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {
     match cell {
-        Cell::Text(value) => text(value).size(13).into(),
-        Cell::Date(value) => text(value).size(13).color(colors::WHITE_NEUTRAL_FRONT).into(),
+        Cell::Text(value) => text(value).size(13).color(theme.text_primary()).into(),
+        Cell::Date(value) => text(value).size(13).color(theme.neutral_front()).into(),
         Cell::Person { name, subtitle } => {
             let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
             let avatar = container(text(initial).size(12).color(Color::WHITE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
@@ -179,21 +186,21 @@ fn cell_view<'a, Message: 'a>(cell: Cell) -> Element<'a, Message> {
                 .height(Length::Fixed(28.0))
                 .align_x(iced::alignment::Horizontal::Center)
                 .align_y(iced::alignment::Vertical::Center)
-                .style(|_theme: &Theme| container::Style {
-                    background: Some(Background::Color(colors::WHITE_PRIMARY)),
+                .style(move |_iced_theme: &IcedTheme| container::Style {
+                    background: Some(Background::Color(theme.primary())),
                     border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
                     ..container::Style::default()
                 });
-            row![avatar, column![text(name).size(13), text(subtitle).size(11).color(colors::WHITE_NEUTRAL_FRONT)].spacing(2.0)]
+            row![avatar, column![text(name).size(13).color(theme.text_primary()), text(subtitle).size(11).color(theme.neutral_front())].spacing(2.0)]
                 .spacing(spacing::SM)
                 .align_y(Alignment::Center)
                 .into()
         }
         Cell::Status { label, tone } => {
-            let (bg, front) = tone_colors(tone);
+            let (bg, front) = tone_colors(theme, tone);
             container(row![text("\u{25CF}").size(9).color(front), text(label).size(12).color(front)].spacing(6.0).align_y(Alignment::Center))
                 .padding([4.0, 10.0])
-                .style(move |_theme: &Theme| container::Style {
+                .style(move |_iced_theme: &IcedTheme| container::Style {
                     background: Some(Background::Color(bg)),
                     border: Border { radius: borders::RADIUS_PILL.into(), ..Border::default() },
                     ..container::Style::default()
@@ -201,35 +208,36 @@ fn cell_view<'a, Message: 'a>(cell: Cell) -> Element<'a, Message> {
                 .into()
         }
         Cell::Progress { fraction, label } => column![
-            progress_bar(0.0..=1.0, fraction).height(Length::Fixed(6.0)).style(|_theme: &Theme| iced::widget::progress_bar::Style {
-                background: Background::Color(colors::WHITE_NEUTRAL_BG),
-                bar: Background::Color(colors::WHITE_PRIMARY),
+            progress_bar(0.0..=1.0, fraction).height(Length::Fixed(6.0)).style(move |_iced_theme: &IcedTheme| iced::widget::progress_bar::Style {
+                background: Background::Color(theme.neutral_bg()),
+                bar: Background::Color(theme.primary()),
                 border: Border::default(),
             }),
-            text(label).size(11).color(colors::WHITE_NEUTRAL_FRONT),
+            text(label).size(11).color(theme.neutral_front()),
         ]
         .spacing(4.0)
         .into(),
     }
 }
 
-fn kebab_button(_theme: &Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = if matches!(status, iced::widget::button::Status::Hovered) { Some(Background::Color(colors::WHITE_NEUTRAL_BG)) } else { None };
-    iced::widget::button::Style { background, text_color: colors::WHITE_NEUTRAL_FRONT, border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
+fn kebab_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
+    let background = if matches!(status, iced::widget::button::Status::Hovered) { Some(Background::Color(theme.neutral_bg())) } else { None };
+    iced::widget::button::Style { background, text_color: theme.neutral_front(), border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
 }
 
-/// A row's visible primary-action button: an outline in `white_primary`
-/// rather than a solid fill, so a table full of them doesn't compete
-/// visually with the page-level primary action in the header.
-fn primary_row_button(_theme: &Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
+/// A row's visible primary-action button: an outline in the theme's
+/// primary color rather than a solid fill, so a table full of them
+/// doesn't compete visually with the page-level primary action in the
+/// header.
+fn primary_row_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
     let background = match status {
-        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.1, ..colors::WHITE_PRIMARY },
+        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.1, ..theme.primary() },
         _ => Color::TRANSPARENT,
     };
     iced::widget::button::Style {
         background: Some(Background::Color(background)),
-        text_color: colors::WHITE_PRIMARY,
-        border: Border { color: colors::WHITE_PRIMARY, width: 1.0, radius: borders::RADIUS_SM.into() },
+        text_color: theme.primary(),
+        border: Border { color: theme.primary(), width: 1.0, radius: borders::RADIUS_SM.into() },
         shadow: iced::Shadow::default(),
     }
 }

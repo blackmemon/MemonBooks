@@ -1,6 +1,6 @@
 //! Text sizes for page/section headers (Section 6). Colors always come
-//! from `colors::WHITE_NEUTRAL_FRONT` (description) or the surrounding
-//! view's default text color (title) -- no new colors here.
+//! from the active theme's `neutral_front` (description) or `text_primary`
+//! (title) -- no new colors here.
 
 pub const PAGE_TITLE_SIZE: f32 = 26.0;
 pub const PAGE_DESCRIPTION_SIZE: f32 = 13.0;

@@ -6,7 +6,7 @@ use iced::Element;
 use crate::backend::core::validation::Validate;
 use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -74,10 +74,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let Some(company) = &state.company else {
         let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
-        return container(text(message).color(colors::WHITE_NEGATIVE_FRONT)).padding(20).into();
+        return container(text(message).color(theme.negative_front())).padding(20).into();
     };
 
     let mut content = column![
@@ -93,10 +93,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
     .padding(20);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     content.into()

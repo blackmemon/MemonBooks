@@ -6,7 +6,7 @@ use iced::{Element, Length};
 
 use crate::backend::core::errors::AppResult;
 use crate::backend::services::report_service::ReportService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -55,32 +55,32 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-fn summary_card(label: impl Into<String>, value: impl Into<String>) -> Element<'static, Message> {
+fn summary_card(theme: Theme, label: impl Into<String>, value: impl Into<String>) -> Element<'static, Message> {
     container(
-        column![text(label.into()).size(14).color(colors::WHITE_PRIMARY), text(value.into()).size(24)].spacing(6),
+        column![text(label.into()).size(14).color(theme.primary()), text(value.into()).size(24).color(theme.text_primary())].spacing(6),
     )
     .padding(16)
     .width(Length::FillPortion(1))
     .into()
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if let Some(error) = &state.error {
-        return container(text(format!("Could not load dashboard: {error}")).color(colors::WHITE_NEGATIVE_FRONT))
+        return container(text(format!("Could not load dashboard: {error}")).color(theme.negative_front()))
             .padding(20)
             .into();
     }
 
     column![
-        text("Dashboard").size(24),
+        text("Dashboard").size(24).color(theme.text_primary()),
         row![
-            summary_card("Total Debits (Trial Balance)", state.total_assets.clone()),
-            summary_card("Total Credits (Trial Balance)", state.total_equity.clone()),
+            summary_card(theme, "Total Debits (Trial Balance)", state.total_assets.clone()),
+            summary_card(theme, "Total Credits (Trial Balance)", state.total_equity.clone()),
         ]
         .spacing(16),
         row![
-            summary_card("Open Receivables", state.open_receivables_count.to_string()),
-            summary_card("Open Payables", state.open_payables_count.to_string()),
+            summary_card(theme, "Open Receivables", state.open_receivables_count.to_string()),
+            summary_card(theme, "Open Payables", state.open_payables_count.to_string()),
         ]
         .spacing(16),
     ]

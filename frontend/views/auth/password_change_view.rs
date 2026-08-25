@@ -9,7 +9,7 @@ use iced::{Element, Length};
 
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -64,10 +64,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, current_user: &Use
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let mut content = column![
         text("Change Your Password").size(24),
-        text("You must set a new password before continuing.").color(colors::WHITE_PRIMARY),
+        text("You must set a new password before continuing.").color(theme.primary()),
         text("Current password"),
         text_input("Current password", &state.current_password)
             .on_input(Message::CurrentPasswordChanged)
@@ -89,7 +89,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     .max_width(360);
 
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(content)

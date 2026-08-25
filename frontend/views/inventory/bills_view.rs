@@ -13,7 +13,7 @@ use crate::backend::services::purchase_service::PurchaseService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -204,10 +204,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let header = page_header::view("Bills", "Everything you owe vendors, in one place.", "Create & post", Message::CreateAndPost);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let header = page_header::view(theme, "Bills", "Everything you owe vendors, in one place.", "Create & post", Message::CreateAndPost);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Bills"],
         0,
         Message::TabSelected,
@@ -220,7 +221,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view("Bill list", "Every bill on this company's books.");
+    let heading = section_heading::view(theme, "Bill list", "Every bill on this company's books.");
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Bill> = state.bills.iter().filter(|bill| query.is_empty() || bill.id.map(|id| format!("BILL-{id}")).unwrap_or_default().to_lowercase().contains(&query)).collect();
@@ -246,7 +247,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let bill_ids: Vec<i64> = filtered.iter().map(|bill| bill.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(bill_ids[index]));
+    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::PayForRow(bill_ids[index]));
 
     let form = column![
         text("Create & post a bill").size(13),
@@ -269,7 +270,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .unwrap_or_else(|| "Click a row's Pay button to choose a bill".to_string());
     let payment_form = column![
         text("Pay a bill").size(13),
-        text(format!("Bill: {payment_target_label}")).size(12).color(colors::WHITE_NEUTRAL_FRONT),
+        text(format!("Bill: {payment_target_label}")).size(12).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).placeholder("AP account"),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
         text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
@@ -280,10 +281,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![header, toolbar, heading, table, form, payment_form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

@@ -23,7 +23,7 @@ use crate::backend::expenses::expense_categories::ExpenseCategory;
 use crate::backend::expenses::expenses::Expense;
 use crate::backend::services::expense_service::ExpenseService;
 use crate::frontend::components::common::page_header;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -134,8 +134,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let header = page_header::view("Expenses", "Record a direct expense and post it.", "Record expense", Message::Record);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let header = page_header::view(theme, "Expenses", "Record a direct expense and post it.", "Record expense", Message::Record);
 
     let form = column![
         text("Expense account"),
@@ -153,10 +153,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![header, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

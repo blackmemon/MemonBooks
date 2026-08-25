@@ -5,12 +5,13 @@
 use iced::widget::{column, text};
 use iced::{Element, Font};
 
-use crate::frontend::styles::{colors, headers};
+use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::headers;
 
-pub fn view<'a, Message: 'a>(heading: &'a str, description: &'a str) -> Element<'a, Message> {
+pub fn view<'a, Message: 'a>(theme: Theme, heading: &'a str, description: &'a str) -> Element<'a, Message> {
     column![
         text(heading).size(headers::SECTION_HEADING_SIZE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }),
-        text(description).size(headers::SECTION_DESCRIPTION_SIZE).color(colors::WHITE_NEUTRAL_FRONT),
+        text(description).size(headers::SECTION_DESCRIPTION_SIZE).color(theme.neutral_front()),
     ]
     .spacing(2.0)
     .into()

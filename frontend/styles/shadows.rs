@@ -4,10 +4,10 @@
 
 use iced::{Color, Shadow, Vector};
 
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 
 /// A contained shadow for cards floating slightly above the page
 /// background: soft, short throw, low opacity.
-pub fn card() -> Shadow {
-    Shadow { color: Color { a: 0.08, ..colors::WHITE_NEUTRAL_FRONT }, offset: Vector::new(0.0, 1.0), blur_radius: 8.0 }
+pub fn card(theme: Theme) -> Shadow {
+    Shadow { color: Color { a: 0.08, ..theme.neutral_front() }, offset: Vector::new(0.0, 1.0), blur_radius: 8.0 }
 }

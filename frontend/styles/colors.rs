@@ -1,6 +1,6 @@
-// White Theme color tokens (Section 6 of PROJECT_SPEC.md).
+// Theme color tokens (Section 6 of PROJECT_SPEC.md).
 // Usage rule: no hex literals anywhere outside this file -- every component
-// and view imports these constants instead.
+// and view calls a `Theme` method instead.
 //
 // `Color::from_rgb8` isn't a `const fn` in the pinned iced version, so these
 // are built as struct literals (`r`/`g`/`b`/`a` are public fields) to stay
@@ -17,29 +17,158 @@ const fn rgb8(r: u8, g: u8, b: u8) -> Color {
     }
 }
 
-/// Primary accent -- buttons, active nav item, links, focus rings.
-pub const WHITE_PRIMARY: Color = rgb8(0x51, 0xA2, 0xFF);
+/// Which palette is active. `Light` is the app's original (and so far
+/// only real) look -- every method's `Light` arm returns exactly the
+/// value the old `WHITE_*` constants used to. `Dark`'s values are
+/// PLACEHOLDERS (see the module-level note below): picked so the app
+/// is fully usable and visibly "dark" for testing the toggle, not a
+/// final palette -- expect every `Dark` arm in this file to be
+/// replaced wholesale later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Theme {
+    Light,
+    Dark,
+}
 
-/// Success / positive background (badges, toasts, confirmations).
-pub const WHITE_POSITIVE_BG: Color = rgb8(0xC6, 0xF1, 0xCE);
-/// Success / positive text & icon color.
-pub const WHITE_POSITIVE_FRONT: Color = rgb8(0x00, 0x64, 0x00);
+impl Theme {
+    /// Primary accent -- buttons, active nav item, links, focus rings.
+    pub fn primary(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x51, 0xA2, 0xFF),
+            // PLACEHOLDER: a lighter blue so it still contrasts against
+            // a dark surface -- swap for the real dark-palette accent.
+            Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
+        }
+    }
 
-/// Error / negative background (validation errors, destructive confirmations).
-pub const WHITE_NEGATIVE_BG: Color = rgb8(0xFF, 0xC8, 0xCE);
-/// Error / negative text & icon color.
-pub const WHITE_NEGATIVE_FRONT: Color = rgb8(0x9C, 0x00, 0x0A);
+    /// Success / positive background (badges, toasts, confirmations).
+    pub fn positive_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xC6, 0xF1, 0xCE),
+            Theme::Dark => rgb8(0x16, 0x32, 0x1C), // PLACEHOLDER
+        }
+    }
 
-/// Warning background (pending states, unsaved-changes notices).
-pub const WHITE_WARNING_BG: Color = rgb8(0xFF, 0xEB, 0xA0);
-/// Warning text & icon color.
-pub const WHITE_WARNING_FRONT: Color = rgb8(0x9C, 0x5A, 0x00);
+    /// Success / positive text & icon color.
+    pub fn positive_front(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x00, 0x64, 0x00),
+            Theme::Dark => rgb8(0x7F, 0xE0, 0x8C), // PLACEHOLDER
+        }
+    }
 
-/// Neutral background -- status pills with no positive/negative/warning
-/// meaning (e.g. "Draft"), muted panels.
-pub const WHITE_NEUTRAL_BG: Color = rgb8(0xE5, 0xE7, 0xEB);
-/// Neutral text & icon color. Doubles as the app's one muted/secondary
-/// text tone (descriptions, secondary avatar lines, inactive tabs) and as
-/// the subtle border/divider color for cards and table rows, so the shell
-/// never needs a hex literal outside this file for those either.
-pub const WHITE_NEUTRAL_FRONT: Color = rgb8(0x4B, 0x55, 0x63);
+    /// Error / negative background (validation errors, destructive confirmations).
+    pub fn negative_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
+            Theme::Dark => rgb8(0x3A, 0x14, 0x18), // PLACEHOLDER
+        }
+    }
+
+    /// Error / negative text & icon color.
+    pub fn negative_front(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x9C, 0x00, 0x0A),
+            Theme::Dark => rgb8(0xFF, 0x8A, 0x93), // PLACEHOLDER
+        }
+    }
+
+    /// Warning background (pending states, unsaved-changes notices).
+    pub fn warning_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0xEB, 0xA0),
+            Theme::Dark => rgb8(0x3A, 0x2E, 0x0A), // PLACEHOLDER
+        }
+    }
+
+    /// Warning text & icon color.
+    pub fn warning_front(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x9C, 0x5A, 0x00),
+            Theme::Dark => rgb8(0xFF, 0xD1, 0x66), // PLACEHOLDER
+        }
+    }
+
+    /// Neutral background -- status pills with no positive/negative/warning
+    /// meaning (e.g. "Draft"), muted panels.
+    pub fn neutral_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
+            Theme::Dark => rgb8(0x2A, 0x2C, 0x31), // PLACEHOLDER
+        }
+    }
+
+    /// Neutral text & icon color. Doubles as the app's one muted/secondary
+    /// text tone (descriptions, secondary avatar lines, inactive tabs) and as
+    /// the subtle border/divider color for cards and table rows, so the shell
+    /// never needs a hex literal outside this file for those either.
+    pub fn neutral_front(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x4B, 0x55, 0x63),
+            Theme::Dark => rgb8(0xB7, 0xBD, 0xC6), // PLACEHOLDER
+        }
+    }
+
+    /// The base card/panel/sidebar surface -- what every White Theme
+    /// component hardcoded as `Color::WHITE` before this file existed.
+    pub fn surface(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0xFF, 0xFF),
+            Theme::Dark => rgb8(0x1E, 0x1E, 0x22), // PLACEHOLDER
+        }
+    }
+
+    /// The app's default body/heading text color -- what every White
+    /// Theme component hardcoded as `Color::BLACK` before this file
+    /// existed. Not for text sitting on a fixed-color accent chip
+    /// (badge pills, the primary button's label) -- those stay literal
+    /// `Color::WHITE`/`Color::BLACK` since they're contrast text on a
+    /// surface that doesn't change with the theme.
+    pub fn text_primary(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x00, 0x00, 0x00),
+            Theme::Dark => rgb8(0xF2, 0xF2, 0xF5), // PLACEHOLDER
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression-proofs the existing look: every `Light` value must stay
+    // byte-for-byte what the old `WHITE_*` constants were.
+    #[test]
+    fn light_theme_matches_the_original_white_theme_values() {
+        assert_eq!(Theme::Light.primary(), rgb8(0x51, 0xA2, 0xFF));
+        assert_eq!(Theme::Light.positive_bg(), rgb8(0xC6, 0xF1, 0xCE));
+        assert_eq!(Theme::Light.positive_front(), rgb8(0x00, 0x64, 0x00));
+        assert_eq!(Theme::Light.negative_bg(), rgb8(0xFF, 0xC8, 0xCE));
+        assert_eq!(Theme::Light.negative_front(), rgb8(0x9C, 0x00, 0x0A));
+        assert_eq!(Theme::Light.warning_bg(), rgb8(0xFF, 0xEB, 0xA0));
+        assert_eq!(Theme::Light.warning_front(), rgb8(0x9C, 0x5A, 0x00));
+        assert_eq!(Theme::Light.neutral_bg(), rgb8(0xE5, 0xE7, 0xEB));
+        assert_eq!(Theme::Light.neutral_front(), rgb8(0x4B, 0x55, 0x63));
+        assert_eq!(Theme::Light.surface(), Color::WHITE);
+        assert_eq!(Theme::Light.text_primary(), Color::BLACK);
+    }
+
+    // Not asserting specific dark values (they're explicitly placeholder
+    // and will be replaced) -- just that every method actually branches,
+    // so a future edit can't accidentally leave a `Dark` arm returning
+    // the light value by copy-paste.
+    #[test]
+    fn dark_theme_differs_from_light_for_every_token() {
+        assert_ne!(Theme::Dark.primary(), Theme::Light.primary());
+        assert_ne!(Theme::Dark.positive_bg(), Theme::Light.positive_bg());
+        assert_ne!(Theme::Dark.positive_front(), Theme::Light.positive_front());
+        assert_ne!(Theme::Dark.negative_bg(), Theme::Light.negative_bg());
+        assert_ne!(Theme::Dark.negative_front(), Theme::Light.negative_front());
+        assert_ne!(Theme::Dark.warning_bg(), Theme::Light.warning_bg());
+        assert_ne!(Theme::Dark.warning_front(), Theme::Light.warning_front());
+        assert_ne!(Theme::Dark.neutral_bg(), Theme::Light.neutral_bg());
+        assert_ne!(Theme::Dark.neutral_front(), Theme::Light.neutral_front());
+        assert_ne!(Theme::Dark.surface(), Theme::Light.surface());
+        assert_ne!(Theme::Dark.text_primary(), Theme::Light.text_primary());
+    }
+}

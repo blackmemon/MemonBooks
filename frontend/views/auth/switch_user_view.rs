@@ -10,7 +10,7 @@ use iced::Element;
 use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -119,9 +119,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.available_users.is_empty() {
-        return container(text("No other active users to switch to.").color(colors::WHITE_PRIMARY)).padding(20).into();
+        return container(text("No other active users to switch to.").color(theme.primary())).padding(20).into();
     }
 
     let choices: Vec<Choice> = state.available_users.iter().map(|(c, _)| c.clone()).collect();
@@ -153,7 +153,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![text("Switch User").size(24), form].spacing(16).padding(20).max_width(360);
 
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(content).into()

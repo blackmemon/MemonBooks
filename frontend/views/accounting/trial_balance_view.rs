@@ -12,7 +12,7 @@ use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -66,15 +66,16 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let Some(report) = &state.report else {
         let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
-        return container(text(message).color(colors::WHITE_NEGATIVE_FRONT)).padding(20).into();
+        return container(text(message).color(theme.negative_front())).padding(20).into();
     };
 
-    let header = page_header::view("Trial Balance", "Every account's debit and credit balance as of today.", "Export CSV", Message::ExportCsv);
+    let header = page_header::view(theme, "Trial Balance", "Every account's debit and credit balance as of today.", "Export CSV", Message::ExportCsv);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Accounts"],
         0,
         Message::TabSelected,
@@ -88,7 +89,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     );
 
     let balanced_note = if report.is_balanced() { "Balanced" } else { "Not balanced" };
-    let heading = section_heading::view("Account balances", balanced_note);
+    let heading = section_heading::view(theme, "Account balances", balanced_note);
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<_> = report.lines.iter().filter(|line| query.is_empty() || line.account_name.to_lowercase().contains(&query) || line.account_code.to_lowercase().contains(&query)).collect();
@@ -103,12 +104,12 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut rows: Vec<Row> = filtered.iter().map(|line| Row::new(vec![Cell::text(line.account_code.clone()), Cell::text(line.account_name.clone()), Cell::text(line.debit.to_string()), Cell::text(line.credit.to_string())])).collect();
     rows.push(Row::new(vec![Cell::text(""), Cell::text("Total"), Cell::text(report.total_debits().to_string()), Cell::text(report.total_credits().to_string())]));
 
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
     let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(export_message) = &state.export_message {
-        content = content.push(text(export_message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(export_message.clone()).color(theme.positive_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

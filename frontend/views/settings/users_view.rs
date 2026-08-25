@@ -16,7 +16,7 @@ use crate::backend::services::auth_service::AuthService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -191,10 +191,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let header = page_header::view("Users", "Everyone with access to this installation.", "Create User", Message::CreateUser);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let header = page_header::view(theme, "Users", "Everyone with access to this installation.", "Create User", Message::CreateUser);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Users"],
         0,
         Message::TabSelected,
@@ -207,7 +208,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view("User list", "Every account, and whether a password reset has been requested.");
+    let heading = section_heading::view(theme, "User list", "Every account, and whether a password reset has been requested.");
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&User> =
@@ -238,6 +239,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let reset_ids = row_ids;
 
     let table = data_table::view(
+        theme,
         columns,
         rows,
         None,
@@ -261,14 +263,14 @@ pub fn view(state: &State) -> Element<'_, Message> {
     if let Some(password) = &state.generated_password {
         let notice = column![
             text(format!("Temporary password for {}", state.generated_password_for)).size(13),
-            text(password.clone()).size(20).color(colors::WHITE_PRIMARY),
-            text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(12).color(colors::WHITE_NEUTRAL_FRONT),
+            text(password.clone()).size(20).color(theme.primary()),
+            text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(12).color(theme.neutral_front()),
             button(text("Done")).on_press(Message::DismissGeneratedPassword).padding(6),
         ]
         .spacing(6)
         .padding(16);
-        content = content.push(container(notice).style(|_theme: &iced::Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(colors::WHITE_POSITIVE_BG)),
+        content = content.push(container(notice).style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(theme.positive_bg())),
             ..iced::widget::container::Style::default()
         }));
     }
@@ -293,10 +295,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
     content = content.push(create_form);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

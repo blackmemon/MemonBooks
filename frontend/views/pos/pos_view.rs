@@ -13,7 +13,7 @@ use crate::backend::pos::sales::{PosSale, PosSaleLine};
 use crate::backend::pos::sessions::PosSession;
 use crate::backend::pos::terminals::Terminal;
 use crate::backend::services::sales_service::SalesService;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -141,10 +141,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let session_status = match state.open_session_id {
-        Some(id) => text(format!("Session #{id} open")).color(colors::WHITE_POSITIVE_FRONT),
-        None => text("No session open").color(colors::WHITE_WARNING_FRONT),
+        Some(id) => text(format!("Session #{id} open")).color(theme.positive_front()),
+        None => text("No session open").color(theme.warning_front()),
     };
 
     let mut content = column![
@@ -164,10 +164,10 @@ pub fn view(state: &State) -> Element<'_, Message> {
     .padding(20);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(content).into()

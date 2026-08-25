@@ -4,21 +4,22 @@
 //! panel that wants the same "floating card" treatment.
 
 use iced::widget::container;
-use iced::{Background, Color, Theme};
+use iced::{Background, Theme as IcedTheme};
 
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, shadows};
 
-pub fn card(radius: f32) -> impl Fn(&Theme) -> container::Style {
-    move |_theme: &Theme| container::Style {
-        background: Some(Background::Color(Color::WHITE)),
-        border: borders::card(radius),
-        shadow: shadows::card(),
+pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.surface())),
+        border: borders::card(theme, radius),
+        shadow: shadows::card(theme),
         ..container::Style::default()
     }
 }
 
 /// Same card, no shadow -- for panels nested inside an already-shadowed
 /// ancestor (e.g. the profile card at the bottom of the sidebar).
-pub fn flat_card(radius: f32) -> impl Fn(&Theme) -> container::Style {
-    move |_theme: &Theme| container::Style { background: Some(Background::Color(Color::WHITE)), border: borders::card(radius), ..container::Style::default() }
+pub fn flat_card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, radius), ..container::Style::default() }
 }

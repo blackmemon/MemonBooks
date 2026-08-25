@@ -18,7 +18,7 @@ use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -205,11 +205,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add vendor" };
-    let header = page_header::view("Vendors", "Everyone you buy from, in one place.", header_label, Message::Create);
+    let header = page_header::view(theme, "Vendors", "Everyone you buy from, in one place.", header_label, Message::Create);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Vendors"],
         0,
         Message::TabSelected,
@@ -222,7 +223,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view("Vendor list", "Every vendor on this company's books.");
+    let heading = section_heading::view(theme, "Vendor list", "Every vendor on this company's books.");
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Vendor> = state
@@ -253,6 +254,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let edit_ids_primary = row_ids.clone();
 
     let table = data_table::view(
+        theme,
         columns,
         rows,
         Some(selected_flags),
@@ -285,16 +287,16 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
 
     if !state.selected.is_empty() {
-        content = content.push(bulk_action_bar::view(state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
+        content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
     }
 
     content = content.push(table).push(form);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

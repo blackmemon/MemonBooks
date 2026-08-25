@@ -12,7 +12,7 @@ use crate::backend::fixed_assets::assets::Asset;
 use crate::backend::services::fixed_asset_service::FixedAssetService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -72,10 +72,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let header = page_header::view("Fixed Assets", "Everything this company owns and depreciates.", "Refresh", Message::Refresh);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let header = page_header::view(theme, "Fixed Assets", "Everything this company owns and depreciates.", "Refresh", Message::Refresh);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Assets"],
         0,
         Message::TabSelected,
@@ -88,7 +89,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view("Asset list", "Cost, accumulated depreciation, and current book value.");
+    let heading = section_heading::view(theme, "Asset list", "Cost, accumulated depreciation, and current book value.");
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Asset> = state.assets.iter().filter(|asset| query.is_empty() || asset.name.to_lowercase().contains(&query)).collect();
@@ -114,15 +115,15 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let asset_ids: Vec<i64> = filtered.iter().map(|asset| asset.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
+    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
 
     let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(colors::WHITE_POSITIVE_FRONT));
+        content = content.push(text(message.clone()).color(theme.positive_front()));
     }
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

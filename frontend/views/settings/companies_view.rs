@@ -12,7 +12,7 @@ use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
-use crate::frontend::styles::colors;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -85,10 +85,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
     }
 }
 
-pub fn view(state: &State) -> Element<'_, Message> {
-    let header = page_header::view("Companies", "Every company on this installation's books.", "Create company", Message::Create);
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    let header = page_header::view(theme, "Companies", "Every company on this installation's books.", "Create company", Message::Create);
 
     let toolbar = toolbar::view(
+        theme,
         &["All Companies"],
         0,
         Message::TabSelected,
@@ -101,7 +102,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view("Company list", "Click a company's row to switch the rest of the app into it.");
+    let heading = section_heading::view(theme, "Company list", "Click a company's row to switch the rest of the app into it.");
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Company> = state.companies.iter().filter(|company| query.is_empty() || company.name.to_lowercase().contains(&query)).collect();
@@ -117,7 +118,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
         .collect();
 
     let company_ids: Vec<i64> = filtered.iter().map(|company| company.id.unwrap_or_default()).collect();
-    let table = data_table::view(columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
+    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
 
     let form = column![
         text("Create a company").size(13),
@@ -129,7 +130,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
 
     if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(colors::WHITE_NEGATIVE_FRONT));
+        content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
     container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()

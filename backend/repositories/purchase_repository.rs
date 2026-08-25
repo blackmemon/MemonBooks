@@ -183,6 +183,63 @@ impl PurchaseRepository {
         })
     }
 
+    /// Updates a draft bill's vendor, dates, and lines in place -- only a
+    /// Draft can be edited; once posted, corrections go through a debit
+    /// note instead. Mirrors `SalesRepository::update_invoice`.
+    pub fn update_bill(&self, bill: &Bill) -> AppResult<()> {
+        bill.validate()?;
+        let bill_id = bill.id.ok_or_else(|| AppError::Validation("cannot update a bill without an id".into()))?;
+        let existing = self.get_bill(bill_id)?;
+        if existing.status != BillStatus::Draft {
+            return Err(AppError::Validation("only a draft bill can be edited".into()));
+        }
+
+        self.db.with_transaction(|tx| {
+            tx.execute(
+                "UPDATE bills SET vendor_id = ?1, bill_date = ?2, due_date = ?3 WHERE id = ?4",
+                params![bill.vendor_id, bill.bill_date, bill.due_date, bill_id],
+            )?;
+            tx.execute("DELETE FROM bill_lines WHERE bill_id = ?1", params![bill_id])?;
+            for (line_number, line) in bill.lines.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO bill_lines (bill_id, account_id, description, quantity, unit_price, line_number)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![bill_id, line.account_id, line.description, line.quantity.to_string(), line.unit_price.to_string(), line_number as i64],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Deletes a draft bill outright -- only a Draft has no ledger impact
+    /// yet, so nothing else references it. Mirrors
+    /// `SalesRepository::delete_invoice`.
+    pub fn delete_bill(&self, bill_id: i64) -> AppResult<()> {
+        let bill = self.get_bill(bill_id)?;
+        if bill.status != BillStatus::Draft {
+            return Err(AppError::Validation("only a draft bill can be deleted".into()));
+        }
+        self.db.with_transaction(|tx| {
+            tx.execute("DELETE FROM bill_lines WHERE bill_id = ?1", params![bill_id])?;
+            tx.execute("DELETE FROM bills WHERE id = ?1", params![bill_id])?;
+            Ok(())
+        })
+    }
+
+    /// Voids a draft bill -- skips the ledger entirely. Mirrors
+    /// `SalesRepository::void_invoice`.
+    pub fn void_bill(&self, bill_id: i64) -> AppResult<Bill> {
+        let bill = self.get_bill(bill_id)?;
+        if bill.status != BillStatus::Draft {
+            return Err(AppError::Validation("only a draft bill can be voided".into()));
+        }
+        self.db.with_connection(|conn| {
+            conn.execute("UPDATE bills SET status = ?1 WHERE id = ?2", params![BillStatus::Voided.as_str(), bill_id])?;
+            Ok(())
+        })?;
+        Ok(Bill { status: BillStatus::Voided, ..bill })
+    }
+
     /// Headers only -- mirrors `SalesRepository::list_invoices_for_company`.
     pub fn list_bills_for_company(&self, company_id: i64) -> AppResult<Vec<Bill>> {
         self.db.with_connection(|conn| {
@@ -365,7 +422,7 @@ impl PurchaseRepository {
         let payment = VendorPayment::new(bill.company_id, bill.vendor_id, payment_date, amount);
         payment.validate()?;
 
-        let payable = self.find_open_payable_for_bill(bill_id, bill.company_id)?;
+        let payable = self.open_payable_for_bill(bill_id)?;
 
         if amount > payable.balance() {
             return Err(AppError::Validation(format!("payment amount {amount} exceeds bill {bill_id}'s remaining balance of {}", payable.balance())));
@@ -392,20 +449,25 @@ impl PurchaseRepository {
         })
     }
 
-    fn find_open_payable_for_bill(&self, bill_id: i64, company_id: i64) -> AppResult<Payable> {
+    /// The bill's own open payable, found by the `"BILL-{bill_id}"`
+    /// reference `Bill::build_payable` stamps it with at posting time --
+    /// `pub` since both `bill_remaining_balance` and debit-note posting
+    /// need this exact scoped lookup. Mirrors
+    /// `SalesRepository::open_receivable_for_invoice`.
+    pub fn open_payable_for_bill(&self, bill_id: i64) -> AppResult<Payable> {
+        let bill = self.get_bill(bill_id)?;
         let reference = format!("BILL-{bill_id}");
         self.accounting
-            .list_open_payables_for_company(company_id)?
+            .list_open_payables_for_company(bill.company_id)?
             .into_iter()
             .find(|p| p.reference.as_deref() == Some(reference.as_str()))
-            .ok_or_else(|| AppError::Validation(format!("bill {bill_id} has no open payable to pay")))
+            .ok_or_else(|| AppError::Validation(format!("bill {bill_id} has no open payable")))
     }
 
-    /// The bill's own remaining balance -- for prefilling a payment form
-    /// before `record_payment_for_bill` is actually called.
+    /// The bill's own remaining balance -- for prefilling a payment or
+    /// debit-note form before it's actually submitted.
     pub fn bill_remaining_balance(&self, bill_id: i64) -> AppResult<Decimal> {
-        let bill = self.get_bill(bill_id)?;
-        Ok(self.find_open_payable_for_bill(bill_id, bill.company_id)?.balance())
+        Ok(self.open_payable_for_bill(bill_id)?.balance())
     }
 }
 

@@ -1,8 +1,17 @@
-// White Theme font family (Section 6 of PROJECT_SPEC.md).
-//
-// Decision: system default font stack -- no bundled/custom font is shipped.
-// Iced falls back to its default font automatically, so no explicit
-// `iced::Font` constant is required here yet. This file exists so that a
-// future non-default font decision has a single, obvious place to live.
+//! White Theme font family (Section 6 of PROJECT_SPEC.md).
+//!
+//! Decision: system default font stack -- no bundled/custom font is
+//! shipped, so `DEFAULT` and `BOLD` below are just named handles onto
+//! iced's own default font (regular and bold weight), not a real
+//! typeface choice. They exist so call sites share one constant
+//! instead of each writing out `Font { weight: iced::font::Weight::
+//! Bold, ..Font::DEFAULT }` -- found, character-for-character
+//! identical, at 7 separate call sites across `components/common`
+//! before this file existed. If a future non-default font decision
+//! gets made, this is the one place that changes.
 
-// TODO: implement fonts
+use iced::Font;
+
+pub const DEFAULT: Font = Font::DEFAULT;
+
+pub const BOLD: Font = Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT };

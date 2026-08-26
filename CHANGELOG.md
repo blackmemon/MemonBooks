@@ -134,6 +134,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   replace it before a public release.
 - `LICENSE` is a placeholder -- deferred intentionally, not forgotten;
   a license still needs to be chosen before a public release.
+- Seven views (login, switch user, password change, dashboard, POS,
+  reports, settings) render their own page title at `typography::TITLE`
+  (24) instead of the shared `page_header::view` component's
+  `headers::PAGE_TITLE_SIZE` (26) -- worth revisiting whether they
+  should adopt the shared component, deferred out of the Section 6
+  consistency-audit consolidation pass since it would be a visual
+  change, not a consolidation.
 
 ### Onboarding
 - First-run flow: the bootstrap-generated administrator account must

@@ -200,7 +200,11 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
 
     let card = column![header_container, body].width(Length::Fill);
 
-    container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill).into()
+    // Same radius token as `side_panel`'s card (RADIUS_LG), so the table
+    // and an open side panel show matching rounded corners -- applied
+    // unconditionally here since this component has no notion of
+    // whether a panel is open next to it.
+    container(card).style(panels::flat_card(theme, borders::RADIUS_LG)).width(Length::Fill).into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {

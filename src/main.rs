@@ -14,8 +14,8 @@ use std::path::PathBuf;
 
 use chrono::{Datelike, Utc};
 
-use iced::widget::{container, row};
-use iced::{Element, Length, Task};
+use iced::widget::{column, container, pick_list, row};
+use iced::{Background, Color, Element, Length, Task, Theme as IcedTheme};
 
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
 use memonbooks::backend::core::auth::passwords::hash_password;
@@ -30,6 +30,7 @@ use memonbooks::configs::app::AppConfig;
 use memonbooks::configs::theme_preference;
 use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
+use memonbooks::frontend::styles::borders;
 use memonbooks::frontend::styles::colors::Theme;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
@@ -167,19 +168,15 @@ fn main() -> iced::Result {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
     Dashboard,
-    ChartOfAccounts,
+    Maintain,
     JournalEntry,
     JournalEntries,
     TrialBalance,
     FixedAssets,
     TaxRates,
-    Customers,
     Invoices,
     Products,
-    Warehouses,
-    Vendors,
     Bills,
-    BankAccounts,
     Employees,
     Expenses,
     Pos,
@@ -192,19 +189,15 @@ enum Route {
 
 const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Dashboard, "Dashboard"),
-    (Route::ChartOfAccounts, "Chart of Accounts"),
+    (Route::Maintain, "Maintain"),
     (Route::JournalEntry, "New Journal Entry"),
     (Route::JournalEntries, "Journal Entries"),
     (Route::TrialBalance, "Trial Balance"),
     (Route::FixedAssets, "Fixed Assets"),
     (Route::TaxRates, "Tax Rates"),
-    (Route::Customers, "Customers"),
     (Route::Invoices, "Invoices"),
     (Route::Products, "Products"),
-    (Route::Warehouses, "Warehouses"),
-    (Route::Vendors, "Vendors"),
     (Route::Bills, "Bills"),
-    (Route::BankAccounts, "Bank Accounts"),
     (Route::Employees, "Employees"),
     (Route::Expenses, "Expenses"),
     (Route::Pos, "Point of Sale"),
@@ -214,6 +207,33 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::SwitchUser, "Switch User"),
     (Route::Users, "Users"),
 ];
+
+/// The five record types grouped behind the sidebar's "Maintain" entry.
+/// Each one keeps its own already-built `PageHeader` + `Toolbar` +
+/// `DataTable` view untouched -- this only controls which one is shown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MaintainSection {
+    ChartOfAccounts,
+    Vendors,
+    Warehouses,
+    BankAccounts,
+    Customers,
+}
+
+const MAINTAIN_SECTIONS: [MaintainSection; 5] =
+    [MaintainSection::ChartOfAccounts, MaintainSection::Vendors, MaintainSection::Warehouses, MaintainSection::BankAccounts, MaintainSection::Customers];
+
+impl std::fmt::Display for MaintainSection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MaintainSection::ChartOfAccounts => "Chart of Account",
+            MaintainSection::Vendors => "Vendor",
+            MaintainSection::Warehouses => "Warehouse",
+            MaintainSection::BankAccounts => "Bank Accounts",
+            MaintainSection::Customers => "Customers",
+        })
+    }
+}
 
 /// Routes rendered in the sidebar's secondary section (below the divider)
 /// instead of the primary nav list.
@@ -237,6 +257,10 @@ struct MemonBooks {
     /// is a device-level UI preference, not company data).
     theme_path: PathBuf,
     route: Route,
+    /// Which of the five `MaintainSection`s the "Maintain" area currently
+    /// shows -- independent of `route`, so it survives navigating away
+    /// and back.
+    maintain_selected: MaintainSection,
     sidebar_collapsed: bool,
     login: login_view::State,
     password_change: password_change_view::State,
@@ -267,6 +291,7 @@ struct MemonBooks {
 #[derive(Debug, Clone)]
 enum Message {
     Navigate(Route),
+    MaintainSelect(MaintainSection),
     ToggleSidebar,
     ToggleTheme,
     Logout,
@@ -305,6 +330,7 @@ impl MemonBooks {
             theme,
             theme_path,
             route: Route::Dashboard,
+            maintain_selected: MaintainSection::ChartOfAccounts,
             sidebar_collapsed: false,
             login: login_view::State::default(),
             password_change: password_change_view::State::default(),
@@ -338,19 +364,15 @@ impl MemonBooks {
     fn load_route(&mut self, route: Route) {
         match route {
             Route::Dashboard => self.dashboard = dashboard_view::load(&self.ctx),
-            Route::ChartOfAccounts => self.chart_of_accounts = chart_of_accounts_view::load(&self.ctx),
+            Route::Maintain => self.load_maintain_section(self.maintain_selected),
             Route::JournalEntry => self.journal_entry = journal_entry_view::load(&self.ctx),
             Route::JournalEntries => self.journal_entries = journal_entries_view::load(&self.ctx),
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
             Route::FixedAssets => self.fixed_assets = fixed_assets_view::load(&self.ctx),
             Route::TaxRates => self.tax_rates = tax_rates_view::load(&self.ctx),
-            Route::Customers => self.customers = customers_view::load(&self.ctx),
             Route::Invoices => self.invoices = invoices_view::load(&self.ctx),
             Route::Products => self.products = products_view::load(&self.ctx),
-            Route::Warehouses => self.warehouses = warehouses_view::load(&self.ctx),
-            Route::Vendors => self.vendors = vendors_view::load(&self.ctx),
             Route::Bills => self.bills = bills_view::load(&self.ctx),
-            Route::BankAccounts => self.bank_accounts = bank_accounts_view::load(&self.ctx),
             Route::Employees => self.employees = employees_view::load(&self.ctx),
             Route::Expenses => self.expenses = expenses_view::load(&self.ctx),
             Route::Pos => self.pos = pos_view::load(&self.ctx),
@@ -362,11 +384,28 @@ impl MemonBooks {
         }
     }
 
+    /// Loads fresh data for one `MaintainSection` -- shared by
+    /// `load_route` (landing on "Maintain") and `Message::MaintainSelect`
+    /// (switching sections while already there).
+    fn load_maintain_section(&mut self, section: MaintainSection) {
+        match section {
+            MaintainSection::ChartOfAccounts => self.chart_of_accounts = chart_of_accounts_view::load(&self.ctx),
+            MaintainSection::Vendors => self.vendors = vendors_view::load(&self.ctx),
+            MaintainSection::Warehouses => self.warehouses = warehouses_view::load(&self.ctx),
+            MaintainSection::BankAccounts => self.bank_accounts = bank_accounts_view::load(&self.ctx),
+            MaintainSection::Customers => self.customers = customers_view::load(&self.ctx),
+        }
+    }
+
     fn update(&mut self, message: Message) {
         match message {
             Message::Navigate(route) => {
                 self.route = route;
                 self.load_route(route);
+            }
+            Message::MaintainSelect(section) => {
+                self.maintain_selected = section;
+                self.load_maintain_section(section);
             }
             Message::ToggleSidebar => self.sidebar_collapsed = !self.sidebar_collapsed,
             Message::ToggleTheme => {
@@ -490,19 +529,15 @@ impl MemonBooks {
 
         let screen: Element<'_, Message> = match self.route {
             Route::Dashboard => dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard),
-            Route::ChartOfAccounts => chart_of_accounts_view::view(&self.chart_of_accounts, self.theme).map(Message::ChartOfAccounts),
+            Route::Maintain => self.maintain_view(),
             Route::JournalEntry => journal_entry_view::view(&self.journal_entry, self.theme).map(Message::JournalEntry),
             Route::JournalEntries => journal_entries_view::view(&self.journal_entries, self.theme).map(Message::JournalEntries),
             Route::TrialBalance => trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance),
             Route::FixedAssets => fixed_assets_view::view(&self.fixed_assets, self.theme).map(Message::FixedAssets),
             Route::TaxRates => tax_rates_view::view(&self.tax_rates, self.theme).map(Message::TaxRates),
-            Route::Customers => customers_view::view(&self.customers, self.theme).map(Message::Customers),
             Route::Invoices => invoices_view::view(&self.invoices, self.theme).map(Message::Invoices),
             Route::Products => products_view::view(&self.products, self.theme).map(Message::Products),
-            Route::Warehouses => warehouses_view::view(&self.warehouses, self.theme).map(Message::Warehouses),
-            Route::Vendors => vendors_view::view(&self.vendors, self.theme).map(Message::Vendors),
             Route::Bills => bills_view::view(&self.bills, self.theme).map(Message::Bills),
-            Route::BankAccounts => bank_accounts_view::view(&self.bank_accounts, self.theme).map(Message::BankAccounts),
             Route::Employees => employees_view::view(&self.employees, self.theme).map(Message::Employees),
             Route::Expenses => expenses_view::view(&self.expenses, self.theme).map(Message::Expenses),
             Route::Pos => pos_view::view(&self.pos, self.theme).map(Message::Pos),
@@ -514,5 +549,43 @@ impl MemonBooks {
         };
 
         row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()
+    }
+
+    /// The "Maintain" screen: a section picker above whichever of the
+    /// five existing list views (each with its own already-built
+    /// `PageHeader` + `Toolbar` + `DataTable`) is currently selected.
+    /// The other four aren't rendered at all.
+    fn maintain_view(&self) -> Element<'_, Message> {
+        let picker = container(pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(220.0)))
+            .padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+
+        let body: Element<'_, Message> = match self.maintain_selected {
+            MaintainSection::ChartOfAccounts => chart_of_accounts_view::view(&self.chart_of_accounts, self.theme).map(Message::ChartOfAccounts),
+            MaintainSection::Vendors => vendors_view::view(&self.vendors, self.theme).map(Message::Vendors),
+            MaintainSection::Warehouses => warehouses_view::view(&self.warehouses, self.theme).map(Message::Warehouses),
+            MaintainSection::BankAccounts => bank_accounts_view::view(&self.bank_accounts, self.theme).map(Message::BankAccounts),
+            MaintainSection::Customers => customers_view::view(&self.customers, self.theme).map(Message::Customers),
+        };
+
+        column![picker, body].into()
+    }
+}
+
+/// Themed `pick_list` styling for the "Maintain" section picker -- uses
+/// the same `Theme` tokens as `toolbar::dropdown_button` (Section 6)
+/// rather than iced's default palette or the reference mock's colors.
+fn maintain_picker_style(theme: Theme) -> impl Fn(&IcedTheme, iced::widget::pick_list::Status) -> iced::widget::pick_list::Style {
+    move |_iced_theme: &IcedTheme, status: iced::widget::pick_list::Status| {
+        let background = match status {
+            iced::widget::pick_list::Status::Hovered | iced::widget::pick_list::Status::Opened => Color { a: 0.6, ..theme.neutral_bg() },
+            iced::widget::pick_list::Status::Active => theme.surface(),
+        };
+        iced::widget::pick_list::Style {
+            text_color: theme.text_primary(),
+            placeholder_color: theme.neutral_front(),
+            handle_color: theme.neutral_front(),
+            background: Background::Color(background),
+            border: borders::card(theme, borders::RADIUS_SM),
+        }
     }
 }

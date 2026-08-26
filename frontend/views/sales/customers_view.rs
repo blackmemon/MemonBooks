@@ -18,6 +18,7 @@ use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
 
 const COLUMN_LABELS: [&str; 4] = ["Customer", "Phone", "Terms", "Status"];
+const DEFAULT_COLUMN_VISIBLE: [bool; 4] = [true, true, true, true];
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
@@ -54,6 +55,9 @@ pub enum Message {
     ResetAll,
     ToggleColumns,
     ColumnToggled(usize),
+    SelectAllColumns,
+    DeselectAllColumns,
+    ResetColumns,
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -216,6 +220,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
             state.column_visible[index] = !state.column_visible[index];
         }
+        Message::SelectAllColumns => state.column_visible = vec![true; COLUMN_LABELS.len()],
+        Message::DeselectAllColumns => state.column_visible = vec![false; COLUMN_LABELS.len()],
+        Message::ResetColumns => state.column_visible = DEFAULT_COLUMN_VISIBLE.to_vec(),
     }
 }
 
@@ -338,7 +345,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
 
-    let panel = if state.columns_open { Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled)) } else { None };
+    let panel = if state.columns_open {
+        Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled, Message::SelectAllColumns, Message::DeselectAllColumns, Message::ResetColumns))
+    } else {
+        None
+    };
 
     side_panel::split(theme, base, panel)
 }
@@ -661,6 +672,23 @@ mod tests {
         assert_eq!(state.column_visible, vec![true, true, true, false]);
 
         update(&mut state, Message::ColumnToggled(3), &ctx);
+        assert_eq!(state.column_visible, vec![true, true, true, true]);
+    }
+
+    #[test]
+    fn select_all_deselect_all_and_reset_columns_set_the_expected_visibility() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::DeselectAllColumns, &ctx);
+        assert_eq!(state.column_visible, vec![false, false, false, false]);
+
+        update(&mut state, Message::ColumnToggled(0), &ctx);
+        update(&mut state, Message::ResetColumns, &ctx);
+        assert_eq!(state.column_visible, DEFAULT_COLUMN_VISIBLE.to_vec());
+
+        update(&mut state, Message::DeselectAllColumns, &ctx);
+        update(&mut state, Message::SelectAllColumns, &ctx);
         assert_eq!(state.column_visible, vec![true, true, true, true]);
     }
 }

@@ -6,7 +6,7 @@
 //! list views need (plain text, dates, a person avatar + two-line name,
 //! a colored status pill, and a progress bar with a percentage label).
 
-use iced::widget::{button, checkbox, column, container, progress_bar, row, text, Space};
+use iced::widget::{button, checkbox, column, container, progress_bar, row, scrollable, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
@@ -253,29 +253,54 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
 }
 
 /// The "Columns" toggle button for a toolbar row -- pairs with
-/// [`columns_panel`], which the caller renders directly beneath it
+/// [`columns_panel`], which the caller opens via `side_panel::split`
 /// while `open`. Two separate pieces (rather than one popover) because
-/// iced 0.13 has no anchored-overlay primitive in this codebase yet;
-/// the panel renders inline instead of floating.
+/// iced 0.13 has no anchored-overlay primitive in this codebase yet.
 pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
     button(text("Columns").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_toggle).into()
 }
 
-/// The show/hide checklist content opened by [`columns_button`] -- one
-/// checkbox per entry in `labels`, `visible[i]` (missing entries
-/// default to visible) driving its checked state. `on_toggle(index)`
-/// fires when that column's checkbox flips; applying the result live is
-/// the caller's job, via `view_with_column_visibility`. Returns bare
-/// content, not a bordered card -- callers open it inside a
-/// `side_panel::overlay`, which supplies that chrome.
-pub fn columns_panel<'a, Message: Clone + 'a>(theme: Theme, labels: &'a [&'a str], visible: &[bool], on_toggle: impl Fn(usize) -> Message + Clone + 'a) -> Element<'a, Message> {
-    let mut list = column![text("Columns").size(15).color(theme.text_primary())].spacing(12.0);
+/// The show/hide checklist content opened by [`columns_button`] --
+/// "Select All"/"Deselect All" under the title, a scrollable checkbox
+/// per entry in `labels` (`visible[i]`, missing entries default to
+/// visible, drives its checked state; `on_toggle(index)` fires when one
+/// flips), and "Reset to Default" pinned below the scroll area rather
+/// than scrolling away with the list. Applying any of these live is the
+/// caller's job, via `view_with_column_visibility` and its own
+/// `Message` handling. Returns bare content, not a bordered card --
+/// callers open it inside a `side_panel::split`, which supplies that
+/// chrome.
+#[allow(clippy::too_many_arguments)]
+pub fn columns_panel<'a, Message: Clone + 'a>(
+    theme: Theme,
+    labels: &'a [&'a str],
+    visible: &[bool],
+    on_toggle: impl Fn(usize) -> Message + Clone + 'a,
+    on_select_all: Message,
+    on_deselect_all: Message,
+    on_reset: Message,
+) -> Element<'a, Message> {
+    let select_all = button(text("Select All").size(12)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_select_all);
+    let deselect_all = button(text("Deselect All").size(12)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_deselect_all);
+
+    let mut list = column![].spacing(12.0);
     for (index, label) in labels.iter().enumerate() {
         let is_visible = visible.get(index).copied().unwrap_or(true);
         let toggle_this = on_toggle.clone();
         list = list.push(checkbox(*label, is_visible).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
     }
-    list.into()
+
+    let reset = button(text("Reset to Default").size(13)).padding([10.0, 16.0]).width(Length::Fill).style(toolbar_style::dropdown_button(theme)).on_press(on_reset);
+
+    column![
+        text("Select Columns to Display").size(15).color(theme.text_primary()),
+        row![select_all, deselect_all].spacing(8.0),
+        scrollable(list).height(Length::Fill),
+        reset,
+    ]
+    .spacing(16.0)
+    .height(Length::Fill)
+    .into()
 }
 
 fn kebab_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
@@ -329,5 +354,11 @@ mod tests {
         let rows = vec![Row::new(vec![Cell::text("1"), Cell::text("2"), Cell::text("3")])];
 
         let _: Element<'_, ()> = view_with_column_visibility(Theme::Dark, columns, &[true, false, true], rows, None, |_, _| (), |_| (), |_| (), |_| ());
+    }
+
+    #[test]
+    fn columns_panel_builds_without_panicking() {
+        let labels = ["Code", "Name", "Type"];
+        let _: Element<'_, ()> = columns_panel(Theme::Light, &labels, &[true, false, true], |_| (), (), (), ());
     }
 }

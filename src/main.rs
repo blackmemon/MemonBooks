@@ -14,8 +14,8 @@ use std::path::PathBuf;
 
 use chrono::{Datelike, Utc};
 
-use iced::widget::{column, container, pick_list, row};
-use iced::{Background, Color, Element, Length, Task, Theme as IcedTheme};
+use iced::widget::{button, column, container, pick_list, row, text};
+use iced::{Background, Border, Color, Element, Length, Task, Theme as IcedTheme};
 
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
 use memonbooks::backend::core::auth::passwords::hash_password;
@@ -174,9 +174,8 @@ enum Route {
     TrialBalance,
     FixedAssets,
     TaxRates,
-    Invoices,
+    Transactions,
     Products,
-    Bills,
     Employees,
     Expenses,
     Pos,
@@ -195,9 +194,8 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::TrialBalance, "Trial Balance"),
     (Route::FixedAssets, "Fixed Assets"),
     (Route::TaxRates, "Tax Rates"),
-    (Route::Invoices, "Invoices"),
+    (Route::Transactions, "Transactions"),
     (Route::Products, "Products"),
-    (Route::Bills, "Bills"),
     (Route::Employees, "Employees"),
     (Route::Expenses, "Expenses"),
     (Route::Pos, "Point of Sale"),
@@ -235,6 +233,59 @@ impl std::fmt::Display for MaintainSection {
     }
 }
 
+/// Which side of the ledger the sidebar's "Transactions" screen is
+/// currently showing. Each side's document-type dropdown only lists
+/// document types that actually have a working view today: Purchase
+/// Orders and Quotations have backend models (`backend::purchases::
+/// purchase_orders`, `backend::sales::quotations`) but no frontend view
+/// yet, so `documents()` deliberately omits them rather than pointing
+/// at nothing -- that's a gap for a future batch, not a bug here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransactionSide {
+    Purchase,
+    Sale,
+}
+
+impl TransactionSide {
+    fn documents(self) -> &'static [TransactionDocument] {
+        match self {
+            TransactionSide::Purchase => &[TransactionDocument::Bills],
+            TransactionSide::Sale => &[TransactionDocument::Invoices],
+        }
+    }
+
+    fn default_document(self) -> TransactionDocument {
+        self.documents()[0]
+    }
+}
+
+impl std::fmt::Display for TransactionSide {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TransactionSide::Purchase => "Purchase",
+            TransactionSide::Sale => "Sale",
+        })
+    }
+}
+
+/// One document-type view rendered inside "Transactions". Bills is
+/// purchase-side, Invoices is sale-side -- see `TransactionSide::
+/// documents`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransactionDocument {
+    Bills,
+    Invoices,
+}
+
+impl std::fmt::Display for TransactionDocument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TransactionDocument::Bills => "Bills",
+            TransactionDocument::Invoices => "Invoices",
+        })
+    }
+}
+
 /// Routes rendered in the sidebar's secondary section (below the divider)
 /// instead of the primary nav list.
 fn is_secondary_route(route: Route) -> bool {
@@ -261,6 +312,10 @@ struct MemonBooks {
     /// shows -- independent of `route`, so it survives navigating away
     /// and back.
     maintain_selected: MaintainSection,
+    /// Which side/document the "Transactions" area currently shows --
+    /// independent of `route`, same reasoning as `maintain_selected`.
+    transaction_side: TransactionSide,
+    transaction_document: TransactionDocument,
     sidebar_collapsed: bool,
     login: login_view::State,
     password_change: password_change_view::State,
@@ -292,6 +347,8 @@ struct MemonBooks {
 enum Message {
     Navigate(Route),
     MaintainSelect(MaintainSection),
+    TransactionSideSelect(TransactionSide),
+    TransactionDocumentSelect(TransactionDocument),
     ToggleSidebar,
     ToggleTheme,
     Logout,
@@ -331,6 +388,8 @@ impl MemonBooks {
             theme_path,
             route: Route::Dashboard,
             maintain_selected: MaintainSection::ChartOfAccounts,
+            transaction_side: TransactionSide::Purchase,
+            transaction_document: TransactionDocument::Bills,
             sidebar_collapsed: false,
             login: login_view::State::default(),
             password_change: password_change_view::State::default(),
@@ -370,9 +429,8 @@ impl MemonBooks {
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
             Route::FixedAssets => self.fixed_assets = fixed_assets_view::load(&self.ctx),
             Route::TaxRates => self.tax_rates = tax_rates_view::load(&self.ctx),
-            Route::Invoices => self.invoices = invoices_view::load(&self.ctx),
+            Route::Transactions => self.load_transaction_document(self.transaction_document),
             Route::Products => self.products = products_view::load(&self.ctx),
-            Route::Bills => self.bills = bills_view::load(&self.ctx),
             Route::Employees => self.employees = employees_view::load(&self.ctx),
             Route::Expenses => self.expenses = expenses_view::load(&self.ctx),
             Route::Pos => self.pos = pos_view::load(&self.ctx),
@@ -397,6 +455,17 @@ impl MemonBooks {
         }
     }
 
+    /// Loads fresh data for one `TransactionDocument` -- shared by
+    /// `load_route` (landing on "Transactions") and both
+    /// `Message::TransactionSideSelect`/`TransactionDocumentSelect`
+    /// (switching while already there).
+    fn load_transaction_document(&mut self, document: TransactionDocument) {
+        match document {
+            TransactionDocument::Bills => self.bills = bills_view::load(&self.ctx),
+            TransactionDocument::Invoices => self.invoices = invoices_view::load(&self.ctx),
+        }
+    }
+
     fn update(&mut self, message: Message) {
         match message {
             Message::Navigate(route) => {
@@ -406,6 +475,15 @@ impl MemonBooks {
             Message::MaintainSelect(section) => {
                 self.maintain_selected = section;
                 self.load_maintain_section(section);
+            }
+            Message::TransactionSideSelect(side) => {
+                self.transaction_side = side;
+                self.transaction_document = side.default_document();
+                self.load_transaction_document(self.transaction_document);
+            }
+            Message::TransactionDocumentSelect(document) => {
+                self.transaction_document = document;
+                self.load_transaction_document(document);
             }
             Message::ToggleSidebar => self.sidebar_collapsed = !self.sidebar_collapsed,
             Message::ToggleTheme => {
@@ -535,9 +613,8 @@ impl MemonBooks {
             Route::TrialBalance => trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance),
             Route::FixedAssets => fixed_assets_view::view(&self.fixed_assets, self.theme).map(Message::FixedAssets),
             Route::TaxRates => tax_rates_view::view(&self.tax_rates, self.theme).map(Message::TaxRates),
-            Route::Invoices => invoices_view::view(&self.invoices, self.theme).map(Message::Invoices),
+            Route::Transactions => self.transactions_view(),
             Route::Products => products_view::view(&self.products, self.theme).map(Message::Products),
-            Route::Bills => bills_view::view(&self.bills, self.theme).map(Message::Bills),
             Route::Employees => employees_view::view(&self.employees, self.theme).map(Message::Employees),
             Route::Expenses => expenses_view::view(&self.expenses, self.theme).map(Message::Expenses),
             Route::Pos => pos_view::view(&self.pos, self.theme).map(Message::Pos),
@@ -569,6 +646,62 @@ impl MemonBooks {
 
         column![picker, body].into()
     }
+
+    /// The "Transactions" screen: a Purchase/Sale toggle plus a
+    /// document-type picker scoped to whichever side is active, above
+    /// whichever document view is currently selected. Mirrors
+    /// `maintain_view`'s "one already-built view at a time" shape.
+    fn transactions_view(&self) -> Element<'_, Message> {
+        let toggle = row![
+            transaction_side_button(self.theme, "Purchase", self.transaction_side == TransactionSide::Purchase, Message::TransactionSideSelect(TransactionSide::Purchase)),
+            transaction_side_button(self.theme, "Sale", self.transaction_side == TransactionSide::Sale, Message::TransactionSideSelect(TransactionSide::Sale)),
+        ]
+        .spacing(8.0);
+
+        let documents = self.transaction_side.documents();
+        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(180.0));
+
+        let controls = container(row![toggle, picker].spacing(12.0).align_y(iced::Alignment::Center)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+
+        let body: Element<'_, Message> = match self.transaction_document {
+            TransactionDocument::Bills => bills_view::view(&self.bills, self.theme).map(Message::Bills),
+            TransactionDocument::Invoices => invoices_view::view(&self.invoices, self.theme).map(Message::Invoices),
+        };
+
+        column![controls, body].into()
+    }
+}
+
+/// One "Purchase" / "Sale" toggle button for `transactions_view` -- the
+/// active side fills with `theme.primary()` like a page header's action
+/// button; the inactive one gets the same bordered, neutral look as
+/// `toolbar::dropdown_button`.
+fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
+    let label = label.to_string();
+    button(text(label).size(13))
+        .padding([8.0, 16.0])
+        .style(move |_iced_theme: &IcedTheme, status: iced::widget::button::Status| {
+            if active {
+                let background = match status {
+                    iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.85, ..theme.primary() },
+                    _ => theme.primary(),
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(background)),
+                    text_color: Color::WHITE,
+                    border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
+                    shadow: iced::Shadow::default(),
+                }
+            } else {
+                let background = match status {
+                    iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.6, ..theme.neutral_bg() },
+                    _ => theme.surface(),
+                };
+                iced::widget::button::Style { background: Some(Background::Color(background)), text_color: theme.neutral_front(), border: borders::card(theme, borders::RADIUS_SM), shadow: iced::Shadow::default() }
+            }
+        })
+        .on_press(on_press)
+        .into()
 }
 
 /// Themed `pick_list` styling for the "Maintain" section picker -- uses

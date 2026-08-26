@@ -6,7 +6,7 @@
 //! list views need (plain text, dates, a person avatar + two-line name,
 //! a colored status pill, and a progress bar with a percentage label).
 
-use iced::widget::{button, checkbox, column, container, progress_bar, row, text, Space};
+use iced::widget::{button, checkbox, column, container, progress_bar, row, scrollable, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
@@ -199,8 +199,16 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     }
 
     let card = column![header_container, body].width(Length::Fill);
+    let table = container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill);
 
-    container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill).into()
+    // Column widths are `FillPortion`, so they shrink as the table
+    // narrows (e.g. a side panel opening next to it) -- but the
+    // checkbox/primary-action/kebab columns are fixed-width and don't,
+    // so past a point the row's own minimum content width exceeds what
+    // it's given and would overflow. Horizontal scroll keeps whatever's
+    // past that point reachable instead of silently clipping it -- a
+    // no-op scrollbar when everything already fits.
+    scrollable(table).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default())).width(Length::Fill).into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {

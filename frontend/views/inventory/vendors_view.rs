@@ -342,11 +342,9 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
 
-    if state.columns_open {
-        side_panel::overlay(theme, base, data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled), Message::ToggleColumns)
-    } else {
-        base
-    }
+    let panel = if state.columns_open { Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled)) } else { None };
+
+    side_panel::split(theme, base, panel)
 }
 
 #[cfg(test)]

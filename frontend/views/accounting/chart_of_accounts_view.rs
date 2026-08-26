@@ -40,9 +40,9 @@ pub struct State {
     /// double duty as "save changes" in that state.
     editing_id: Option<i64>,
     selected: HashSet<i64>,
-    /// Whether the "Add Account" slide-over panel is open. Hidden by
-    /// default; opens only via the header's "Add account" action and
-    /// closes on Save, Cancel, or clicking outside it.
+    /// Whether the "Add Account" side panel is open. Hidden by default;
+    /// opens only via the header's "Add account" action and closes on
+    /// Save or Cancel.
     add_panel_open: bool,
     /// The reference code shown (read-only) in the open panel --
     /// generated fresh the moment the panel opens, and carried through
@@ -362,7 +362,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     content = content.push(heading).push(table);
 
     // Editing stays an inline form below the table, unchanged -- only
-    // adding a new account moved to the slide-over panel below.
+    // adding a new account moved to the side panel.
     if state.editing_id.is_some() {
         let form = column![
             text("Edit account").size(13),
@@ -388,17 +388,19 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
 
-    if state.add_panel_open {
-        side_panel::overlay(theme, base, add_panel(state, theme), Message::CloseAddPanel)
+    let panel: Option<Element<'_, Message>> = if state.add_panel_open {
+        Some(add_panel(state, theme))
     } else if state.columns_open {
-        side_panel::overlay(theme, base, data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled), Message::ToggleColumns)
+        Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled))
     } else {
-        base
-    }
+        None
+    };
+
+    side_panel::split(theme, base, panel)
 }
 
-/// The "Add Account" slide-over's own content -- opened via
-/// `side_panel::overlay`, which supplies the anchoring, backdrop, and
+/// The "Add Account" panel's own content -- opened via
+/// `side_panel::split`, which supplies the side-by-side layout and
 /// card chrome around whatever this returns.
 fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
     column![

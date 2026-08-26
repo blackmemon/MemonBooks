@@ -17,6 +17,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -255,7 +256,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Create a user").size(13),
         text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(8),
         text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(8),
-        pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).placeholder("Role"),
+        pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).style(dropdown::style(theme)).placeholder("Role"),
         button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(8),
     ]
     .spacing(8);
@@ -282,7 +283,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         let heading_text = editing_user.map(|u| format!("Edit {}", u.display_name)).unwrap_or_else(|| "Edit user".to_string());
         let edit_panel = column![
             text(heading_text).size(13),
-            pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).placeholder("Role"),
+            pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).style(dropdown::style(theme)).placeholder("Role"),
             checkbox("Active", state.edit_is_active).on_toggle(Message::EditActiveToggled),
             iced::widget::row![
                 button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(8),

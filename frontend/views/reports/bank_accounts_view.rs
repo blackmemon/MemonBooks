@@ -21,6 +21,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -339,7 +340,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit bank account" } else { "Add a bank account" };
     let mut form = column![
         text(form_heading).size(13),
-        pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).placeholder("GL account"),
+        pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).style(dropdown::style(theme)).placeholder("GL account"),
         text_input("Bank name", &state.bank_name_input).style(inputs::text(theme)).on_input(Message::BankNameChanged).width(Length::Fill).padding(8),
         text_input("Account number", &state.account_number_input).style(inputs::text(theme)).on_input(Message::AccountNumberChanged).width(Length::Fill).padding(8),
     ]

@@ -3,12 +3,13 @@
 //! plus "Filters" and "Sort by" dropdown buttons, all sharing one height.
 
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
-use iced::{Alignment, Background, Color, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Element, Font, Length};
 
 use crate::frontend::components::common::data_table;
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, spacing, tabs, toolbar as toolbar_style};
+use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 
 #[allow(clippy::too_many_arguments)]
@@ -116,7 +117,7 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([8.0, 12.0]).size(13).width(Length::Fixed(220.0));
 
-    let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([8.0, 12.0]).text_size(13).style(move |_iced_theme: &IcedTheme, status| status_picker_style(theme, status));
+    let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([8.0, 12.0]).text_size(13).style(dropdown::muted(theme));
 
     let reset_button = button(text("Reset All").size(13)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_reset_all);
     let columns_button = data_table::columns_button(theme, on_toggle_columns);
@@ -125,18 +126,3 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
 
     row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).into()
 }
-
-fn status_picker_style(theme: Theme, status: iced::widget::pick_list::Status) -> iced::widget::pick_list::Style {
-    let background = match status {
-        iced::widget::pick_list::Status::Hovered | iced::widget::pick_list::Status::Opened => Color { a: 0.6, ..theme.neutral_bg() },
-        iced::widget::pick_list::Status::Active => theme.surface(),
-    };
-    iced::widget::pick_list::Style {
-        text_color: theme.neutral_front(),
-        placeholder_color: theme.neutral_front(),
-        handle_color: theme.neutral_front(),
-        background: Background::Color(background),
-        border: borders::card(theme, borders::RADIUS_SM),
-    }
-}
-

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use chrono::{Datelike, Utc};
 
 use iced::widget::{button, column, container, pick_list, row, text};
-use iced::{Background, Color, Element, Length, Task, Theme as IcedTheme};
+use iced::{Element, Length, Task};
 
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
 use memonbooks::backend::core::auth::passwords::hash_password;
@@ -30,9 +30,9 @@ use memonbooks::configs::app::AppConfig;
 use memonbooks::configs::theme_preference;
 use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
-use memonbooks::frontend::styles::borders;
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
+use memonbooks::frontend::styles::dropdown;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
@@ -636,7 +636,7 @@ impl MemonBooks {
     /// four aren't rendered at all.
     fn maintain_view(&self) -> Element<'_, Message> {
         let switcher: Element<'_, Message> =
-            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(220.0)).into();
+            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(dropdown::style(self.theme)).padding(8).width(Length::Fixed(220.0)).into();
 
         match self.maintain_selected {
             MaintainSection::ChartOfAccounts => chart_of_accounts_view::view_with_switcher(&self.chart_of_accounts, self.theme, switcher, Message::ChartOfAccounts),
@@ -659,7 +659,7 @@ impl MemonBooks {
         .spacing(8.0);
 
         let documents = self.transaction_side.documents();
-        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(180.0));
+        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(dropdown::style(self.theme)).padding(8).width(Length::Fixed(180.0));
 
         let controls = container(row![toggle, picker].spacing(12.0).align_y(iced::Alignment::Center)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
 
@@ -681,21 +681,3 @@ fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, a
     if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
 }
 
-/// Themed `pick_list` styling for the "Maintain" section picker -- uses
-/// the same `Theme` tokens `button::secondary` does (Section 6) rather
-/// than iced's default palette or the reference mock's colors.
-fn maintain_picker_style(theme: Theme) -> impl Fn(&IcedTheme, iced::widget::pick_list::Status) -> iced::widget::pick_list::Style {
-    move |_iced_theme: &IcedTheme, status: iced::widget::pick_list::Status| {
-        let background = match status {
-            iced::widget::pick_list::Status::Hovered | iced::widget::pick_list::Status::Opened => Color { a: 0.6, ..theme.neutral_bg() },
-            iced::widget::pick_list::Status::Active => theme.surface(),
-        };
-        iced::widget::pick_list::Style {
-            text_color: theme.text_primary(),
-            placeholder_color: theme.neutral_front(),
-            handle_color: theme.neutral_front(),
-            background: Background::Color(background),
-            border: borders::card(theme, borders::RADIUS_SM),
-        }
-    }
-}

@@ -11,6 +11,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -142,7 +143,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     } else {
         column![
             text("Switch to"),
-            pick_list(choices, state.selected_user.clone(), Message::UserSelected).placeholder("Choose a user"),
+            pick_list(choices, state.selected_user.clone(), Message::UserSelected).style(dropdown::style(theme)).placeholder("Choose a user"),
             text_input("Their password", &state.password)
                 .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)

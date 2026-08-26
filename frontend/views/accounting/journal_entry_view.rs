@@ -15,6 +15,7 @@ use crate::backend::accounting::journal_entries::JournalEntry;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::views::Ctx;
 
@@ -115,9 +116,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form = column![
         text("Debit account"),
-        pick_list(state.accounts.as_slice(), state.debit_account.clone(), Message::DebitAccountSelected).placeholder("Select account"),
+        pick_list(state.accounts.as_slice(), state.debit_account.clone(), Message::DebitAccountSelected).style(dropdown::style(theme)).placeholder("Select account"),
         text("Credit account"),
-        pick_list(state.accounts.as_slice(), state.credit_account.clone(), Message::CreditAccountSelected).placeholder("Select account"),
+        pick_list(state.accounts.as_slice(), state.credit_account.clone(), Message::CreditAccountSelected).style(dropdown::style(theme)).placeholder("Select account"),
         text("Amount"),
         text_input("0.00", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).padding(8),
         text("Memo"),

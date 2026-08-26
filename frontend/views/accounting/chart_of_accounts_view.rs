@@ -13,7 +13,8 @@ use crate::backend::core::validation::Validate;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
+use crate::frontend::components::common::toolbar::{self, StatusFilter};
+use crate::frontend::components::common::{page_header, section_heading};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::borders;
 use crate::frontend::views::Ctx;
@@ -25,6 +26,8 @@ const ACCOUNT_TYPES: [AccountType; 5] = [
     AccountType::Revenue,
     AccountType::Expense,
 ];
+
+const COLUMN_LABELS: [&str; 3] = ["Code", "Name", "Type"];
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
@@ -50,6 +53,9 @@ pub struct State {
     /// discarded, never reused, since opening the panel again always
     /// regenerates it.
     add_reference_code: String,
+    status_filter: StatusFilter,
+    columns_open: bool,
+    column_visible: Vec<bool>,
     message: Option<String>,
     error: Option<String>,
 }
@@ -70,9 +76,10 @@ pub enum Message {
     BulkDelete,
     BulkExportCsv,
     SearchChanged(String),
-    TabSelected(usize),
-    FiltersClicked,
-    SortClicked,
+    StatusFilterChanged(StatusFilter),
+    ResetAll,
+    ToggleColumns,
+    ColumnToggled(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -232,7 +239,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::BulkExportCsv => {
             state.message = None;
             state.error = None;
-            let selected: Vec<&Account> = state.accounts.iter().filter(|a| state.selected.contains(&a.id.unwrap_or_default())).collect();
+            let query = state.search.trim().to_lowercase();
+            let selected: Vec<&Account> = if state.selected.is_empty() {
+                state.accounts.iter().filter(|a| matches_filters(a, &query, state.status_filter)).collect()
+            } else {
+                state.accounts.iter().filter(|a| state.selected.contains(&a.id.unwrap_or_default())).collect()
+            };
             let headers = ["Code", "Name", "Type", "Status"];
             let rows: Vec<Vec<String>> = selected
                 .iter()
@@ -245,12 +257,27 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::SearchChanged(value) => state.search = value,
-        // This view only has one tab, and "Filters" / "Sort by" are
-        // rendered by the shared toolbar component now (Section 6) --
-        // wiring real tab/filter/sort behavior is follow-up work, not
-        // part of this pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => {}
+        Message::StatusFilterChanged(filter) => state.status_filter = filter,
+        Message::ResetAll => {
+            state.search.clear();
+            state.status_filter = StatusFilter::All;
+        }
+        Message::ToggleColumns => state.columns_open = !state.columns_open,
+        Message::ColumnToggled(index) => {
+            if index >= state.column_visible.len() {
+                state.column_visible.resize(index + 1, true);
+            }
+            state.column_visible[index] = !state.column_visible[index];
+        }
     }
+}
+
+/// Whether an account passes both the search box and the status
+/// filter -- shared by the table's live filtering in `view` and by
+/// `BulkExportCsv`'s "no selection -> export everything currently
+/// visible" fallback, so the two can never disagree.
+fn matches_filters(account: &Account, query: &str, status: StatusFilter) -> bool {
+    status.matches(account.is_active) && (query.is_empty() || account.name.to_lowercase().contains(query) || account.code.to_lowercase().contains(query))
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -258,25 +285,24 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
     let header = page_header::view(theme, "Chart of Accounts", "Every general ledger account on this company's books.", header_label, header_action);
 
-    let toolbar = toolbar::view(
+    let toolbar = toolbar::list_toolbar(
         theme,
-        &["All Accounts"],
-        0,
-        Message::TabSelected,
         &state.search,
         "Search accounts",
         Message::SearchChanged,
-        "Filters",
-        Message::FiltersClicked,
-        "Sort by",
-        Message::SortClicked,
+        state.status_filter,
+        Message::StatusFilterChanged,
+        Message::ResetAll,
+        Message::ToggleColumns,
+        Message::BulkExportCsv,
+        !state.selected.is_empty(),
+        Message::BulkDelete,
     );
 
     let heading = section_heading::view(theme, "Account list", "Every account, grouped by code order.");
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Account> =
-        state.accounts.iter().filter(|account| query.is_empty() || account.name.to_lowercase().contains(&query) || account.code.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
 
     let columns = vec![
         ColumnDef::new("Code", Length::FillPortion(1)).sorted(SortDirection::Ascending),
@@ -292,9 +318,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
 
-    let table = data_table::view(
+    let table = data_table::view_with_column_visibility(
         theme,
         columns,
+        &state.column_visible,
         rows,
         Some(selected_flags),
         move |index, checked| Message::RowSelected(row_ids[index], checked),
@@ -303,13 +330,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar].spacing(20).padding(24).width(Length::Fill);
 
-    if !state.selected.is_empty() {
-        content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
+    if state.columns_open {
+        content = content.push(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled));
     }
 
-    content = content.push(table);
+    content = content.push(heading).push(table);
 
     // Editing stays an inline form below the table, unchanged -- only
     // adding a new account moved to the slide-over panel below.
@@ -721,5 +748,69 @@ mod tests {
         assert!(contents.contains("Cash") && !contents.contains("Petty Cash"));
 
         let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
+
+    #[test]
+    fn bulk_export_csv_with_no_selection_exports_every_currently_filtered_account() {
+        let ctx = ctx_with_temp_export_dir();
+        let mut state = State { code_input: "1000".into(), name_input: "Cash".into(), type_input: Some(AccountType::Asset), ..Default::default() };
+        update(&mut state, Message::Create, &ctx);
+        state.code_input = "1010".into();
+        state.name_input = "Petty Cash".into();
+        state.type_input = Some(AccountType::Asset);
+        update(&mut state, Message::Create, &ctx);
+        state.code_input = "2000".into();
+        state.name_input = "Accounts Payable".into();
+        state.type_input = Some(AccountType::Liability);
+        update(&mut state, Message::Create, &ctx);
+        state.search = "cash".into();
+
+        update(&mut state, Message::BulkExportCsv, &ctx);
+
+        assert!(state.error.is_none());
+        let contents = std::fs::read_to_string(ctx.export_path("chart_of_accounts_export.csv")).unwrap();
+        assert!(contents.contains("Cash") && contents.contains("Petty Cash"));
+        assert!(!contents.contains("Accounts Payable"));
+
+        let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
+
+    #[test]
+    fn reset_all_clears_search_and_status_filter() {
+        let ctx = ctx_with_company();
+        let mut state = State { search: "cash".into(), status_filter: StatusFilter::Inactive, ..Default::default() };
+
+        update(&mut state, Message::ResetAll, &ctx);
+
+        assert!(state.search.is_empty());
+        assert_eq!(state.status_filter, StatusFilter::All);
+    }
+
+    #[test]
+    fn status_filter_narrows_to_only_matching_accounts() {
+        let mut account = Account::new(1, "1000", "Cash", AccountType::Asset);
+        account.is_active = true;
+        let mut inactive = Account::new(1, "1010", "Old Account", AccountType::Asset);
+        inactive.is_active = false;
+
+        assert!(matches_filters(&account, "", StatusFilter::All));
+        assert!(matches_filters(&account, "", StatusFilter::Active));
+        assert!(!matches_filters(&account, "", StatusFilter::Inactive));
+
+        assert!(matches_filters(&inactive, "", StatusFilter::All));
+        assert!(!matches_filters(&inactive, "", StatusFilter::Active));
+        assert!(matches_filters(&inactive, "", StatusFilter::Inactive));
+    }
+
+    #[test]
+    fn column_toggled_flips_that_columns_visibility() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::ColumnToggled(1), &ctx);
+        assert_eq!(state.column_visible, vec![true, false]);
+
+        update(&mut state, Message::ColumnToggled(1), &ctx);
+        assert_eq!(state.column_visible, vec![true, true]);
     }
 }

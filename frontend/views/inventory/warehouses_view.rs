@@ -11,10 +11,13 @@ use crate::backend::inventory::warehouses::Warehouse;
 use crate::backend::services::inventory_service::InventoryService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
+use crate::frontend::components::common::toolbar::{self, StatusFilter};
+use crate::frontend::components::common::{page_header, section_heading};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
+
+const COLUMN_LABELS: [&str; 3] = ["Warehouse", "Code", "Status"];
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
@@ -27,6 +30,9 @@ pub struct State {
     /// double duty as "save changes" in that state.
     editing_id: Option<i64>,
     selected: HashSet<i64>,
+    status_filter: StatusFilter,
+    columns_open: bool,
+    column_visible: Vec<bool>,
     message: Option<String>,
     error: Option<String>,
 }
@@ -44,9 +50,10 @@ pub enum Message {
     BulkDelete,
     BulkExportCsv,
     SearchChanged(String),
-    TabSelected(usize),
-    FiltersClicked,
-    SortClicked,
+    StatusFilterChanged(StatusFilter),
+    ResetAll,
+    ToggleColumns,
+    ColumnToggled(usize),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -164,7 +171,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::BulkExportCsv => {
             state.message = None;
             state.error = None;
-            let selected: Vec<&Warehouse> = state.warehouses.iter().filter(|w| state.selected.contains(&w.id.unwrap_or_default())).collect();
+            let query = state.search.trim().to_lowercase();
+            let selected: Vec<&Warehouse> = if state.selected.is_empty() {
+                state.warehouses.iter().filter(|w| matches_filters(w, &query, state.status_filter)).collect()
+            } else {
+                state.warehouses.iter().filter(|w| state.selected.contains(&w.id.unwrap_or_default())).collect()
+            };
             let headers = ["Name", "Code", "Status"];
             let rows: Vec<Vec<String>> =
                 selected.iter().map(|w| vec![w.name.clone(), w.code.clone(), if w.is_active { "Active".to_string() } else { "Inactive".to_string() }]).collect();
@@ -175,37 +187,51 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::SearchChanged(value) => state.search = value,
-        // This view only has one tab, and "Filters" / "Sort by" are
-        // rendered by the shared toolbar component now (Section 6) --
-        // wiring real tab/filter/sort behavior is follow-up work, not
-        // part of this pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked => {}
+        Message::StatusFilterChanged(filter) => state.status_filter = filter,
+        Message::ResetAll => {
+            state.search.clear();
+            state.status_filter = StatusFilter::All;
+        }
+        Message::ToggleColumns => state.columns_open = !state.columns_open,
+        Message::ColumnToggled(index) => {
+            if index >= state.column_visible.len() {
+                state.column_visible.resize(index + 1, true);
+            }
+            state.column_visible[index] = !state.column_visible[index];
+        }
     }
+}
+
+/// Whether a warehouse passes both the search box and the status
+/// filter -- shared by the table's live filtering in `view` and by
+/// `BulkExportCsv`'s "no selection -> export everything currently
+/// visible" fallback, so the two can never disagree.
+fn matches_filters(warehouse: &Warehouse, query: &str, status: StatusFilter) -> bool {
+    status.matches(warehouse.is_active) && (query.is_empty() || warehouse.name.to_lowercase().contains(query) || warehouse.code.to_lowercase().contains(query))
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add warehouse" };
     let header = page_header::view(theme, "Warehouses", "Every stock location on this company's books.", header_label, Message::Create);
 
-    let toolbar = toolbar::view(
+    let toolbar = toolbar::list_toolbar(
         theme,
-        &["All Warehouses"],
-        0,
-        Message::TabSelected,
         &state.search,
         "Search warehouses",
         Message::SearchChanged,
-        "Filters",
-        Message::FiltersClicked,
-        "Sort by",
-        Message::SortClicked,
+        state.status_filter,
+        Message::StatusFilterChanged,
+        Message::ResetAll,
+        Message::ToggleColumns,
+        Message::BulkExportCsv,
+        !state.selected.is_empty(),
+        Message::BulkDelete,
     );
 
     let heading = section_heading::view(theme, "Warehouse list", "Every warehouse on this company's books.");
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Warehouse> =
-        state.warehouses.iter().filter(|warehouse| query.is_empty() || warehouse.name.to_lowercase().contains(&query) || warehouse.code.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&Warehouse> = state.warehouses.iter().filter(|warehouse| matches_filters(warehouse, &query, state.status_filter)).collect();
 
     let columns = vec![
         ColumnDef::new("Warehouse", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -230,9 +256,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
 
-    let table = data_table::view(
+    let table = data_table::view_with_column_visibility(
         theme,
         columns,
+        &state.column_visible,
         rows,
         Some(selected_flags),
         move |index, checked| Message::RowSelected(row_ids[index], checked),
@@ -261,13 +288,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         form = form.push(button(text("Add warehouse")).on_press(Message::Create).padding(8));
     }
 
-    let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar].spacing(20).padding(24).width(Length::Fill);
 
-    if !state.selected.is_empty() {
-        content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
+    if state.columns_open {
+        content = content.push(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled));
     }
 
-    content = content.push(table).push(form);
+    content = content.push(heading).push(table).push(form);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));
@@ -517,5 +544,69 @@ mod tests {
         assert!(contents.contains("Main Warehouse") && !contents.contains("Overflow Warehouse"));
 
         let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
+
+    #[test]
+    fn bulk_export_csv_with_no_selection_exports_every_currently_filtered_warehouse() {
+        let ctx = ctx_with_temp_export_dir();
+        let mut state = State::default();
+        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        state.code_input = "MAIN".into();
+        update(&mut state, Message::Create, &ctx);
+        state.name_input = "Main Annex".into();
+        state.code_input = "ANNEX".into();
+        update(&mut state, Message::Create, &ctx);
+        state.name_input = "Overflow Warehouse".into();
+        state.code_input = "OVERFLOW".into();
+        update(&mut state, Message::Create, &ctx);
+        state.search = "main".into();
+
+        update(&mut state, Message::BulkExportCsv, &ctx);
+
+        assert!(state.error.is_none());
+        let contents = std::fs::read_to_string(ctx.export_path("warehouses_export.csv")).unwrap();
+        assert!(contents.contains("Main Warehouse") && contents.contains("Main Annex"));
+        assert!(!contents.contains("Overflow Warehouse"));
+
+        let _ = std::fs::remove_dir_all(&ctx.export_dir);
+    }
+
+    #[test]
+    fn reset_all_clears_search_and_status_filter() {
+        let ctx = ctx_with_company();
+        let mut state = State { search: "main".into(), status_filter: StatusFilter::Inactive, ..Default::default() };
+
+        update(&mut state, Message::ResetAll, &ctx);
+
+        assert!(state.search.is_empty());
+        assert_eq!(state.status_filter, StatusFilter::All);
+    }
+
+    #[test]
+    fn status_filter_narrows_to_only_matching_warehouses() {
+        let mut active = Warehouse::new(1, "Main Warehouse", "MAIN");
+        active.is_active = true;
+        let mut inactive = Warehouse::new(1, "Old Warehouse", "OLD");
+        inactive.is_active = false;
+
+        assert!(matches_filters(&active, "", StatusFilter::All));
+        assert!(matches_filters(&active, "", StatusFilter::Active));
+        assert!(!matches_filters(&active, "", StatusFilter::Inactive));
+
+        assert!(matches_filters(&inactive, "", StatusFilter::All));
+        assert!(!matches_filters(&inactive, "", StatusFilter::Active));
+        assert!(matches_filters(&inactive, "", StatusFilter::Inactive));
+    }
+
+    #[test]
+    fn column_toggled_flips_that_columns_visibility() {
+        let ctx = ctx_with_company();
+        let mut state = State::default();
+
+        update(&mut state, Message::ColumnToggled(2), &ctx);
+        assert_eq!(state.column_visible, vec![true, true, false]);
+
+        update(&mut state, Message::ColumnToggled(2), &ctx);
+        assert_eq!(state.column_visible, vec![true, true, true]);
     }
 }

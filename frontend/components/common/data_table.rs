@@ -11,7 +11,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, panels, spacing, table as table_style};
+use crate::frontend::styles::{borders, panels, spacing, table as table_style, toolbar as toolbar_style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -109,14 +109,39 @@ pub fn view<'a, Message: Clone + 'a>(
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
     on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
+    view_with_column_visibility(theme, columns, &[], rows, selected, on_row_select, on_select_all, on_row_action, on_primary_action)
+}
+
+/// Same as [`view`], except `visible_columns[i]` (columns past the end
+/// of a shorter slice default to visible) controls whether column `i`'s
+/// header cell and every row's cell for it are rendered at all -- the
+/// live-apply side of a "Columns" show/hide toggle. Lives here (rather
+/// than on any one view) so any list view can wire a column toggle up
+/// against the same table without reimplementing the filtering.
+#[allow(clippy::too_many_arguments)]
+pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
+    theme: Theme,
+    columns: Vec<ColumnDef<'a>>,
+    visible_columns: &[bool],
+    rows: Vec<Row>,
+    selected: Option<Vec<bool>>,
+    on_row_select: impl Fn(usize, bool) -> Message + Clone + 'a,
+    on_select_all: impl Fn(bool) -> Message + 'a,
+    on_row_action: impl Fn(usize) -> Message + Clone + 'a,
+    on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
+) -> Element<'a, Message> {
     let show_checkbox = selected.is_some();
+    let is_visible = |index: usize| visible_columns.get(index).copied().unwrap_or(true);
 
     let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
     if let Some(selected) = &selected {
         let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
         header = header.push(container(checkbox("", all_selected).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
     }
-    for column_def in &columns {
+    for (index, column_def) in columns.iter().enumerate() {
+        if !is_visible(index) {
+            continue;
+        }
         let arrow = match column_def.sort {
             SortDirection::Ascending => " \u{25B2}",
             SortDirection::Descending => " \u{25BC}",
@@ -138,7 +163,10 @@ pub fn view<'a, Message: Clone + 'a>(
             let select_this_row = on_row_select.clone();
             cells_row = cells_row.push(container(checkbox("", is_checked).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
         }
-        for (cell, column_def) in table_row.cells.into_iter().zip(columns.iter()) {
+        for (index, (cell, column_def)) in table_row.cells.into_iter().zip(columns.iter()).enumerate() {
+            if !is_visible(index) {
+                continue;
+            }
             cells_row = cells_row.push(container(cell_view::<Message>(theme, cell)).width(column_def.width));
         }
         let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
@@ -218,6 +246,35 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
         .spacing(4.0)
         .into(),
     }
+}
+
+/// The "Columns" toggle button for a toolbar row -- pairs with
+/// [`columns_panel`], which the caller renders directly beneath it
+/// while `open`. Two separate pieces (rather than one popover) because
+/// iced 0.13 has no anchored-overlay primitive in this codebase yet;
+/// the panel renders inline instead of floating.
+pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
+    button(text("Columns").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_toggle).into()
+}
+
+/// The show/hide checklist opened by [`columns_button`] -- one checkbox
+/// per entry in `labels`, `visible[i]` (missing entries default to
+/// visible) driving its checked state. `on_toggle(index)` fires when
+/// that column's checkbox flips; applying the result live is the
+/// caller's job, via `view_with_column_visibility`.
+pub fn columns_panel<'a, Message: Clone + 'a>(theme: Theme, labels: &'a [&'a str], visible: &[bool], on_toggle: impl Fn(usize) -> Message + Clone + 'a) -> Element<'a, Message> {
+    let mut list = column![text("Columns").size(12).color(theme.neutral_front())].spacing(8.0);
+    for (index, label) in labels.iter().enumerate() {
+        let is_visible = visible.get(index).copied().unwrap_or(true);
+        let toggle_this = on_toggle.clone();
+        list = list.push(checkbox(*label, is_visible).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
+    }
+
+    container(list)
+        .padding(spacing::MD)
+        .width(Length::Fixed(200.0))
+        .style(move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, borders::RADIUS_MD), ..container::Style::default() })
+        .into()
 }
 
 fn kebab_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {

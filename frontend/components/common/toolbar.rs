@@ -3,11 +3,12 @@
 //! plus "Filters" and "Sort by" dropdown buttons, all sharing one height.
 
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Background, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::components::common::data_table;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, spacing, tabs, toolbar as toolbar_style};
+use crate::frontend::styles::button as button_style;
 
 #[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
@@ -44,12 +45,12 @@ pub fn view<'a, Message: Clone + 'a>(
 
     let filters_button = button(text(filters_label).size(13))
         .padding([8.0, 14.0])
-        .style(toolbar_style::dropdown_button(theme))
+        .style(button_style::secondary(theme))
         .on_press(on_filters_click);
 
     let sort_button = button(text(sort_label).size(13))
         .padding([8.0, 14.0])
-        .style(toolbar_style::dropdown_button(theme))
+        .style(button_style::secondary(theme))
         .on_press(on_sort_click);
 
     let controls = row![search, filters_button, sort_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT));
@@ -115,13 +116,10 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
 
     let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([8.0, 12.0]).text_size(13).style(move |_iced_theme: &IcedTheme, status| status_picker_style(theme, status));
 
-    let reset_button = button(text("Reset All").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_reset_all);
+    let reset_button = button(text("Reset All").size(13)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_reset_all);
     let columns_button = data_table::columns_button(theme, on_toggle_columns);
-    let export_button = button(text("Export").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_export);
-    let delete_button = button(text("Delete").size(13))
-        .padding([8.0, 14.0])
-        .style(move |_iced_theme: &IcedTheme, status| destructive_button(theme, status))
-        .on_press_maybe(delete_enabled.then_some(on_delete));
+    let export_button = button(text("Export").size(13)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_export);
+    let delete_button = button(text("Delete").size(13)).padding([8.0, 14.0]).style(button_style::destructive(theme)).on_press_maybe(delete_enabled.then_some(on_delete));
 
     row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).into()
 }
@@ -140,12 +138,3 @@ fn status_picker_style(theme: Theme, status: iced::widget::pick_list::Status) ->
     }
 }
 
-fn destructive_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = match status {
-        iced::widget::button::Status::Disabled => theme.neutral_bg(),
-        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.85, ..theme.negative_front() },
-        iced::widget::button::Status::Active => theme.negative_front(),
-    };
-    let text_color = if matches!(status, iced::widget::button::Status::Disabled) { theme.neutral_front() } else { Color::WHITE };
-    iced::widget::button::Style { background: Some(Background::Color(background)), text_color, border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
-}

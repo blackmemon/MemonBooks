@@ -11,7 +11,8 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, panels, spacing, table as table_style, toolbar as toolbar_style};
+use crate::frontend::styles::{borders, panels, spacing, table as table_style};
+use crate::frontend::styles::button as button_style;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -171,7 +172,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
         }
         let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
             Some(label) => button(text(label).size(12))
-                .style(move |_iced_theme: &IcedTheme, status| primary_row_button(theme, status))
+                .style(button_style::outline_primary(theme))
                 .padding([6.0, 14.0])
                 .on_press(on_primary_action(row_index))
                 .into(),
@@ -181,7 +182,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
         cells_row = cells_row.push(
             container(
                 button(text("\u{22EE}").size(14).color(theme.neutral_front()))
-                    .style(move |_iced_theme: &IcedTheme, status| kebab_button(theme, status))
+                    .style(button_style::plain(theme))
                     .on_press(on_row_action(row_index)),
             )
             .width(Length::Fixed(32.0)),
@@ -257,7 +258,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
 /// while `open`. Two separate pieces (rather than one popover) because
 /// iced 0.13 has no anchored-overlay primitive in this codebase yet.
 pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
-    button(text("Columns").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_toggle).into()
+    button(text("Columns").size(13)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_toggle).into()
 }
 
 /// The show/hide checklist content opened by [`columns_button`] --
@@ -280,8 +281,8 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
     on_deselect_all: Message,
     on_reset: Message,
 ) -> Element<'a, Message> {
-    let select_all = button(text("Select All").size(12)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_select_all);
-    let deselect_all = button(text("Deselect All").size(12)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_deselect_all);
+    let select_all = button(text("Select All").size(12)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_select_all);
+    let deselect_all = button(text("Deselect All").size(12)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_deselect_all);
 
     let mut list = column![].spacing(12.0);
     for (index, label) in labels.iter().enumerate() {
@@ -290,7 +291,7 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
         list = list.push(checkbox(*label, is_visible).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
     }
 
-    let reset = button(text("Reset to Default").size(13)).padding([10.0, 16.0]).width(Length::Fill).style(toolbar_style::dropdown_button(theme)).on_press(on_reset);
+    let reset = button(text("Reset to Default").size(13)).padding([10.0, 16.0]).width(Length::Fill).style(button_style::secondary(theme)).on_press(on_reset);
 
     column![
         text("Select Columns to Display").size(15).color(theme.text_primary()),
@@ -303,27 +304,6 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
     .into()
 }
 
-fn kebab_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = if matches!(status, iced::widget::button::Status::Hovered) { Some(Background::Color(theme.neutral_bg())) } else { None };
-    iced::widget::button::Style { background, text_color: theme.neutral_front(), border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
-}
-
-/// A row's visible primary-action button: an outline in the theme's
-/// primary color rather than a solid fill, so a table full of them
-/// doesn't compete visually with the page-level primary action in the
-/// header.
-fn primary_row_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = match status {
-        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.1, ..theme.primary() },
-        _ => Color::TRANSPARENT,
-    };
-    iced::widget::button::Style {
-        background: Some(Background::Color(background)),
-        text_color: theme.primary(),
-        border: Border { color: theme.primary(), width: 1.0, radius: borders::RADIUS_SM.into() },
-        shadow: iced::Shadow::default(),
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -21,6 +21,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -579,16 +580,16 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).on_press(Message::SaveDraft).padding(8),
-                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveDraft).padding(8),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
             ]
             .spacing(8),
         );
     } else {
         form = form.push(
             iced::widget::row![
-                button(text("Save as draft")).on_press(Message::SaveDraft).padding(8),
-                button(text("Create & post")).on_press(Message::CreateAndPost).padding(8),
+                button(text("Save as draft")).style(button_style::secondary(theme)).on_press(Message::SaveDraft).padding(8),
+                button(text("Create & post")).style(button_style::primary(theme)).on_press(Message::CreateAndPost).padding(8),
             ]
             .spacing(8),
         );
@@ -606,7 +607,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Post this draft").size(13),
         text(format!("Bill: {post_target_label}")).size(12).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.post_ap_account.clone(), Message::PostApAccountSelected).placeholder("AP account"),
-        button(text("Post")).on_press(Message::SubmitPost).padding(8),
+        button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(8),
     ]
     .spacing(8);
 
@@ -624,7 +625,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).placeholder("AP account"),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
         text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
-        button(text("Record payment")).on_press(Message::SubmitPayment).padding(8),
+        button(text("Record payment")).style(button_style::primary(theme)).on_press(Message::SubmitPayment).padding(8),
     ]
     .spacing(8);
 
@@ -643,7 +644,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         pick_list(state.accounts.as_slice(), state.debit_note_ap_account.clone(), Message::DebitNoteApAccountSelected).placeholder("AP account"),
         text_input("Description", &state.debit_note_description_input).on_input(Message::DebitNoteDescriptionChanged).width(Length::Fill).padding(8),
         text_input("Amount", &state.debit_note_amount_input).on_input(Message::DebitNoteAmountChanged).width(Length::Fill).padding(8),
-        button(text("Issue debit note")).on_press(Message::SubmitDebitNote).padding(8),
+        button(text("Issue debit note")).style(button_style::primary(theme)).on_press(Message::SubmitDebitNote).padding(8),
     ]
     .spacing(8);
 

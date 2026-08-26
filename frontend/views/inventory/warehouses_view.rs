@@ -15,6 +15,7 @@ use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 const COLUMN_LABELS: [&str; 3] = ["Warehouse", "Code", "Status"];
@@ -307,13 +308,13 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).on_press(Message::Create).padding(8),
-                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
             ]
             .spacing(8),
         );
     } else {
-        form = form.push(button(text("Add warehouse")).on_press(Message::Create).padding(8));
+        form = form.push(button(text("Add warehouse")).style(button_style::primary(theme)).on_press(Message::Create).padding(8));
     }
 
     let mut content = column![toolbar].spacing(20).padding(iced::Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }).width(Length::Fill);

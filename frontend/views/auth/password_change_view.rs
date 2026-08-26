@@ -10,6 +10,7 @@ use iced::{Element, Length};
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -83,7 +84,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             .on_input(Message::ConfirmPasswordChanged)
             .secure(true)
             .padding(8),
-        button(text("Change password")).on_press(Message::Submit).padding(8),
+        button(text("Change password")).style(button_style::primary(theme)).on_press(Message::Submit).padding(8),
     ]
     .spacing(12)
     .max_width(360);

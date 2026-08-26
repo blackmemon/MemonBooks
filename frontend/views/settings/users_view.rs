@@ -17,6 +17,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -254,7 +255,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text_input("Username", &state.username_input).on_input(Message::UsernameChanged).width(Length::Fill).padding(8),
         text_input("Display name", &state.display_name_input).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(8),
         pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).placeholder("Role"),
-        button(text("Create User")).on_press(Message::CreateUser).padding(8),
+        button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(8),
     ]
     .spacing(8);
 
@@ -265,7 +266,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             text(format!("Temporary password for {}", state.generated_password_for)).size(13),
             text(password.clone()).size(20).color(theme.primary()),
             text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(12).color(theme.neutral_front()),
-            button(text("Done")).on_press(Message::DismissGeneratedPassword).padding(6),
+            button(text("Done")).style(button_style::secondary(theme)).on_press(Message::DismissGeneratedPassword).padding(6),
         ]
         .spacing(6)
         .padding(16);
@@ -283,8 +284,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).placeholder("Role"),
             checkbox("Active", state.edit_is_active).on_toggle(Message::EditActiveToggled),
             iced::widget::row![
-                button(text("Save changes")).on_press(Message::SaveEdit).padding(8),
-                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(8),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
             ]
             .spacing(8),
         ]

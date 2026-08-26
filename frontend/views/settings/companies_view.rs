@@ -13,6 +13,7 @@ use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -123,7 +124,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let form = column![
         text("Create a company").size(13),
         text_input("New company name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        button(text("Create company")).on_press(Message::Create).padding(8),
+        button(text("Create company")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
     ]
     .spacing(8);
 

@@ -11,6 +11,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -132,7 +133,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             text_input("6-digit code", &state.two_factor_code)
                 .on_input(Message::TwoFactorCodeChanged)
                 .padding(8),
-            button(text("Verify")).on_press(Message::SubmitTwoFactorCode).padding(8),
+            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(8),
         ]
         .spacing(12)
         .into()
@@ -144,7 +145,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
                 .on_input(Message::PasswordChanged)
                 .secure(true)
                 .padding(8),
-            button(text("Switch user")).on_press(Message::SubmitCredentials).padding(8),
+            button(text("Switch user")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(8),
         ]
         .spacing(12)
         .into()

@@ -12,6 +12,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, spacing};
+use crate::frontend::styles::button as button_style;
 
 pub const EXPANDED_WIDTH: f32 = 252.0;
 pub const COLLAPSED_WIDTH: f32 = 72.0;
@@ -48,7 +49,7 @@ pub fn view<'a, Message: Clone + 'a>(
         if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, 15.0, theme.text_primary()) },
         Space::with_width(Length::Fill),
         button(text(if collapsed { "\u{203A}" } else { "\u{2039}" }).size(14))
-            .style(move |_iced_theme: &IcedTheme, status| plain_button(theme, status))
+            .style(button_style::plain(theme))
             .on_press(on_toggle_collapse)
     ]
     .spacing(spacing::SM)
@@ -80,7 +81,7 @@ pub fn view<'a, Message: Clone + 'a>(
         .into()
     };
     let profile_card = button(container(profile_body).padding(spacing::SM).width(Length::Fill))
-        .style(move |_iced_theme: &IcedTheme, status| profile_card_style(theme, status))
+        .style(button_style::profile_card(theme))
         .on_press(on_user_click)
         .width(Length::Fill);
 
@@ -89,7 +90,7 @@ pub fn view<'a, Message: Clone + 'a>(
     // the profile card so it's always reachable regardless of collapse
     // state.
     let theme_toggle = button(text(if theme == Theme::Dark { "\u{2600}" } else { "\u{1F319}" }).size(14))
-        .style(move |_iced_theme: &IcedTheme, status| plain_button(theme, status))
+        .style(button_style::plain(theme))
         .on_press(on_toggle_theme)
         .width(Length::Fixed(36.0));
 
@@ -118,7 +119,7 @@ pub fn view<'a, Message: Clone + 'a>(
 }
 
 fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed: bool, on_press: Message) -> Element<'a, Message> {
-    let (bg, front) = if item.active { (Color { a: 0.14, ..theme.primary() }, theme.primary()) } else { (Color::TRANSPARENT, theme.neutral_front()) };
+    let front = if item.active { theme.primary() } else { theme.neutral_front() };
 
     let monogram = item.label.chars().next().unwrap_or('?').to_uppercase().to_string();
     let content: Element<'a, Message> = if collapsed {
@@ -128,21 +129,7 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
     };
 
     button(container(content).padding([10.0, 12.0]).width(Length::Fill))
-        .style(move |_iced_theme: &IcedTheme, status: iced::widget::button::Status| {
-            let background = if item.active {
-                bg
-            } else if matches!(status, iced::widget::button::Status::Hovered) {
-                Color { a: 0.06, ..theme.neutral_front() }
-            } else {
-                Color::TRANSPARENT
-            };
-            iced::widget::button::Style {
-                background: Some(Background::Color(background)),
-                text_color: front,
-                border: Border { radius: borders::RADIUS_MD.into(), ..Border::default() },
-                shadow: iced::Shadow::default(),
-            }
-        })
+        .style(button_style::nav_item(theme, item.active))
         .on_press(on_press)
         .width(Length::Fill)
         .into()
@@ -160,19 +147,4 @@ fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'
 
 fn bold_text<'a, Message: 'a>(value: &str, size: f32, color: Color) -> Element<'a, Message> {
     text(value.to_string()).size(size).color(color).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }).into()
-}
-
-fn plain_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = if matches!(status, iced::widget::button::Status::Hovered) { Some(Background::Color(theme.neutral_bg())) } else { None };
-    iced::widget::button::Style { background, text_color: theme.neutral_front(), border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
-}
-
-fn profile_card_style(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = if matches!(status, iced::widget::button::Status::Hovered) { Color { a: 0.6, ..theme.neutral_bg() } } else { theme.neutral_bg() };
-    iced::widget::button::Style {
-        background: Some(Background::Color(background)),
-        text_color: theme.text_primary(),
-        border: Border { radius: borders::RADIUS_MD.into(), ..Border::default() },
-        shadow: iced::Shadow::default(),
-    }
 }

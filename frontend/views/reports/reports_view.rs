@@ -12,6 +12,7 @@ use crate::backend::reports::{balance_sheet, profit_loss};
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -121,14 +122,14 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     } else {
         text("Not balanced").color(theme.negative_front())
     });
-    bs_column = bs_column.push(button(text("Export CSV")).on_press(Message::ExportBalanceSheetCsv).padding(6));
+    bs_column = bs_column.push(button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportBalanceSheetCsv).padding(6));
 
     let pl_column = column![
         text("Profit & Loss (year to date)").size(20),
         text(format!("Total revenue: {}", profit_and_loss.total_revenue())),
         text(format!("Total expenses: {}", profit_and_loss.total_expenses())),
         text(format!("Net income: {}", profit_and_loss.net_income())),
-        button(text("Export CSV")).on_press(Message::ExportProfitAndLossCsv).padding(6),
+        button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportProfitAndLossCsv).padding(6),
     ]
     .spacing(6);
 

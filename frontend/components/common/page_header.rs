@@ -3,10 +3,11 @@
 //! same row on the right.
 
 use iced::widget::{button, column, row, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Element, Font, Length};
 
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, headers};
+use crate::frontend::styles::headers;
+use crate::frontend::styles::button as button_style;
 
 pub fn view<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: &'a str, action_label: &'a str, on_action: Message) -> Element<'a, Message> {
     let titles = column![
@@ -17,7 +18,7 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: 
 
     let action = button(row![text("+").size(14), text(action_label).size(13)].spacing(6.0).align_y(Alignment::Center))
         .padding([10.0, 16.0])
-        .style(move |_iced_theme: &IcedTheme, status| action_button(theme, status))
+        .style(button_style::primary(theme))
         .on_press(on_action);
 
     row![titles, Space::with_width(Length::Fill), action].align_y(Alignment::Start).into()
@@ -35,21 +36,8 @@ pub fn view_with_switcher<'a, Message: Clone + 'a>(theme: Theme, title: &'a str,
 
     let action = button(row![text("+").size(14), text(action_label).size(13)].spacing(6.0).align_y(Alignment::Center))
         .padding([10.0, 16.0])
-        .style(move |_iced_theme: &IcedTheme, status| action_button(theme, status))
+        .style(button_style::primary(theme))
         .on_press(on_action);
 
     row![titles, Space::with_width(Length::Fill), action].align_y(Alignment::Start).into()
-}
-
-fn action_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let background = match status {
-        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.85, ..theme.primary() },
-        _ => theme.primary(),
-    };
-    iced::widget::button::Style {
-        background: Some(Background::Color(background)),
-        text_color: Color::WHITE,
-        border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
-        shadow: iced::Shadow::default(),
-    }
 }

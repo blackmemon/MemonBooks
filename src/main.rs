@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use chrono::{Datelike, Utc};
 
 use iced::widget::{button, column, container, pick_list, row, text};
-use iced::{Background, Border, Color, Element, Length, Task, Theme as IcedTheme};
+use iced::{Background, Color, Element, Length, Task, Theme as IcedTheme};
 
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
 use memonbooks::backend::core::auth::passwords::hash_password;
@@ -31,6 +31,7 @@ use memonbooks::configs::theme_preference;
 use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::borders;
+use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
@@ -672,40 +673,17 @@ impl MemonBooks {
 }
 
 /// One "Purchase" / "Sale" toggle button for `transactions_view` -- the
-/// active side fills with `theme.primary()` like a page header's action
-/// button; the inactive one gets the same bordered, neutral look as
-/// `toolbar::dropdown_button`.
+/// active side is `button::primary`, the inactive one is
+/// `button::secondary`.
 fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
     let label = label.to_string();
-    button(text(label).size(13))
-        .padding([8.0, 16.0])
-        .style(move |_iced_theme: &IcedTheme, status: iced::widget::button::Status| {
-            if active {
-                let background = match status {
-                    iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.85, ..theme.primary() },
-                    _ => theme.primary(),
-                };
-                iced::widget::button::Style {
-                    background: Some(Background::Color(background)),
-                    text_color: Color::WHITE,
-                    border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
-                    shadow: iced::Shadow::default(),
-                }
-            } else {
-                let background = match status {
-                    iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.6, ..theme.neutral_bg() },
-                    _ => theme.surface(),
-                };
-                iced::widget::button::Style { background: Some(Background::Color(background)), text_color: theme.neutral_front(), border: borders::card(theme, borders::RADIUS_SM), shadow: iced::Shadow::default() }
-            }
-        })
-        .on_press(on_press)
-        .into()
+    let btn = button(text(label).size(13)).padding([8.0, 16.0]).on_press(on_press);
+    if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
 }
 
 /// Themed `pick_list` styling for the "Maintain" section picker -- uses
-/// the same `Theme` tokens as `toolbar::dropdown_button` (Section 6)
-/// rather than iced's default palette or the reference mock's colors.
+/// the same `Theme` tokens `button::secondary` does (Section 6) rather
+/// than iced's default palette or the reference mock's colors.
 fn maintain_picker_style(theme: Theme) -> impl Fn(&IcedTheme, iced::widget::pick_list::Status) -> iced::widget::pick_list::Style {
     move |_iced_theme: &IcedTheme, status: iced::widget::pick_list::Status| {
         let background = match status {

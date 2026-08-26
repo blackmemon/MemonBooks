@@ -15,6 +15,7 @@ use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -249,13 +250,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).on_press(Message::Create).padding(8),
-                button(text("Cancel")).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
             ]
             .spacing(8),
         );
     } else {
-        form = form.push(button(text("Add employee")).on_press(Message::Create).padding(8));
+        form = form.push(button(text("Add employee")).style(button_style::primary(theme)).on_press(Message::Create).padding(8));
     }
 
     let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);

@@ -17,7 +17,7 @@ use crate::backend::services::party_service::PartyService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
-use crate::frontend::components::common::{page_header, section_heading};
+use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::views::Ctx;
@@ -232,10 +232,31 @@ fn matches_filters(vendor: &Vendor, query: &str, status: StatusFilter) -> bool {
     status.matches(vendor.is_active) && (query.is_empty() || vendor.name.to_lowercase().contains(query) || vendor.email.as_deref().unwrap_or_default().to_lowercase().contains(query))
 }
 
+const TITLE: &str = "Vendors";
+const DESCRIPTION: &str = "Everyone you buy from, in one place.";
+
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add vendor" };
-    let header = page_header::view(theme, "Vendors", "Everyone you buy from, in one place.", header_label, Message::Create);
+    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, Message::Create)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
 
+    column![header, body(state, theme)].spacing(20).into()
+}
+
+/// Same as [`view`], except the title sits inline with `switcher` (a
+/// type-switcher dropdown, e.g. "Maintain"'s section picker) on the
+/// title's own row instead of alone -- `wrap` converts this module's
+/// own `Message` into whatever the caller's `switcher` produces, so the
+/// two can share one `Element` tree despite having different message
+/// types.
+pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
+    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add vendor" };
+    let header =
+        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+
+    column![header, body(state, theme).map(wrap)].spacing(20).into()
+}
+
+fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let toolbar = toolbar::list_toolbar(
         theme,
         &state.search,
@@ -308,11 +329,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         form = form.push(button(text("Add vendor")).on_press(Message::Create).padding(8));
     }
 
-    let mut content = column![header, toolbar].spacing(20).padding(24).width(Length::Fill);
-
-    if state.columns_open {
-        content = content.push(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled));
-    }
+    let mut content = column![toolbar].spacing(20).padding(iced::Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }).width(Length::Fill);
 
     content = content.push(heading).push(table).push(form);
 
@@ -323,7 +340,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
+
+    if state.columns_open {
+        side_panel::overlay(theme, base, data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled), Message::ToggleColumns)
+    } else {
+        base
+    }
 }
 
 #[cfg(test)]

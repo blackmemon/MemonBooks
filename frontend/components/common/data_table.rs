@@ -257,24 +257,21 @@ pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message)
     button(text("Columns").size(13)).padding([8.0, 14.0]).style(toolbar_style::dropdown_button(theme)).on_press(on_toggle).into()
 }
 
-/// The show/hide checklist opened by [`columns_button`] -- one checkbox
-/// per entry in `labels`, `visible[i]` (missing entries default to
-/// visible) driving its checked state. `on_toggle(index)` fires when
-/// that column's checkbox flips; applying the result live is the
-/// caller's job, via `view_with_column_visibility`.
+/// The show/hide checklist content opened by [`columns_button`] -- one
+/// checkbox per entry in `labels`, `visible[i]` (missing entries
+/// default to visible) driving its checked state. `on_toggle(index)`
+/// fires when that column's checkbox flips; applying the result live is
+/// the caller's job, via `view_with_column_visibility`. Returns bare
+/// content, not a bordered card -- callers open it inside a
+/// `side_panel::overlay`, which supplies that chrome.
 pub fn columns_panel<'a, Message: Clone + 'a>(theme: Theme, labels: &'a [&'a str], visible: &[bool], on_toggle: impl Fn(usize) -> Message + Clone + 'a) -> Element<'a, Message> {
-    let mut list = column![text("Columns").size(12).color(theme.neutral_front())].spacing(8.0);
+    let mut list = column![text("Columns").size(15).color(theme.text_primary())].spacing(12.0);
     for (index, label) in labels.iter().enumerate() {
         let is_visible = visible.get(index).copied().unwrap_or(true);
         let toggle_this = on_toggle.clone();
         list = list.push(checkbox(*label, is_visible).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
     }
-
-    container(list)
-        .padding(spacing::MD)
-        .width(Length::Fixed(200.0))
-        .style(move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, borders::RADIUS_MD), ..container::Style::default() })
-        .into()
+    list.into()
 }
 
 fn kebab_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {

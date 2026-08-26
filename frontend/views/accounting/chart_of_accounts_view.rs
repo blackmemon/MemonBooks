@@ -3,8 +3,8 @@
 
 use std::collections::HashSet;
 
-use iced::widget::{button, column, container, mouse_area, opaque, pick_list, row, scrollable, stack, text, text_input, Space};
-use iced::{Background, Color, Element, Length};
+use iced::widget::{button, column, container, pick_list, scrollable, text, text_input};
+use iced::{Element, Length};
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::Account;
@@ -14,9 +14,8 @@ use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
-use crate::frontend::components::common::{page_header, section_heading};
+use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::borders;
 use crate::frontend::views::Ctx;
 
 const ACCOUNT_TYPES: [AccountType; 5] = [
@@ -168,6 +167,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
             state.add_panel_open = true;
+            state.columns_open = false;
             state.add_reference_code = reference_code::generate_code("coa");
             state.code_input.clear();
             state.name_input.clear();
@@ -262,7 +262,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.search.clear();
             state.status_filter = StatusFilter::All;
         }
-        Message::ToggleColumns => state.columns_open = !state.columns_open,
+        Message::ToggleColumns => {
+            state.columns_open = !state.columns_open;
+            if state.columns_open {
+                state.add_panel_open = false;
+            }
+        }
         Message::ColumnToggled(index) => {
             if index >= state.column_visible.len() {
                 state.column_visible.resize(index + 1, true);
@@ -280,11 +285,33 @@ fn matches_filters(account: &Account, query: &str, status: StatusFilter) -> bool
     status.matches(account.is_active) && (query.is_empty() || account.name.to_lowercase().contains(query) || account.code.to_lowercase().contains(query))
 }
 
+const TITLE: &str = "Chart of Accounts";
+const DESCRIPTION: &str = "Every general ledger account on this company's books.";
+
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add account" };
     let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
-    let header = page_header::view(theme, "Chart of Accounts", "Every general ledger account on this company's books.", header_label, header_action);
+    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, header_action)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
 
+    column![header, body(state, theme)].spacing(20).into()
+}
+
+/// Same as [`view`], except the title sits inline with `switcher` (a
+/// type-switcher dropdown, e.g. "Maintain"'s section picker) on the
+/// title's own row instead of alone -- `wrap` converts this module's
+/// own `Message` into whatever the caller's `switcher` produces, so the
+/// two can share one `Element` tree despite having different message
+/// types.
+pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
+    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add account" };
+    let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
+    let header =
+        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(header_action))).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+
+    column![header, body(state, theme).map(wrap)].spacing(20).into()
+}
+
+fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let toolbar = toolbar::list_toolbar(
         theme,
         &state.search,
@@ -330,11 +357,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let mut content = column![header, toolbar].spacing(20).padding(24).width(Length::Fill);
-
-    if state.columns_open {
-        content = content.push(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled));
-    }
+    let mut content = column![toolbar].spacing(20).padding(iced::Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }).width(Length::Fill);
 
     content = content.push(heading).push(table);
 
@@ -365,33 +388,20 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
 
-    if !state.add_panel_open {
-        return base;
+    if state.add_panel_open {
+        side_panel::overlay(theme, base, add_panel(state, theme), Message::CloseAddPanel)
+    } else if state.columns_open {
+        side_panel::overlay(theme, base, data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled), Message::ToggleColumns)
+    } else {
+        base
     }
-
-    let backdrop = mouse_area(
-        container(Space::new(Length::Fill, Length::Fill))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|_iced_theme: &iced::Theme| container::Style {
-                background: Some(Background::Color(Color { a: 0.35, ..Color::BLACK })),
-                ..container::Style::default()
-            }),
-    )
-    .on_press(Message::CloseAddPanel);
-
-    let panel_row = row![Space::with_width(Length::Fill), add_panel(state, theme)];
-
-    stack(vec![base, backdrop.into(), opaque(panel_row)]).into()
 }
 
-/// The "Add Account" slide-over: hidden until `OpenAddPanel`, anchored
-/// to the right edge via the `Space` pushed ahead of it in `view`'s
-/// `panel_row`. `opaque` (wrapping this in `view`) keeps a click here
-/// from falling through to the backdrop underneath and closing the
-/// panel it's supposed to be interacting with.
+/// The "Add Account" slide-over's own content -- opened via
+/// `side_panel::overlay`, which supplies the anchoring, backdrop, and
+/// card chrome around whatever this returns.
 fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
-    let content = column![
+    column![
         text("Add an account").size(15),
         column![text("Reference Code").size(12).color(theme.neutral_front()), text(state.add_reference_code.clone()).size(14)].spacing(4),
         column![
@@ -408,17 +418,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         .spacing(8),
     ]
     .spacing(12)
-    .padding(24)
-    .width(Length::Fixed(380.0))
-    .height(Length::Fill);
-
-    container(content)
-        .style(move |_iced_theme: &iced::Theme| container::Style {
-            background: Some(Background::Color(theme.surface())),
-            border: borders::card(theme, borders::RADIUS_LG),
-            ..container::Style::default()
-        })
-        .into()
+    .into()
 }
 
 #[cfg(test)]

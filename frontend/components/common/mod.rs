@@ -12,5 +12,6 @@ pub mod page_header;
 pub mod pagination;
 pub mod search;
 pub mod section_heading;
+pub mod side_panel;
 pub mod sidebar;
 pub mod toolbar;

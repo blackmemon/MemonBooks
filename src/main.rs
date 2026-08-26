@@ -628,23 +628,22 @@ impl MemonBooks {
         row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()
     }
 
-    /// The "Maintain" screen: a section picker above whichever of the
-    /// five existing list views (each with its own already-built
-    /// `PageHeader` + `Toolbar` + `DataTable`) is currently selected.
-    /// The other four aren't rendered at all.
+    /// The "Maintain" screen: whichever of the five existing list views
+    /// (each with its own already-built `PageHeader` + `Toolbar` +
+    /// `DataTable`) is currently selected, with a section picker inline
+    /// on that view's own title row via `view_with_switcher`. The other
+    /// four aren't rendered at all.
     fn maintain_view(&self) -> Element<'_, Message> {
-        let picker = container(pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(220.0)))
-            .padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+        let switcher: Element<'_, Message> =
+            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(maintain_picker_style(self.theme)).padding(8).width(Length::Fixed(220.0)).into();
 
-        let body: Element<'_, Message> = match self.maintain_selected {
-            MaintainSection::ChartOfAccounts => chart_of_accounts_view::view(&self.chart_of_accounts, self.theme).map(Message::ChartOfAccounts),
-            MaintainSection::Vendors => vendors_view::view(&self.vendors, self.theme).map(Message::Vendors),
-            MaintainSection::Warehouses => warehouses_view::view(&self.warehouses, self.theme).map(Message::Warehouses),
-            MaintainSection::BankAccounts => bank_accounts_view::view(&self.bank_accounts, self.theme).map(Message::BankAccounts),
-            MaintainSection::Customers => customers_view::view(&self.customers, self.theme).map(Message::Customers),
-        };
-
-        column![picker, body].into()
+        match self.maintain_selected {
+            MaintainSection::ChartOfAccounts => chart_of_accounts_view::view_with_switcher(&self.chart_of_accounts, self.theme, switcher, Message::ChartOfAccounts),
+            MaintainSection::Vendors => vendors_view::view_with_switcher(&self.vendors, self.theme, switcher, Message::Vendors),
+            MaintainSection::Warehouses => warehouses_view::view_with_switcher(&self.warehouses, self.theme, switcher, Message::Warehouses),
+            MaintainSection::BankAccounts => bank_accounts_view::view_with_switcher(&self.bank_accounts, self.theme, switcher, Message::BankAccounts),
+            MaintainSection::Customers => customers_view::view_with_switcher(&self.customers, self.theme, switcher, Message::Customers),
+        }
     }
 
     /// The "Transactions" screen: a Purchase/Sale toggle plus a

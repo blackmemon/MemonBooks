@@ -23,6 +23,24 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: 
     row![titles, Space::with_width(Length::Fill), action].align_y(Alignment::Start).into()
 }
 
+/// Same as [`view`], except `switcher` renders inline on the title's own
+/// row (title text, then switcher, side by side) rather than the title
+/// sitting alone -- for a screen like "Maintain" or "Transactions" where
+/// a type-switcher dropdown belongs right next to the title, not
+/// stacked above or below it.
+pub fn view_with_switcher<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: &'a str, switcher: Element<'a, Message>, action_label: &'a str, on_action: Message) -> Element<'a, Message> {
+    let title_row = row![text(title).size(headers::PAGE_TITLE_SIZE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }), switcher].spacing(12.0).align_y(Alignment::Center);
+
+    let titles = column![title_row, text(description).size(headers::PAGE_DESCRIPTION_SIZE).color(theme.neutral_front())].spacing(4.0);
+
+    let action = button(row![text("+").size(14), text(action_label).size(13)].spacing(6.0).align_y(Alignment::Center))
+        .padding([10.0, 16.0])
+        .style(move |_iced_theme: &IcedTheme, status| action_button(theme, status))
+        .on_press(on_action);
+
+    row![titles, Space::with_width(Length::Fill), action].align_y(Alignment::Start).into()
+}
+
 fn action_button(theme: Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
     let background = match status {
         iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => Color { a: 0.85, ..theme.primary() },

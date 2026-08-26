@@ -15,6 +15,7 @@ use crate::backend::accounting::journal_entries::JournalEntry;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,9 +119,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Credit account"),
         pick_list(state.accounts.as_slice(), state.credit_account.clone(), Message::CreditAccountSelected).placeholder("Select account"),
         text("Amount"),
-        text_input("0.00", &state.amount_input).on_input(Message::AmountChanged).padding(8),
+        text_input("0.00", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).padding(8),
         text("Memo"),
-        text_input("Description", &state.memo_input).on_input(Message::MemoChanged).padding(8),
+        text_input("Description", &state.memo_input).style(inputs::text(theme)).on_input(Message::MemoChanged).padding(8),
     ]
     .spacing(10);
 

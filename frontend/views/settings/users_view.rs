@@ -17,6 +17,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -252,8 +253,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let create_form = column![
         text("Create a user").size(13),
-        text_input("Username", &state.username_input).on_input(Message::UsernameChanged).width(Length::Fill).padding(8),
-        text_input("Display name", &state.display_name_input).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(8),
+        text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(8),
+        text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(8),
         pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).placeholder("Role"),
         button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(8),
     ]

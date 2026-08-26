@@ -11,6 +11,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -131,6 +132,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         column![
             text("Enter that user's two-factor authentication code"),
             text_input("6-digit code", &state.two_factor_code)
+                .style(inputs::text(theme))
                 .on_input(Message::TwoFactorCodeChanged)
                 .padding(8),
             button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(8),
@@ -142,6 +144,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             text("Switch to"),
             pick_list(choices, state.selected_user.clone(), Message::UserSelected).placeholder("Choose a user"),
             text_input("Their password", &state.password)
+                .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)
                 .secure(true)
                 .padding(8),

@@ -16,6 +16,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -374,8 +375,8 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         let form = column![
             text("Edit account").size(13),
-            text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
-            text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+            text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+            text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
             pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).placeholder("Type"),
             iced::widget::row![
                 button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
@@ -416,10 +417,10 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         column![text("Reference Code").size(12).color(theme.neutral_front()), text(state.add_reference_code.clone()).size(14)].spacing(4),
         column![
             text("Account Number").size(12).color(theme.neutral_front()),
-            text_input("e.g. 1000", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+            text_input("e.g. 1000", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
         ]
         .spacing(4),
-        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
         pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).placeholder("Type"),
         iced::widget::row![
             button(text("Save")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),

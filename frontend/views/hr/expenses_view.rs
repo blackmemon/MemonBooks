@@ -24,6 +24,7 @@ use crate::backend::expenses::expenses::Expense;
 use crate::backend::services::expense_service::ExpenseService;
 use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,8 +144,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Payment account"),
         pick_list(state.payment_accounts.as_slice(), state.payment_account.clone(), Message::PaymentAccountSelected).placeholder("Payment account"),
         row![
-            text_input("Description", &state.description_input).on_input(Message::DescriptionChanged).width(Length::Fill).padding(6),
-            text_input("Amount", &state.amount_input).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(6),
+            text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(6),
+            text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(6),
         ]
         .spacing(8),
     ]

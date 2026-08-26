@@ -7,6 +7,7 @@ use crate::backend::core::validation::Validate;
 use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -85,9 +86,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Company Settings").size(24),
         text(format!("Base currency: {}", company.base_currency_code)).size(14),
         text("Name"),
-        text_input("Company name", &state.name_input).on_input(Message::NameChanged).padding(8),
+        text_input("Company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).padding(8),
         text("Legal name"),
-        text_input("Legal name (optional)", &state.legal_name_input).on_input(Message::LegalNameChanged).padding(8),
+        text_input("Legal name (optional)", &state.legal_name_input).style(inputs::text(theme)).on_input(Message::LegalNameChanged).padding(8),
         button(text("Save")).style(button_style::primary(theme)).on_press(Message::Save).padding(8),
     ]
     .spacing(12)

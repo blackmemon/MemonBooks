@@ -8,6 +8,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -130,7 +131,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         } else {
             column![
                 text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(13),
-                text_input("Username", &state.reset_request_username).on_input(Message::ResetRequestUsernameChanged).padding(8),
+                text_input("Username", &state.reset_request_username).style(inputs::text(theme)).on_input(Message::ResetRequestUsernameChanged).padding(8),
                 button(text("Request Reset")).style(button_style::primary(theme)).on_press(Message::SubmitResetRequest).padding(8),
                 button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(8),
             ]
@@ -141,6 +142,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         column![
             text("Enter your two-factor authentication code"),
             text_input("6-digit code", &state.two_factor_code)
+                .style(inputs::text(theme))
                 .on_input(Message::TwoFactorCodeChanged)
                 .padding(8),
             button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(8),
@@ -149,8 +151,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .into()
     } else {
         column![
-            text_input("Username", &state.username).on_input(Message::UsernameChanged).padding(8),
+            text_input("Username", &state.username).style(inputs::text(theme)).on_input(Message::UsernameChanged).padding(8),
             text_input("Password", &state.password)
+                .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)
                 .secure(true)
                 .padding(8),

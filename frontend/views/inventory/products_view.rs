@@ -16,6 +16,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -268,9 +269,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit product" } else { "Add a product" };
     let mut form = column![
         text(form_heading).size(13),
-        text_input("SKU", &state.sku_input).on_input(Message::SkuChanged).width(Length::Fill).padding(8),
-        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        text_input("Sale price", &state.price_input).on_input(Message::PriceChanged).width(Length::Fill).padding(8),
+        text_input("SKU", &state.sku_input).style(inputs::text(theme)).on_input(Message::SkuChanged).width(Length::Fill).padding(8),
+        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Sale price", &state.price_input).style(inputs::text(theme)).on_input(Message::PriceChanged).width(Length::Fill).padding(8),
     ]
     .spacing(8);
 

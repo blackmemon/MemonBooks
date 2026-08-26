@@ -14,6 +14,7 @@ use crate::backend::pos::sessions::PosSession;
 use crate::backend::pos::terminals::Terminal;
 use crate::backend::services::sales_service::SalesService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -156,7 +157,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         pick_list(state.revenue_accounts.as_slice(), state.revenue_account.clone(), Message::RevenueAccountSelected).placeholder("Revenue account"),
         pick_list(state.cash_accounts.as_slice(), state.cash_account.clone(), Message::CashAccountSelected).placeholder("Cash account"),
         row![
-            text_input("Price", &state.price_input).on_input(Message::PriceChanged).width(Length::Fixed(120.0)).padding(6),
+            text_input("Price", &state.price_input).style(inputs::text(theme)).on_input(Message::PriceChanged).width(Length::Fixed(120.0)).padding(6),
             button(text("Ring up cash sale")).style(button_style::primary(theme)).on_press(Message::RingUpCashSale).padding(6),
         ]
         .spacing(8),

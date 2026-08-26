@@ -9,6 +9,7 @@ use crate::frontend::components::common::data_table;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, spacing, tabs, toolbar as toolbar_style};
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::inputs;
 
 #[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
@@ -38,6 +39,7 @@ pub fn view<'a, Message: Clone + 'a>(
     }
 
     let search = text_input(search_placeholder, search_value)
+        .style(inputs::text(theme))
         .on_input(on_search_change)
         .padding([8.0, 12.0])
         .size(13)
@@ -112,7 +114,7 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     delete_enabled: bool,
     on_delete: Message,
 ) -> Element<'a, Message> {
-    let search = text_input(search_placeholder, search_value).on_input(on_search_change).padding([8.0, 12.0]).size(13).width(Length::Fixed(220.0));
+    let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([8.0, 12.0]).size(13).width(Length::Fixed(220.0));
 
     let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([8.0, 12.0]).text_size(13).style(move |_iced_theme: &IcedTheme, status| status_picker_style(theme, status));
 

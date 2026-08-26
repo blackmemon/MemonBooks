@@ -10,6 +10,7 @@ use iced::{Element, Length};
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -71,16 +72,19 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("You must set a new password before continuing.").color(theme.primary()),
         text("Current password"),
         text_input("Current password", &state.current_password)
+            .style(inputs::text(theme))
             .on_input(Message::CurrentPasswordChanged)
             .secure(true)
             .padding(8),
         text("New password"),
         text_input("New password", &state.new_password)
+            .style(inputs::text(theme))
             .on_input(Message::NewPasswordChanged)
             .secure(true)
             .padding(8),
         text("Confirm new password"),
         text_input("Confirm new password", &state.confirm_password)
+            .style(inputs::text(theme))
             .on_input(Message::ConfirmPasswordChanged)
             .secure(true)
             .padding(8),

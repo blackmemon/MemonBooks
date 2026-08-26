@@ -21,6 +21,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -574,8 +575,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         form = form.push(pick_list(state.accounts.as_slice(), state.ap_account.clone(), Message::ApAccountSelected).placeholder("AP account (for Create & post)"));
     }
     form = form.push(pick_list(state.accounts.as_slice(), state.expense_account.clone(), Message::ExpenseAccountSelected).placeholder("Expense account"));
-    form = form.push(text_input("Description", &state.description_input).on_input(Message::DescriptionChanged).width(Length::Fill).padding(8));
-    form = form.push(text_input("Amount", &state.amount_input).on_input(Message::AmountChanged).width(Length::Fill).padding(8));
+    form = form.push(text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(8));
+    form = form.push(text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fill).padding(8));
 
     if state.editing_id.is_some() {
         form = form.push(
@@ -624,7 +625,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(format!("Bill: {payment_target_label}")).size(12).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).placeholder("AP account"),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).placeholder("Cash account"),
-        text_input("Amount", &state.payment_amount_input).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
+        text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
         button(text("Record payment")).style(button_style::primary(theme)).on_press(Message::SubmitPayment).padding(8),
     ]
     .spacing(8);
@@ -642,8 +643,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(format!("Bill: {debit_note_target_label}")).size(12).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.debit_note_account.clone(), Message::DebitNoteAccountSelected).placeholder("Account"),
         pick_list(state.accounts.as_slice(), state.debit_note_ap_account.clone(), Message::DebitNoteApAccountSelected).placeholder("AP account"),
-        text_input("Description", &state.debit_note_description_input).on_input(Message::DebitNoteDescriptionChanged).width(Length::Fill).padding(8),
-        text_input("Amount", &state.debit_note_amount_input).on_input(Message::DebitNoteAmountChanged).width(Length::Fill).padding(8),
+        text_input("Description", &state.debit_note_description_input).style(inputs::text(theme)).on_input(Message::DebitNoteDescriptionChanged).width(Length::Fill).padding(8),
+        text_input("Amount", &state.debit_note_amount_input).style(inputs::text(theme)).on_input(Message::DebitNoteAmountChanged).width(Length::Fill).padding(8),
         button(text("Issue debit note")).style(button_style::primary(theme)).on_press(Message::SubmitDebitNote).padding(8),
     ]
     .spacing(8);

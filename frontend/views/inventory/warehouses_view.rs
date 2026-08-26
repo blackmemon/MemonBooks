@@ -15,6 +15,7 @@ use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -300,8 +301,8 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit warehouse" } else { "Add a warehouse" };
     let mut form = column![
         text(form_heading).size(13),
-        text_input("Code", &state.code_input).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
-        text_input("Name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
     ]
     .spacing(8);
 

@@ -20,6 +20,7 @@ use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -320,8 +321,8 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit vendor" } else { "Add a vendor" };
     let mut form = column![
         text(form_heading).size(13),
-        text_input("Vendor name", &state.name_input).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        text_input("Email (optional)", &state.email_input).on_input(Message::EmailChanged).width(Length::Fill).padding(8),
+        text_input("Vendor name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        text_input("Email (optional)", &state.email_input).style(inputs::text(theme)).on_input(Message::EmailChanged).width(Length::Fill).padding(8),
     ]
     .spacing(8);
 

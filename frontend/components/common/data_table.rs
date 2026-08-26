@@ -6,7 +6,7 @@
 //! list views need (plain text, dates, a person avatar + two-line name,
 //! a colored status pill, and a progress bar with a percentage label).
 
-use iced::widget::{button, checkbox, column, container, progress_bar, row, scrollable, text, Space};
+use iced::widget::{button, checkbox, column, container, progress_bar, row, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
@@ -199,16 +199,8 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     }
 
     let card = column![header_container, body].width(Length::Fill);
-    let table = container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill);
 
-    // Column widths are `FillPortion`, so they shrink as the table
-    // narrows (e.g. a side panel opening next to it) -- but the
-    // checkbox/primary-action/kebab columns are fixed-width and don't,
-    // so past a point the row's own minimum content width exceeds what
-    // it's given and would overflow. Horizontal scroll keeps whatever's
-    // past that point reachable instead of silently clipping it -- a
-    // no-op scrollbar when everything already fits.
-    scrollable(table).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default())).width(Length::Fill).into()
+    container(card).style(panels::flat_card(theme, borders::RADIUS_MD)).width(Length::Fill).into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {
@@ -301,5 +293,37 @@ fn primary_row_button(theme: Theme, status: iced::widget::button::Status) -> ice
         text_color: theme.primary(),
         border: Border { color: theme.primary(), width: 1.0, radius: borders::RADIUS_SM.into() },
         shadow: iced::Shadow::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Building the widget tree exercises every iced widget constructor
+    /// this module calls -- including their `debug_assert!`s (e.g.
+    /// `Scrollable::validate` panicking on a `Fill`-width child on the
+    /// scrolling axis). `update()`-only tests never call `view` at all,
+    /// so a bad `Length` combination here can reach a real running app
+    /// with every other check green; this catches that class of bug
+    /// without needing a window. `()` as the message type: nothing here
+    /// inspects what's produced, only that construction doesn't panic.
+    #[test]
+    fn view_builds_without_panicking() {
+        let columns = vec![ColumnDef::new("A", Length::FillPortion(1)).sorted(SortDirection::Ascending), ColumnDef::new("B", Length::FillPortion(2))];
+        let rows = vec![
+            Row::new(vec![Cell::text("1"), Cell::status("Active", BadgeTone::Positive)]).with_primary_action("Go"),
+            Row::new(vec![Cell::date("2026-01-01"), Cell::person("Name", "Subtitle")]),
+        ];
+
+        let _: Element<'_, ()> = view(Theme::Light, columns, rows, Some(vec![false, true]), |_, _| (), |_| (), |_| (), |_| ());
+    }
+
+    #[test]
+    fn view_with_column_visibility_builds_without_panicking_including_hidden_columns() {
+        let columns = vec![ColumnDef::new("A", Length::FillPortion(1)), ColumnDef::new("B", Length::FillPortion(1)), ColumnDef::new("C", Length::FillPortion(1))];
+        let rows = vec![Row::new(vec![Cell::text("1"), Cell::text("2"), Cell::text("3")])];
+
+        let _: Element<'_, ()> = view_with_column_visibility(Theme::Dark, columns, &[true, false, true], rows, None, |_, _| (), |_| (), |_| (), |_| ());
     }
 }

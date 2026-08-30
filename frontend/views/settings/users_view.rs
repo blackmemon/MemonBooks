@@ -20,6 +20,7 @@ use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::checkbox as checkbox_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,7 +285,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         let edit_panel = column![
             text(heading_text).size(13),
             pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).style(dropdown::style(theme)).placeholder("Role"),
-            checkbox("Active", state.edit_is_active).on_toggle(Message::EditActiveToggled),
+            checkbox("Active", state.edit_is_active).style(checkbox_style::style(theme)).on_toggle(Message::EditActiveToggled),
             iced::widget::row![
                 button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(8),
                 button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),

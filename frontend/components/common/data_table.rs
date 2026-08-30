@@ -13,6 +13,7 @@ use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, panels, spacing, table as table_style};
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::checkbox as checkbox_style;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -137,7 +138,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
     if let Some(selected) = &selected {
         let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
-        header = header.push(container(checkbox("", all_selected).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
+        header = header.push(container(checkbox("", all_selected).style(checkbox_style::style(theme)).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
     }
     for (index, column_def) in columns.iter().enumerate() {
         if !is_visible(index) {
@@ -162,7 +163,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
         if show_checkbox {
             let is_checked = selected.as_ref().and_then(|s| s.get(row_index)).copied().unwrap_or(false);
             let select_this_row = on_row_select.clone();
-            cells_row = cells_row.push(container(checkbox("", is_checked).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
+            cells_row = cells_row.push(container(checkbox("", is_checked).style(checkbox_style::style(theme)).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
         }
         for (index, (cell, column_def)) in table_row.cells.into_iter().zip(columns.iter()).enumerate() {
             if !is_visible(index) {
@@ -288,7 +289,7 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
     for (index, label) in labels.iter().enumerate() {
         let is_visible = visible.get(index).copied().unwrap_or(true);
         let toggle_this = on_toggle.clone();
-        list = list.push(checkbox(*label, is_visible).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
+        list = list.push(checkbox(*label, is_visible).style(checkbox_style::style(theme)).on_toggle(move |_| toggle_this(index)).size(16).text_size(13));
     }
 
     let reset = button(text("Reset to Default").size(13)).padding([10.0, 16.0]).width(Length::Fill).style(button_style::secondary(theme)).on_press(on_reset);

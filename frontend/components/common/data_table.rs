@@ -207,7 +207,14 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     // and an open side panel show matching rounded corners -- applied
     // unconditionally here since this component has no notion of
     // whether a panel is open next to it.
-    container(card).style(panels::flat_card(theme, borders::RADIUS_LG)).width(Length::Fill).into()
+    //
+    // Uses the shadowed `panels::card` (not `flat_card`): this is a
+    // top-level panel sitting directly on the page background, not
+    // nested inside an already-shadowed ancestor, so the shadow reads
+    // as the card lifting off the page. Confirmed with the user in
+    // Batch 12 rather than applied silently, since it's the one
+    // visible change in the whole consistency-audit pass.
+    container(card).style(panels::card(theme, borders::RADIUS_LG)).width(Length::Fill).into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {

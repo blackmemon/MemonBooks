@@ -87,3 +87,18 @@ pub const TITLE: f32 = 24.0;
 /// could reasonably diverge from it later -- kept as its own named
 /// constant rather than reusing `TITLE` for an unrelated purpose.
 pub const STAT_VALUE: f32 = 24.0;
+
+/// The sidebar's own bold app-name/brand text, next to its logo mark.
+/// Numerically identical to [`PANEL_TITLE`], but a different role (a
+/// fixed brand label, not a panel heading) -- same reasoning as
+/// [`STAT_VALUE`] vs [`TITLE`]. Missed by the original Phase 1 audit
+/// because it reaches `.size()` through `sidebar.rs`'s local
+/// `bold_text` helper rather than a direct `.size(N)` call site;
+/// caught while building Batch 13's regression guard.
+pub const APP_NAME: f32 = 15.0;
+
+/// The sidebar's bold user-name text in the profile card, one step
+/// above its subtitle ([`CAPTION`], 11.0) and one step below
+/// [`LABEL`] (13.0). A genuinely new, previously undiscovered value --
+/// same missed-by-a-helper-function story as [`APP_NAME`].
+pub const PROFILE_NAME: f32 = 12.5;

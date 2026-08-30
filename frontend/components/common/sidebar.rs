@@ -47,7 +47,7 @@ pub fn view<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let logo_row = row![
         icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), Color::WHITE),
-        if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, 15.0, theme.text_primary()) },
+        if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, typography::APP_NAME, theme.text_primary()) },
         Space::with_width(Length::Fill),
         button(text(if collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_LEFT }).size(typography::EMPHASIS))
             .style(button_style::plain(theme))
@@ -73,7 +73,7 @@ pub fn view<'a, Message: Clone + 'a>(
     } else {
         row![
             icon_slot(&profile_initial, theme.neutral_bg(), theme.neutral_front()),
-            column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2),
+            column![bold_text(user_name, typography::PROFILE_NAME, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2),
             Space::with_width(Length::Fill),
             text(icons::CARET_DOWN).size(typography::CAPTION).color(theme.neutral_front()),
         ]

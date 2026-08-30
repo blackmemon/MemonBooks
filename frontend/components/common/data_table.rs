@@ -155,7 +155,10 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     header = header.push(Space::with_width(Length::Fixed(PRIMARY_ACTION_WIDTH)));
     header = header.push(Space::with_width(Length::Fixed(32.0)));
 
-    let header_container = container(header).style(table_style::header_row(theme));
+    // Must match the outer card's own radius below (`borders::RADIUS_LG`)
+    // -- see `table_style::header_row`'s doc comment for why a mismatch
+    // (or an unrounded header) visually flattens the card's top corners.
+    let header_container = container(header).style(table_style::header_row(theme, borders::RADIUS_LG));
 
     let mut body = column![];
     let row_count = rows.len();

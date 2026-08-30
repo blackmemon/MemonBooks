@@ -10,7 +10,9 @@ use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, shadows};
 
 pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
-    move |_iced_theme: &IcedTheme| container::Style {
+    move |_iced_theme: &IcedTheme| {
+        eprintln!("panels::card closure called"); // TEMP DEBUG
+        container::Style {
         // TEMP DEBUG -- bright, impossible-to-miss background + border so
         // we can tell from a screenshot whether this style is reaching the
         // screen at all (even faintly/partially clipped), instead of
@@ -22,6 +24,7 @@ pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Styl
         border: iced::Border { color: iced::Color::from_rgb8(255, 0, 255), width: 4.0, radius: radius.into() },
         shadow: shadows::card(theme),
         ..container::Style::default()
+        }
     }
 }
 

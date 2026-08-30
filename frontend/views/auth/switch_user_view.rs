@@ -11,6 +11,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -155,7 +156,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .into()
     };
 
-    let mut content = column![text("Switch User").size(24), form].spacing(16).padding(20).max_width(360);
+    let mut content = column![text("Switch User").size(typography::TITLE), form].spacing(16).padding(20).max_width(360);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));

@@ -12,6 +12,7 @@ use crate::backend::reports::{balance_sheet, profit_loss};
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
@@ -111,7 +112,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     };
 
     let mut bs_column = column![
-        text("Balance Sheet").size(20),
+        text("Balance Sheet").size(typography::SUBTITLE),
         text(format!("Total assets: {}", balance_sheet.total_assets())),
         text(format!("Total liabilities: {}", balance_sheet.total_liabilities())),
         text(format!("Total equity (incl. current year earnings): {}", balance_sheet.total_equity())),
@@ -125,7 +126,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     bs_column = bs_column.push(button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportBalanceSheetCsv).padding(6));
 
     let pl_column = column![
-        text("Profit & Loss (year to date)").size(20),
+        text("Profit & Loss (year to date)").size(typography::SUBTITLE),
         text(format!("Total revenue: {}", profit_and_loss.total_revenue())),
         text(format!("Total expenses: {}", profit_and_loss.total_expenses())),
         text(format!("Net income: {}", profit_and_loss.net_income())),
@@ -133,7 +134,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     ]
     .spacing(6);
 
-    let mut content = column![text("Reports").size(24), row![bs_column, pl_column].spacing(40)].spacing(16).padding(20);
+    let mut content = column![text("Reports").size(typography::TITLE), row![bs_column, pl_column].spacing(40)].spacing(16).padding(20);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(theme.positive_front()));

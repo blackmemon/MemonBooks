@@ -8,6 +8,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -118,19 +119,19 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let title = text("MemonBooks").size(24).color(theme.primary());
+    let title = text("MemonBooks").size(typography::TITLE).color(theme.primary());
 
     let form: Element<'_, Message> = if state.forgot_password {
         if state.reset_request_submitted {
             column![
-                text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(13),
+                text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(typography::LABEL),
                 button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(8),
             ]
             .spacing(12)
             .into()
         } else {
             column![
-                text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(13),
+                text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(typography::LABEL),
                 text_input("Username", &state.reset_request_username).style(inputs::text(theme)).on_input(Message::ResetRequestUsernameChanged).padding(8),
                 button(text("Request Reset")).style(button_style::primary(theme)).on_press(Message::SubmitResetRequest).padding(8),
                 button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(8),

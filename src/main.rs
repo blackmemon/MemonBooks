@@ -32,6 +32,7 @@ use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
+use memonbooks::frontend::styles::typography;
 use memonbooks::frontend::styles::dropdown;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
@@ -677,7 +678,7 @@ impl MemonBooks {
 /// `button::secondary`.
 fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
     let label = label.to_string();
-    let btn = button(text(label).size(13)).padding([8.0, 16.0]).on_press(on_press);
+    let btn = button(text(label).size(typography::LABEL)).padding([8.0, 16.0]).on_press(on_press);
     if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
 }
 

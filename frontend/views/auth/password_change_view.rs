@@ -10,6 +10,7 @@ use iced::{Element, Length};
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -68,7 +69,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, current_user: &Use
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let mut content = column![
-        text("Change Your Password").size(24),
+        text("Change Your Password").size(typography::TITLE),
         text("You must set a new password before continuing.").color(theme.primary()),
         text("Current password"),
         text_input("Current password", &state.current_password)

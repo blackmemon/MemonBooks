@@ -21,6 +21,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -567,7 +568,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit draft bill" } else { "Create a bill" };
     let mut form = column![
-        text(form_heading).size(13),
+        text(form_heading).size(typography::LABEL),
         pick_list(state.vendors.as_slice(), state.vendor.clone(), Message::VendorSelected).style(dropdown::style(theme)).placeholder("Vendor"),
     ]
     .spacing(8);
@@ -606,8 +607,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a draft row's Post button to choose a bill".to_string());
     let post_form = column![
-        text("Post this draft").size(13),
-        text(format!("Bill: {post_target_label}")).size(12).color(theme.neutral_front()),
+        text("Post this draft").size(typography::LABEL),
+        text(format!("Bill: {post_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.post_ap_account.clone(), Message::PostApAccountSelected).style(dropdown::style(theme)).placeholder("AP account"),
         button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(8),
     ]
@@ -622,8 +623,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a row's Pay button to choose a bill".to_string());
     let payment_form = column![
-        text("Pay a bill").size(13),
-        text(format!("Bill: {payment_target_label}")).size(12).color(theme.neutral_front()),
+        text("Pay a bill").size(typography::LABEL),
+        text(format!("Bill: {payment_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.payment_ap_account.clone(), Message::PaymentApAccountSelected).style(dropdown::style(theme)).placeholder("AP account"),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).style(dropdown::style(theme)).placeholder("Cash account"),
         text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
@@ -640,8 +641,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a posted row's kebab menu to choose a bill".to_string());
     let debit_note_form = column![
-        text("Issue a debit note").size(13),
-        text(format!("Bill: {debit_note_target_label}")).size(12).color(theme.neutral_front()),
+        text("Issue a debit note").size(typography::LABEL),
+        text(format!("Bill: {debit_note_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.debit_note_account.clone(), Message::DebitNoteAccountSelected).style(dropdown::style(theme)).placeholder("Account"),
         pick_list(state.accounts.as_slice(), state.debit_note_ap_account.clone(), Message::DebitNoteApAccountSelected).style(dropdown::style(theme)).placeholder("AP account"),
         text_input("Description", &state.debit_note_description_input).style(inputs::text(theme)).on_input(Message::DebitNoteDescriptionChanged).width(Length::Fill).padding(8),

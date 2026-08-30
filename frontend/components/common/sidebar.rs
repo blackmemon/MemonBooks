@@ -11,6 +11,7 @@ use iced::widget::{button, column, container, row, scrollable, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::{borders, spacing};
 use crate::frontend::styles::button as button_style;
 
@@ -48,7 +49,7 @@ pub fn view<'a, Message: Clone + 'a>(
         icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), Color::WHITE),
         if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, 15.0, theme.text_primary()) },
         Space::with_width(Length::Fill),
-        button(text(if collapsed { "\u{203A}" } else { "\u{2039}" }).size(14))
+        button(text(if collapsed { "\u{203A}" } else { "\u{2039}" }).size(typography::EMPHASIS))
             .style(button_style::plain(theme))
             .on_press(on_toggle_collapse)
     ]
@@ -72,9 +73,9 @@ pub fn view<'a, Message: Clone + 'a>(
     } else {
         row![
             icon_slot(&profile_initial, theme.neutral_bg(), theme.neutral_front()),
-            column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(11).color(theme.neutral_front())].spacing(2.0),
+            column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(2.0),
             Space::with_width(Length::Fill),
-            text("\u{25BE}").size(11).color(theme.neutral_front()),
+            text("\u{25BE}").size(typography::CAPTION).color(theme.neutral_front()),
         ]
         .spacing(spacing::SM)
         .align_y(Alignment::Center)
@@ -89,7 +90,7 @@ pub fn view<'a, Message: Clone + 'a>(
     // icon for the mode a click would switch *to*, sitting right beside
     // the profile card so it's always reachable regardless of collapse
     // state.
-    let theme_toggle = button(text(if theme == Theme::Dark { "\u{2600}" } else { "\u{1F319}" }).size(14))
+    let theme_toggle = button(text(if theme == Theme::Dark { "\u{2600}" } else { "\u{1F319}" }).size(typography::EMPHASIS))
         .style(button_style::plain(theme))
         .on_press(on_toggle_theme)
         .width(Length::Fixed(36.0));
@@ -123,9 +124,9 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
 
     let monogram = item.label.chars().next().unwrap_or('?').to_uppercase().to_string();
     let content: Element<'a, Message> = if collapsed {
-        container(text(monogram).size(12).color(front)).width(Length::Fill).align_x(iced::alignment::Horizontal::Center).into()
+        container(text(monogram).size(typography::BODY).color(front)).width(Length::Fill).align_x(iced::alignment::Horizontal::Center).into()
     } else {
-        row![text(monogram).size(12).color(front).width(Length::Fixed(22.0)), text(item.label).size(13).color(front)].spacing(spacing::SM).align_y(Alignment::Center).into()
+        row![text(monogram).size(typography::BODY).color(front).width(Length::Fixed(22.0)), text(item.label).size(typography::LABEL).color(front)].spacing(spacing::SM).align_y(Alignment::Center).into()
     };
 
     button(container(content).padding([10.0, 12.0]).width(Length::Fill))
@@ -136,7 +137,7 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
 }
 
 fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'a, Message> {
-    container(text(label.to_string()).size(12).color(front).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
+    container(text(label.to_string()).size(typography::BODY).color(front).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
         .width(Length::Fixed(36.0))
         .height(Length::Fixed(36.0))
         .align_x(iced::alignment::Horizontal::Center)

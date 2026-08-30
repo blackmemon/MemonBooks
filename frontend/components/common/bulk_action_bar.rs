@@ -8,6 +8,7 @@ use iced::widget::{button, row, text, Space};
 use iced::{Alignment, Background, Color, Element, Length};
 
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::{borders, spacing, states};
 use crate::frontend::styles::button as button_style;
 
@@ -15,11 +16,11 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_del
     let label = if selected_count == 1 { "1 selected".to_string() } else { format!("{selected_count} selected") };
 
     let bar = row![
-        text(label).size(13).color(theme.primary()),
+        text(label).size(typography::LABEL).color(theme.primary()),
         Space::with_width(Length::Fill),
-        button(text("Export CSV").size(12)).style(button_style::secondary(theme)).padding([8.0, 14.0]).on_press(on_export_csv),
-        button(text("Delete").size(12)).style(button_style::destructive(theme)).padding([8.0, 14.0]).on_press(on_delete),
-        button(text("Clear").size(12)).style(button_style::plain(theme)).padding([8.0, 14.0]).on_press(on_clear_selection),
+        button(text("Export CSV").size(typography::BODY)).style(button_style::secondary(theme)).padding([8.0, 14.0]).on_press(on_export_csv),
+        button(text("Delete").size(typography::BODY)).style(button_style::destructive(theme)).padding([8.0, 14.0]).on_press(on_delete),
+        button(text("Clear").size(typography::BODY)).style(button_style::plain(theme)).padding([8.0, 14.0]).on_press(on_clear_selection),
     ]
     .spacing(spacing::SM)
     .align_y(Alignment::Center)

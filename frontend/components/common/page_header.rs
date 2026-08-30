@@ -6,6 +6,7 @@ use iced::widget::{button, column, row, text, Space};
 use iced::{Alignment, Element, Font, Length};
 
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::headers;
 use crate::frontend::styles::button as button_style;
 
@@ -16,7 +17,7 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: 
     ]
     .spacing(4.0);
 
-    let action = button(row![text("+").size(14), text(action_label).size(13)].spacing(6.0).align_y(Alignment::Center))
+    let action = button(row![text("+").size(typography::EMPHASIS), text(action_label).size(typography::LABEL)].spacing(6.0).align_y(Alignment::Center))
         .padding([10.0, 16.0])
         .style(button_style::primary(theme))
         .on_press(on_action);
@@ -34,7 +35,7 @@ pub fn view_with_switcher<'a, Message: Clone + 'a>(theme: Theme, title: &'a str,
 
     let titles = column![title_row, text(description).size(headers::PAGE_DESCRIPTION_SIZE).color(theme.neutral_front())].spacing(4.0);
 
-    let action = button(row![text("+").size(14), text(action_label).size(13)].spacing(6.0).align_y(Alignment::Center))
+    let action = button(row![text("+").size(typography::EMPHASIS), text(action_label).size(typography::LABEL)].spacing(6.0).align_y(Alignment::Center))
         .padding([10.0, 16.0])
         .style(button_style::primary(theme))
         .on_press(on_action);

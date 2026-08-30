@@ -14,6 +14,7 @@ use crate::backend::pos::sessions::PosSession;
 use crate::backend::pos::terminals::Terminal;
 use crate::backend::services::sales_service::SalesService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -151,7 +152,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     };
 
     let mut content = column![
-        text("Point of Sale").size(24),
+        text("Point of Sale").size(typography::TITLE),
         pick_list(state.terminals.as_slice(), state.terminal.clone(), Message::TerminalSelected).style(dropdown::style(theme)).placeholder("Terminal"),
         row![session_status, button(text("Open session")).style(button_style::primary(theme)).on_press(Message::OpenSession).padding(6)].spacing(12),
         pick_list(state.products.as_slice(), state.product.clone(), Message::ProductSelected).style(dropdown::style(theme)).placeholder("Product"),

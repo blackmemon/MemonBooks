@@ -113,7 +113,7 @@ pub fn view<'a, Message: Clone + 'a>(
         .height(Length::Fill)
         .style(move |_iced_theme: &IcedTheme| container::Style {
             background: Some(Background::Color(theme.surface())),
-            border: Border { color: theme.neutral_bg(), width: 1.0, radius: 0.0.into() },
+            border: borders::card(theme, 0.0),
             ..container::Style::default()
         })
         .into()

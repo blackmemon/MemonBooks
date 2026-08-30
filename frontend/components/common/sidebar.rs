@@ -12,7 +12,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, spacing};
+use crate::frontend::styles::{borders, icons, spacing};
 use crate::frontend::styles::button as button_style;
 
 pub const EXPANDED_WIDTH: f32 = 252.0;
@@ -49,7 +49,7 @@ pub fn view<'a, Message: Clone + 'a>(
         icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), Color::WHITE),
         if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, 15.0, theme.text_primary()) },
         Space::with_width(Length::Fill),
-        button(text(if collapsed { "\u{203A}" } else { "\u{2039}" }).size(typography::EMPHASIS))
+        button(text(if collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_LEFT }).size(typography::EMPHASIS))
             .style(button_style::plain(theme))
             .on_press(on_toggle_collapse)
     ]
@@ -75,7 +75,7 @@ pub fn view<'a, Message: Clone + 'a>(
             icon_slot(&profile_initial, theme.neutral_bg(), theme.neutral_front()),
             column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2),
             Space::with_width(Length::Fill),
-            text("\u{25BE}").size(typography::CAPTION).color(theme.neutral_front()),
+            text(icons::CARET_DOWN).size(typography::CAPTION).color(theme.neutral_front()),
         ]
         .spacing(spacing::SM)
         .align_y(Alignment::Center)
@@ -90,7 +90,7 @@ pub fn view<'a, Message: Clone + 'a>(
     // icon for the mode a click would switch *to*, sitting right beside
     // the profile card so it's always reachable regardless of collapse
     // state.
-    let theme_toggle = button(text(if theme == Theme::Dark { "\u{2600}" } else { "\u{1F319}" }).size(typography::EMPHASIS))
+    let theme_toggle = button(text(if theme == Theme::Dark { icons::SUN } else { icons::MOON }).size(typography::EMPHASIS))
         .style(button_style::plain(theme))
         .on_press(on_toggle_theme)
         .width(Length::Fixed(36.0));

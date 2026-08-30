@@ -12,7 +12,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, panels, spacing, table as table_style};
+use crate::frontend::styles::{borders, icons, panels, spacing, table as table_style};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::checkbox as checkbox_style;
 
@@ -146,9 +146,9 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
             continue;
         }
         let arrow = match column_def.sort {
-            SortDirection::Ascending => " \u{25B2}",
-            SortDirection::Descending => " \u{25BC}",
-            SortDirection::None => "",
+            SortDirection::Ascending => format!(" {}", icons::SORT_ASCENDING),
+            SortDirection::Descending => format!(" {}", icons::SORT_DESCENDING),
+            SortDirection::None => String::new(),
         };
         header = header.push(text(format!("{}{}", column_def.label, arrow)).size(typography::BODY).color(theme.neutral_front()).width(column_def.width));
     }
@@ -183,7 +183,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
         cells_row = cells_row.push(container(primary_action_slot).width(Length::Fixed(PRIMARY_ACTION_WIDTH)).align_x(iced::alignment::Horizontal::Left));
         cells_row = cells_row.push(
             container(
-                button(text("\u{22EE}").size(typography::EMPHASIS).color(theme.neutral_front()))
+                button(text(icons::KEBAB).size(typography::EMPHASIS).color(theme.neutral_front()))
                     .style(button_style::plain(theme))
                     .on_press(on_row_action(row_index)),
             )
@@ -233,7 +233,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
         }
         Cell::Status { label, tone } => {
             let (bg, front) = tone_colors(theme, tone);
-            container(row![text("\u{25CF}").size(typography::MICRO).color(front), text(label).size(typography::BODY).color(front)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
+            container(row![text(icons::STATUS_DOT).size(typography::MICRO).color(front), text(label).size(typography::BODY).color(front)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
                 .padding([spacing::XS, spacing::SPACE_10])
                 .style(move |_iced_theme: &IcedTheme| container::Style {
                     background: Some(Background::Color(bg)),

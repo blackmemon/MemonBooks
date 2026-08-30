@@ -6,6 +6,7 @@ use iced::widget::{button, container};
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::states;
 
 pub fn header_row(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
     move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(theme.neutral_bg())), ..container::Style::default() }
@@ -17,7 +18,7 @@ pub fn header_row(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
 pub fn row(theme: Theme) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
     move |_iced_theme: &IcedTheme, status: button::Status| {
         let background = match status {
-            button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color { a: 0.5, ..theme.neutral_bg() })),
+            button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color { a: states::TABLE_ROW_HOVER_ALPHA, ..theme.neutral_bg() })),
             _ => None,
         };
         button::Style { background, text_color: theme.text_primary(), border: Border::default(), shadow: iced::Shadow::default() }

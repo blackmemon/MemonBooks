@@ -79,3 +79,14 @@ pub const SELECTED_ALPHA: f32 = 0.14;
 /// From `bulk_action_bar`'s own container background, the only place
 /// this pattern exists today.
 pub const TINTED_PANEL_ALPHA: f32 = 0.08;
+
+/// Hover/pressed background for a data table row (rendered as a
+/// button so it gets hover feedback for free). Not part of the
+/// original Phase 1 audit's itemized list (that pass covered
+/// `components/common` and `src/main.rs`'s button/pick_list closures,
+/// not `table.rs` itself), caught during Batch 7's sweep for "every"
+/// remaining alpha-blend literal. Distinct value from every constant
+/// above -- `0.5` doesn't match any of them, so it gets its own name
+/// rather than being coerced into a close-but-different one. From
+/// `table::row`, the only place this pattern exists today.
+pub const TABLE_ROW_HOVER_ALPHA: f32 = 0.5;

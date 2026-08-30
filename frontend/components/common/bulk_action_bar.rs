@@ -8,7 +8,7 @@ use iced::widget::{button, row, text, Space};
 use iced::{Alignment, Background, Color, Element, Length};
 
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, spacing};
+use crate::frontend::styles::{borders, spacing, states};
 use crate::frontend::styles::button as button_style;
 
 pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_delete: Message, on_export_csv: Message, on_clear_selection: Message) -> Element<'a, Message> {
@@ -25,12 +25,9 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_del
     .align_y(Alignment::Center)
     .padding([spacing::SM, spacing::MD]);
 
-    // Note: this 0.08 alpha is the exact origin of states::TINTED_PANEL_ALPHA
-    // (see Batch 1) -- left as a raw literal here deliberately, since
-    // color-literal migration is Batch 7's scope, not this one.
     iced::widget::container(bar)
         .style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-            background: Some(Background::Color(Color { a: 0.08, ..theme.primary() })),
+            background: Some(Background::Color(Color { a: states::TINTED_PANEL_ALPHA, ..theme.primary() })),
             border: borders::card(theme, borders::RADIUS_MD),
             ..iced::widget::container::Style::default()
         })

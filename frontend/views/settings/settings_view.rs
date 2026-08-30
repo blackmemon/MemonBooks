@@ -7,6 +7,7 @@ use crate::backend::core::validation::Validate;
 use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -80,20 +81,20 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let Some(company) = &state.company else {
         let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
-        return container(text(message).color(theme.negative_front())).padding(20).into();
+        return container(text(message).color(theme.negative_front())).padding(spacing::SPACE_20).into();
     };
 
     let mut content = column![
         text("Company Settings").size(typography::TITLE),
         text(format!("Base currency: {}", company.base_currency_code)).size(typography::EMPHASIS),
         text("Name"),
-        text_input("Company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).padding(8),
+        text_input("Company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).padding(spacing::SM),
         text("Legal name"),
-        text_input("Legal name (optional)", &state.legal_name_input).style(inputs::text(theme)).on_input(Message::LegalNameChanged).padding(8),
-        button(text("Save")).style(button_style::primary(theme)).on_press(Message::Save).padding(8),
+        text_input("Legal name (optional)", &state.legal_name_input).style(inputs::text(theme)).on_input(Message::LegalNameChanged).padding(spacing::SM),
+        button(text("Save")).style(button_style::primary(theme)).on_press(Message::Save).padding(spacing::SM),
     ]
-    .spacing(12)
-    .padding(20);
+    .spacing(spacing::SPACE_12)
+    .padding(spacing::SPACE_20);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));

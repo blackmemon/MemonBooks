@@ -20,6 +20,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -282,26 +283,26 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit tax rate" } else { "Add a tax rate" };
     let mut form = column![
         text(form_heading).size(typography::LABEL),
-        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        text_input("Rate %", &state.rate_input).style(inputs::text(theme)).on_input(Message::RateChanged).width(Length::Fill).padding(8),
+        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Rate %", &state.rate_input).style(inputs::text(theme)).on_input(Message::RateChanged).width(Length::Fill).padding(spacing::SM),
         pick_list(DIRECTIONS, state.direction, Message::DirectionSelected).style(dropdown::style(theme)).placeholder("Direction"),
         pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).style(dropdown::style(theme)).placeholder("GL account"),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
             ]
-            .spacing(8),
+            .spacing(spacing::SM),
         );
     } else {
-        form = form.push(button(text("Add tax rate")).style(button_style::primary(theme)).on_press(Message::Create).padding(8));
+        form = form.push(button(text("Add tax rate")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));
     }
 
-    let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if !state.selected.is_empty() {
         content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));

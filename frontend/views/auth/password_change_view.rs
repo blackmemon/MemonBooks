@@ -10,6 +10,7 @@ use iced::{Element, Length};
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -76,22 +77,22 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             .style(inputs::text(theme))
             .on_input(Message::CurrentPasswordChanged)
             .secure(true)
-            .padding(8),
+            .padding(spacing::SM),
         text("New password"),
         text_input("New password", &state.new_password)
             .style(inputs::text(theme))
             .on_input(Message::NewPasswordChanged)
             .secure(true)
-            .padding(8),
+            .padding(spacing::SM),
         text("Confirm new password"),
         text_input("Confirm new password", &state.confirm_password)
             .style(inputs::text(theme))
             .on_input(Message::ConfirmPasswordChanged)
             .secure(true)
-            .padding(8),
-        button(text("Change password")).style(button_style::primary(theme)).on_press(Message::Submit).padding(8),
+            .padding(spacing::SM),
+        button(text("Change password")).style(button_style::primary(theme)).on_press(Message::Submit).padding(spacing::SM),
     ]
-    .spacing(12)
+    .spacing(spacing::SPACE_12)
     .max_width(360);
 
     if let Some(error) = &state.error {

@@ -15,6 +15,7 @@ use crate::backend::accounting::journal_entries::JournalEntry;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::views::Ctx;
@@ -120,13 +121,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Credit account"),
         pick_list(state.accounts.as_slice(), state.credit_account.clone(), Message::CreditAccountSelected).style(dropdown::style(theme)).placeholder("Select account"),
         text("Amount"),
-        text_input("0.00", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).padding(8),
+        text_input("0.00", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).padding(spacing::SM),
         text("Memo"),
-        text_input("Description", &state.memo_input).style(inputs::text(theme)).on_input(Message::MemoChanged).padding(8),
+        text_input("Description", &state.memo_input).style(inputs::text(theme)).on_input(Message::MemoChanged).padding(spacing::SM),
     ]
-    .spacing(10);
+    .spacing(spacing::SPACE_10);
 
-    let mut content = column![header, form].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, form].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));

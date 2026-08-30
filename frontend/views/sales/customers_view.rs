@@ -15,6 +15,7 @@ use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -242,9 +243,9 @@ const DESCRIPTION: &str = "Everyone you invoice, in one place.";
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add customer" };
-    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, Message::Create)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, Message::Create)).padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme)].spacing(20).into()
+    column![header, body(state, theme)].spacing(spacing::SPACE_20).into()
 }
 
 /// Same as [`view`], except the title sits inline with `switcher` (a
@@ -256,9 +257,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add customer" };
     let header =
-        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme).map(wrap)].spacing(20).into()
+    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -321,21 +322,21 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let form_heading = if state.editing_id.is_some() { "Edit customer" } else { "Add a customer" };
     let mut form = column![
         text(form_heading).size(typography::LABEL),
-        text_input("Customer name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        text_input("Email (optional)", &state.email_input).style(inputs::text(theme)).on_input(Message::EmailChanged).width(Length::Fill).padding(8),
+        text_input("Customer name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Email (optional)", &state.email_input).style(inputs::text(theme)).on_input(Message::EmailChanged).width(Length::Fill).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
     if state.editing_id.is_some() {
         form = form.push(iced::widget::row![
-            button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
-            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
-        ].spacing(8));
+            button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
+            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+        ].spacing(spacing::SM));
     } else {
-        form = form.push(button(text("Add customer")).style(button_style::primary(theme)).on_press(Message::Create).padding(8));
+        form = form.push(button(text("Add customer")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));
     }
 
-    let mut content = column![toolbar].spacing(20).padding(iced::Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }).width(Length::Fill);
+    let mut content = column![toolbar].spacing(spacing::SPACE_20).padding(spacing::CONTENT_PADDING).width(Length::Fill);
 
     content = content.push(heading).push(table).push(form);
 

@@ -13,6 +13,7 @@ use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -125,12 +126,12 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form = column![
         text("Create a company").size(typography::LABEL),
-        text_input("New company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
-        button(text("Create company")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
+        text_input("New company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
+        button(text("Create company")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading, table, form].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table, form].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));

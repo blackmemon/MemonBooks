@@ -16,6 +16,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -302,9 +303,9 @@ const DESCRIPTION: &str = "Every general ledger account on this company's books.
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add account" };
     let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
-    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, header_action)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, header_action)).padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme)].spacing(20).into()
+    column![header, body(state, theme)].spacing(spacing::SPACE_20).into()
 }
 
 /// Same as [`view`], except the title sits inline with `switcher` (a
@@ -317,9 +318,9 @@ pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add account" };
     let header_action = if state.editing_id.is_some() { Message::Create } else { Message::OpenAddPanel };
     let header =
-        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(header_action))).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(header_action))).padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme).map(wrap)].spacing(20).into()
+    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -368,7 +369,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let mut content = column![toolbar].spacing(20).padding(iced::Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }).width(Length::Fill);
+    let mut content = column![toolbar].spacing(spacing::SPACE_20).padding(spacing::CONTENT_PADDING).width(Length::Fill);
 
     content = content.push(heading).push(table);
 
@@ -377,16 +378,16 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         let form = column![
             text("Edit account").size(typography::LABEL),
-            text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
-            text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+            text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(spacing::SM),
+            text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
             pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).style(dropdown::style(theme)).placeholder("Type"),
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
             ]
-            .spacing(8),
+            .spacing(spacing::SM),
         ]
-        .spacing(8);
+        .spacing(spacing::SM);
         content = content.push(form);
     }
 
@@ -416,21 +417,21 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
     column![
         text("Add an account").size(typography::PANEL_TITLE),
-        column![text("Reference Code").size(typography::BODY).color(theme.neutral_front()), text(state.add_reference_code.clone()).size(typography::EMPHASIS)].spacing(4),
+        column![text("Reference Code").size(typography::BODY).color(theme.neutral_front()), text(state.add_reference_code.clone()).size(typography::EMPHASIS)].spacing(spacing::XS),
         column![
             text("Account Number").size(typography::BODY).color(theme.neutral_front()),
-            text_input("e.g. 1000", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(8),
+            text_input("e.g. 1000", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(spacing::SM),
         ]
-        .spacing(4),
-        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(8),
+        .spacing(spacing::XS),
+        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
         pick_list(ACCOUNT_TYPES, state.type_input, Message::TypeSelected).style(dropdown::style(theme)).placeholder("Type"),
         iced::widget::row![
-            button(text("Save")).style(button_style::primary(theme)).on_press(Message::Create).padding(8),
-            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CloseAddPanel).padding(8),
+            button(text("Save")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
+            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CloseAddPanel).padding(spacing::SM),
         ]
-        .spacing(8),
+        .spacing(spacing::SM),
     ]
-    .spacing(12)
+    .spacing(spacing::SPACE_12)
     .into()
 }
 

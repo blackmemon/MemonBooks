@@ -11,6 +11,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -125,7 +126,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.available_users.is_empty() {
-        return container(text("No other active users to switch to.").color(theme.primary())).padding(20).into();
+        return container(text("No other active users to switch to.").color(theme.primary())).padding(spacing::SPACE_20).into();
     }
 
     let choices: Vec<Choice> = state.available_users.iter().map(|(c, _)| c.clone()).collect();
@@ -136,10 +137,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             text_input("6-digit code", &state.two_factor_code)
                 .style(inputs::text(theme))
                 .on_input(Message::TwoFactorCodeChanged)
-                .padding(8),
-            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(8),
+                .padding(spacing::SM),
+            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(spacing::SM),
         ]
-        .spacing(12)
+        .spacing(spacing::SPACE_12)
         .into()
     } else {
         column![
@@ -149,14 +150,14 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
                 .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)
                 .secure(true)
-                .padding(8),
-            button(text("Switch user")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(8),
+                .padding(spacing::SM),
+            button(text("Switch user")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(spacing::SM),
         ]
-        .spacing(12)
+        .spacing(spacing::SPACE_12)
         .into()
     };
 
-    let mut content = column![text("Switch User").size(typography::TITLE), form].spacing(16).padding(20).max_width(360);
+    let mut content = column![text("Switch User").size(typography::TITLE), form].spacing(spacing::MD).padding(spacing::SPACE_20).max_width(360);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));

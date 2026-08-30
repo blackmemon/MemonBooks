@@ -175,7 +175,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
         let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
             Some(label) => button(text(label).size(typography::BODY))
                 .style(button_style::outline_primary(theme))
-                .padding([6.0, 14.0])
+                .padding([spacing::SPACE_6, spacing::SPACE_14])
                 .on_press(on_primary_action(row_index))
                 .into(),
             None => Space::with_width(Length::Shrink).into(),
@@ -226,15 +226,15 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
                     border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
                     ..container::Style::default()
                 });
-            row![avatar, column![text(name).size(typography::LABEL).color(theme.text_primary()), text(subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(2.0)]
+            row![avatar, column![text(name).size(typography::LABEL).color(theme.text_primary()), text(subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2)]
                 .spacing(spacing::SM)
                 .align_y(Alignment::Center)
                 .into()
         }
         Cell::Status { label, tone } => {
             let (bg, front) = tone_colors(theme, tone);
-            container(row![text("\u{25CF}").size(typography::MICRO).color(front), text(label).size(typography::BODY).color(front)].spacing(6.0).align_y(Alignment::Center))
-                .padding([4.0, 10.0])
+            container(row![text("\u{25CF}").size(typography::MICRO).color(front), text(label).size(typography::BODY).color(front)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
+                .padding([spacing::XS, spacing::SPACE_10])
                 .style(move |_iced_theme: &IcedTheme| container::Style {
                     background: Some(Background::Color(bg)),
                     border: Border { radius: borders::RADIUS_PILL.into(), ..Border::default() },
@@ -250,7 +250,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
             }),
             text(label).size(typography::CAPTION).color(theme.neutral_front()),
         ]
-        .spacing(4.0)
+        .spacing(spacing::XS)
         .into(),
     }
 }
@@ -260,7 +260,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
 /// while `open`. Two separate pieces (rather than one popover) because
 /// iced 0.13 has no anchored-overlay primitive in this codebase yet.
 pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
-    button(text("Columns").size(typography::LABEL)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_toggle).into()
+    button(text("Columns").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_toggle).into()
 }
 
 /// The show/hide checklist content opened by [`columns_button`] --
@@ -283,25 +283,25 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
     on_deselect_all: Message,
     on_reset: Message,
 ) -> Element<'a, Message> {
-    let select_all = button(text("Select All").size(typography::BODY)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_select_all);
-    let deselect_all = button(text("Deselect All").size(typography::BODY)).padding([8.0, 14.0]).style(button_style::secondary(theme)).on_press(on_deselect_all);
+    let select_all = button(text("Select All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_select_all);
+    let deselect_all = button(text("Deselect All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_deselect_all);
 
-    let mut list = column![].spacing(12.0);
+    let mut list = column![].spacing(spacing::SPACE_12);
     for (index, label) in labels.iter().enumerate() {
         let is_visible = visible.get(index).copied().unwrap_or(true);
         let toggle_this = on_toggle.clone();
         list = list.push(checkbox(*label, is_visible).style(checkbox_style::style(theme)).on_toggle(move |_| toggle_this(index)).size(16).text_size(typography::LABEL));
     }
 
-    let reset = button(text("Reset to Default").size(typography::LABEL)).padding([10.0, 16.0]).width(Length::Fill).style(button_style::secondary(theme)).on_press(on_reset);
+    let reset = button(text("Reset to Default").size(typography::LABEL)).padding([spacing::SPACE_10, spacing::MD]).width(Length::Fill).style(button_style::secondary(theme)).on_press(on_reset);
 
     column![
         text("Select Columns to Display").size(typography::PANEL_TITLE).color(theme.text_primary()),
-        row![select_all, deselect_all].spacing(8.0),
+        row![select_all, deselect_all].spacing(spacing::SM),
         scrollable(list).height(Length::Fill),
         reset,
     ]
-    .spacing(16.0)
+    .spacing(spacing::MD)
     .height(Length::Fill)
     .into()
 }

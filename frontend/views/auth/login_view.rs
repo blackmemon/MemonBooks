@@ -8,6 +8,7 @@ use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -125,18 +126,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         if state.reset_request_submitted {
             column![
                 text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(typography::LABEL),
-                button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(8),
+                button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(spacing::SM),
             ]
-            .spacing(12)
+            .spacing(spacing::SPACE_12)
             .into()
         } else {
             column![
                 text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(typography::LABEL),
-                text_input("Username", &state.reset_request_username).style(inputs::text(theme)).on_input(Message::ResetRequestUsernameChanged).padding(8),
-                button(text("Request Reset")).style(button_style::primary(theme)).on_press(Message::SubmitResetRequest).padding(8),
-                button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(8),
+                text_input("Username", &state.reset_request_username).style(inputs::text(theme)).on_input(Message::ResetRequestUsernameChanged).padding(spacing::SM),
+                button(text("Request Reset")).style(button_style::primary(theme)).on_press(Message::SubmitResetRequest).padding(spacing::SM),
+                button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(spacing::SM),
             ]
-            .spacing(12)
+            .spacing(spacing::SPACE_12)
             .into()
         }
     } else if state.pending_user.is_some() {
@@ -145,23 +146,23 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             text_input("6-digit code", &state.two_factor_code)
                 .style(inputs::text(theme))
                 .on_input(Message::TwoFactorCodeChanged)
-                .padding(8),
-            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(8),
+                .padding(spacing::SM),
+            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(spacing::SM),
         ]
-        .spacing(12)
+        .spacing(spacing::SPACE_12)
         .into()
     } else {
         column![
-            text_input("Username", &state.username).style(inputs::text(theme)).on_input(Message::UsernameChanged).padding(8),
+            text_input("Username", &state.username).style(inputs::text(theme)).on_input(Message::UsernameChanged).padding(spacing::SM),
             text_input("Password", &state.password)
                 .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)
                 .secure(true)
-                .padding(8),
-            button(text("Log in")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(8),
-            button(text("Forgot Password?")).style(button_style::secondary(theme)).on_press(Message::ForgotPasswordClicked).padding(8),
+                .padding(spacing::SM),
+            button(text("Log in")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(spacing::SM),
+            button(text("Forgot Password?")).style(button_style::secondary(theme)).on_press(Message::ForgotPasswordClicked).padding(spacing::SM),
         ]
-        .spacing(12)
+        .spacing(spacing::SPACE_12)
         .into()
     };
 
@@ -170,7 +171,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         None => text("").into(),
     };
 
-    container(column![title, form, error].spacing(20).max_width(320))
+    container(column![title, form, error].spacing(spacing::SPACE_20).max_width(320))
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)

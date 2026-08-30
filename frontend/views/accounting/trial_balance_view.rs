@@ -13,6 +13,7 @@ use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -69,7 +70,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let Some(report) = &state.report else {
         let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
-        return container(text(message).color(theme.negative_front())).padding(20).into();
+        return container(text(message).color(theme.negative_front())).padding(spacing::SPACE_20).into();
     };
 
     let header = page_header::view(theme, "Trial Balance", "Every account's debit and credit balance as of today.", "Export CSV", Message::ExportCsv);
@@ -106,7 +107,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
 
-    let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(theme.positive_front()));

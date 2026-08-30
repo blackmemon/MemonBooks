@@ -14,6 +14,7 @@ use crate::backend::pos::sessions::PosSession;
 use crate::backend::pos::terminals::Terminal;
 use crate::backend::services::sales_service::SalesService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -154,18 +155,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let mut content = column![
         text("Point of Sale").size(typography::TITLE),
         pick_list(state.terminals.as_slice(), state.terminal.clone(), Message::TerminalSelected).style(dropdown::style(theme)).placeholder("Terminal"),
-        row![session_status, button(text("Open session")).style(button_style::primary(theme)).on_press(Message::OpenSession).padding(6)].spacing(12),
+        row![session_status, button(text("Open session")).style(button_style::primary(theme)).on_press(Message::OpenSession).padding(spacing::SPACE_6)].spacing(spacing::SPACE_12),
         pick_list(state.products.as_slice(), state.product.clone(), Message::ProductSelected).style(dropdown::style(theme)).placeholder("Product"),
         pick_list(state.revenue_accounts.as_slice(), state.revenue_account.clone(), Message::RevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"),
         pick_list(state.cash_accounts.as_slice(), state.cash_account.clone(), Message::CashAccountSelected).style(dropdown::style(theme)).placeholder("Cash account"),
         row![
-            text_input("Price", &state.price_input).style(inputs::text(theme)).on_input(Message::PriceChanged).width(Length::Fixed(120.0)).padding(6),
-            button(text("Ring up cash sale")).style(button_style::primary(theme)).on_press(Message::RingUpCashSale).padding(6),
+            text_input("Price", &state.price_input).style(inputs::text(theme)).on_input(Message::PriceChanged).width(Length::Fixed(120.0)).padding(spacing::SPACE_6),
+            button(text("Ring up cash sale")).style(button_style::primary(theme)).on_press(Message::RingUpCashSale).padding(spacing::SPACE_6),
         ]
-        .spacing(8),
+        .spacing(spacing::SM),
     ]
-    .spacing(10)
-    .padding(20);
+    .spacing(spacing::SPACE_10)
+    .padding(spacing::SPACE_20);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));

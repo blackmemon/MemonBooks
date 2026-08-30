@@ -12,6 +12,7 @@ use crate::backend::reports::{balance_sheet, profit_loss};
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
@@ -105,10 +106,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if let Some(error) = &state.error {
-        return container(text(format!("Could not load reports: {error}")).color(theme.negative_front())).padding(20).into();
+        return container(text(format!("Could not load reports: {error}")).color(theme.negative_front())).padding(spacing::SPACE_20).into();
     }
     let (Some(balance_sheet), Some(profit_and_loss)) = (&state.balance_sheet, &state.profit_and_loss) else {
-        return container(text("Loading...")).padding(20).into();
+        return container(text("Loading...")).padding(spacing::SPACE_20).into();
     };
 
     let mut bs_column = column![
@@ -117,24 +118,24 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(format!("Total liabilities: {}", balance_sheet.total_liabilities())),
         text(format!("Total equity (incl. current year earnings): {}", balance_sheet.total_equity())),
     ]
-    .spacing(6);
+    .spacing(spacing::SPACE_6);
     bs_column = bs_column.push(if balance_sheet.is_balanced() {
         text("Balanced").color(theme.positive_front())
     } else {
         text("Not balanced").color(theme.negative_front())
     });
-    bs_column = bs_column.push(button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportBalanceSheetCsv).padding(6));
+    bs_column = bs_column.push(button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportBalanceSheetCsv).padding(spacing::SPACE_6));
 
     let pl_column = column![
         text("Profit & Loss (year to date)").size(typography::SUBTITLE),
         text(format!("Total revenue: {}", profit_and_loss.total_revenue())),
         text(format!("Total expenses: {}", profit_and_loss.total_expenses())),
         text(format!("Net income: {}", profit_and_loss.net_income())),
-        button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportProfitAndLossCsv).padding(6),
+        button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportProfitAndLossCsv).padding(spacing::SPACE_6),
     ]
-    .spacing(6);
+    .spacing(spacing::SPACE_6);
 
-    let mut content = column![text("Reports").size(typography::TITLE), row![bs_column, pl_column].spacing(40)].spacing(16).padding(20);
+    let mut content = column![text("Reports").size(typography::TITLE), row![bs_column, pl_column].spacing(spacing::SPACE_40)].spacing(spacing::MD).padding(spacing::SPACE_20);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(theme.positive_front()));

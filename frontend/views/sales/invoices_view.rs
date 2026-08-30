@@ -21,6 +21,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -572,30 +573,30 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(form_heading).size(typography::LABEL),
         pick_list(state.customers.as_slice(), state.customer.clone(), Message::CustomerSelected).style(dropdown::style(theme)).placeholder("Customer"),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
     if state.editing_id.is_none() {
         form = form.push(pick_list(state.accounts.as_slice(), state.ar_account.clone(), Message::ArAccountSelected).style(dropdown::style(theme)).placeholder("AR account (for Create & post)"));
     }
     form = form.push(pick_list(state.accounts.as_slice(), state.revenue_account.clone(), Message::RevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"));
-    form = form.push(text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(8));
-    form = form.push(text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fill).padding(8));
+    form = form.push(text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(spacing::SM));
+    form = form.push(text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fill).padding(spacing::SM));
 
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveDraft).padding(8),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveDraft).padding(spacing::SM),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
             ]
-            .spacing(8),
+            .spacing(spacing::SM),
         );
     } else {
         form = form.push(
             iced::widget::row![
-                button(text("Save as draft")).style(button_style::secondary(theme)).on_press(Message::SaveDraft).padding(8),
-                button(text("Create & post")).style(button_style::primary(theme)).on_press(Message::CreateAndPost).padding(8),
+                button(text("Save as draft")).style(button_style::secondary(theme)).on_press(Message::SaveDraft).padding(spacing::SM),
+                button(text("Create & post")).style(button_style::primary(theme)).on_press(Message::CreateAndPost).padding(spacing::SM),
             ]
-            .spacing(8),
+            .spacing(spacing::SM),
         );
     }
 
@@ -611,9 +612,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Post this draft").size(typography::LABEL),
         text(format!("Invoice: {post_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.post_ar_account.clone(), Message::PostArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(8),
+        button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
     let payment_target_label = state
         .payment_invoice_id
@@ -628,10 +629,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(format!("Invoice: {payment_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).style(dropdown::style(theme)).placeholder("Cash account"),
         pick_list(state.accounts.as_slice(), state.payment_ar_account.clone(), Message::PaymentArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(8),
-        button(text("Record payment")).style(button_style::primary(theme)).on_press(Message::SubmitPayment).padding(8),
+        text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(spacing::SM),
+        button(text("Record payment")).style(button_style::primary(theme)).on_press(Message::SubmitPayment).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
     let credit_note_target_label = state
         .credit_note_invoice_id
@@ -646,13 +647,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text(format!("Invoice: {credit_note_target_label}")).size(typography::BODY).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.credit_note_revenue_account.clone(), Message::CreditNoteRevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"),
         pick_list(state.accounts.as_slice(), state.credit_note_ar_account.clone(), Message::CreditNoteArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        text_input("Description", &state.credit_note_description_input).style(inputs::text(theme)).on_input(Message::CreditNoteDescriptionChanged).width(Length::Fill).padding(8),
-        text_input("Amount", &state.credit_note_amount_input).style(inputs::text(theme)).on_input(Message::CreditNoteAmountChanged).width(Length::Fill).padding(8),
-        button(text("Issue credit note")).style(button_style::primary(theme)).on_press(Message::SubmitCreditNote).padding(8),
+        text_input("Description", &state.credit_note_description_input).style(inputs::text(theme)).on_input(Message::CreditNoteDescriptionChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Amount", &state.credit_note_amount_input).style(inputs::text(theme)).on_input(Message::CreditNoteAmountChanged).width(Length::Fill).padding(spacing::SM),
+        button(text("Issue credit note")).style(button_style::primary(theme)).on_press(Message::SubmitCreditNote).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if active_tab == 0 && !state.selected.is_empty() {
         content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));

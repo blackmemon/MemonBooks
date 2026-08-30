@@ -24,6 +24,7 @@ use crate::backend::expenses::expenses::Expense;
 use crate::backend::services::expense_service::ExpenseService;
 use crate::frontend::components::common::page_header;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::views::Ctx;
@@ -145,14 +146,14 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text("Payment account"),
         pick_list(state.payment_accounts.as_slice(), state.payment_account.clone(), Message::PaymentAccountSelected).style(dropdown::style(theme)).placeholder("Payment account"),
         row![
-            text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(6),
-            text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(6),
+            text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(spacing::SPACE_6),
+            text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fixed(120.0)).padding(spacing::SPACE_6),
         ]
-        .spacing(8),
+        .spacing(spacing::SM),
     ]
-    .spacing(10);
+    .spacing(spacing::SPACE_10);
 
-    let mut content = column![header, form].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, form].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));

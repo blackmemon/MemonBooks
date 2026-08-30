@@ -17,6 +17,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
@@ -256,24 +257,24 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let create_form = column![
         text("Create a user").size(typography::LABEL),
-        text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(8),
-        text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(8),
+        text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(spacing::SM),
         pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).style(dropdown::style(theme)).placeholder("Role"),
-        button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(8),
+        button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(spacing::SM),
     ]
-    .spacing(8);
+    .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(password) = &state.generated_password {
         let notice = column![
             text(format!("Temporary password for {}", state.generated_password_for)).size(typography::LABEL),
             text(password.clone()).size(typography::SUBTITLE).color(theme.primary()),
             text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(typography::BODY).color(theme.neutral_front()),
-            button(text("Done")).style(button_style::secondary(theme)).on_press(Message::DismissGeneratedPassword).padding(6),
+            button(text("Done")).style(button_style::secondary(theme)).on_press(Message::DismissGeneratedPassword).padding(spacing::SPACE_6),
         ]
-        .spacing(6)
-        .padding(16);
+        .spacing(spacing::SPACE_6)
+        .padding(spacing::MD);
         content = content.push(container(notice).style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
             background: Some(iced::Background::Color(theme.positive_bg())),
             ..iced::widget::container::Style::default()
@@ -288,12 +289,12 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).style(dropdown::style(theme)).placeholder("Role"),
             checkbox("Active", state.edit_is_active).style(checkbox_style::style(theme)).on_toggle(Message::EditActiveToggled),
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(8),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(8),
+                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(spacing::SM),
+                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
             ]
-            .spacing(8),
+            .spacing(spacing::SM),
         ]
-        .spacing(8);
+        .spacing(spacing::SM);
         content = content.push(edit_panel);
     }
 

@@ -7,6 +7,7 @@ use iced::{Element, Length};
 use crate::backend::core::errors::AppResult;
 use crate::backend::services::report_service::ReportService;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::views::Ctx;
 
@@ -58,9 +59,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
 fn summary_card(theme: Theme, label: impl Into<String>, value: impl Into<String>) -> Element<'static, Message> {
     container(
-        column![text(label.into()).size(typography::EMPHASIS).color(theme.primary()), text(value.into()).size(typography::STAT_VALUE).color(theme.text_primary())].spacing(6),
+        column![text(label.into()).size(typography::EMPHASIS).color(theme.primary()), text(value.into()).size(typography::STAT_VALUE).color(theme.text_primary())].spacing(spacing::SPACE_6),
     )
-    .padding(16)
+    .padding(spacing::MD)
     .width(Length::FillPortion(1))
     .into()
 }
@@ -68,7 +69,7 @@ fn summary_card(theme: Theme, label: impl Into<String>, value: impl Into<String>
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if let Some(error) = &state.error {
         return container(text(format!("Could not load dashboard: {error}")).color(theme.negative_front()))
-            .padding(20)
+            .padding(spacing::SPACE_20)
             .into();
     }
 
@@ -78,15 +79,15 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             summary_card(theme, "Total Debits (Trial Balance)", state.total_assets.clone()),
             summary_card(theme, "Total Credits (Trial Balance)", state.total_equity.clone()),
         ]
-        .spacing(16),
+        .spacing(spacing::MD),
         row![
             summary_card(theme, "Open Receivables", state.open_receivables_count.to_string()),
             summary_card(theme, "Open Payables", state.open_payables_count.to_string()),
         ]
-        .spacing(16),
+        .spacing(spacing::MD),
     ]
-    .spacing(20)
-    .padding(20)
+    .spacing(spacing::SPACE_20)
+    .padding(spacing::SPACE_20)
     .into()
 }
 

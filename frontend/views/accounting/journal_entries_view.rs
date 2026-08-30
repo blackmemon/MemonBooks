@@ -24,6 +24,7 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -158,7 +159,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::ReverseForRow(entry_ids[index]),
     );
 
-    let mut content = column![header, toolbar, heading, table].spacing(20).padding(24).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));

@@ -57,12 +57,12 @@ pub fn view<'a, Message: Clone + 'a>(
     .align_y(Alignment::Center)
     .padding([spacing::MD, spacing::SM]);
 
-    let mut primary = column![].spacing(4.0);
+    let mut primary = column![].spacing(spacing::XS);
     for (index, item) in primary_items.into_iter().enumerate() {
         primary = primary.push(nav_row(theme, item, collapsed, on_select_primary(index)));
     }
 
-    let mut secondary = column![].spacing(4.0);
+    let mut secondary = column![].spacing(spacing::XS);
     for (index, item) in secondary_items.into_iter().enumerate() {
         secondary = secondary.push(nav_row(theme, item, collapsed, on_select_secondary(index)));
     }
@@ -73,7 +73,7 @@ pub fn view<'a, Message: Clone + 'a>(
     } else {
         row![
             icon_slot(&profile_initial, theme.neutral_bg(), theme.neutral_front()),
-            column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(2.0),
+            column![bold_text(user_name, 12.5, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2),
             Space::with_width(Length::Fill),
             text("\u{25BE}").size(typography::CAPTION).color(theme.neutral_front()),
         ]
@@ -129,7 +129,7 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
         row![text(monogram).size(typography::BODY).color(front).width(Length::Fixed(22.0)), text(item.label).size(typography::LABEL).color(front)].spacing(spacing::SM).align_y(Alignment::Center).into()
     };
 
-    button(container(content).padding([10.0, 12.0]).width(Length::Fill))
+    button(container(content).padding([spacing::SPACE_10, spacing::SPACE_12]).width(Length::Fill))
         .style(button_style::nav_item(theme, item.active))
         .on_press(on_press)
         .width(Length::Fill)

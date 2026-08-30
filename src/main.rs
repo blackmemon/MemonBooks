@@ -32,6 +32,7 @@ use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
+use memonbooks::frontend::styles::spacing;
 use memonbooks::frontend::styles::typography;
 use memonbooks::frontend::styles::dropdown;
 use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
@@ -637,7 +638,7 @@ impl MemonBooks {
     /// four aren't rendered at all.
     fn maintain_view(&self) -> Element<'_, Message> {
         let switcher: Element<'_, Message> =
-            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(dropdown::style(self.theme)).padding(8).width(Length::Fixed(220.0)).into();
+            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(dropdown::style(self.theme)).padding(spacing::SM).width(Length::Fixed(220.0)).into();
 
         match self.maintain_selected {
             MaintainSection::ChartOfAccounts => chart_of_accounts_view::view_with_switcher(&self.chart_of_accounts, self.theme, switcher, Message::ChartOfAccounts),
@@ -657,12 +658,12 @@ impl MemonBooks {
             transaction_side_button(self.theme, "Purchase", self.transaction_side == TransactionSide::Purchase, Message::TransactionSideSelect(TransactionSide::Purchase)),
             transaction_side_button(self.theme, "Sale", self.transaction_side == TransactionSide::Sale, Message::TransactionSideSelect(TransactionSide::Sale)),
         ]
-        .spacing(8.0);
+        .spacing(spacing::SM);
 
         let documents = self.transaction_side.documents();
-        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(dropdown::style(self.theme)).padding(8).width(Length::Fixed(180.0));
+        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(dropdown::style(self.theme)).padding(spacing::SM).width(Length::Fixed(180.0));
 
-        let controls = container(row![toggle, picker].spacing(12.0).align_y(iced::Alignment::Center)).padding(iced::Padding { top: 24.0, right: 24.0, bottom: 0.0, left: 24.0 });
+        let controls = container(row![toggle, picker].spacing(spacing::SPACE_12).align_y(iced::Alignment::Center)).padding(spacing::HEADER_PADDING);
 
         let body: Element<'_, Message> = match self.transaction_document {
             TransactionDocument::Bills => bills_view::view(&self.bills, self.theme).map(Message::Bills),
@@ -678,7 +679,7 @@ impl MemonBooks {
 /// `button::secondary`.
 fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
     let label = label.to_string();
-    let btn = button(text(label).size(typography::LABEL)).padding([8.0, 16.0]).on_press(on_press);
+    let btn = button(text(label).size(typography::LABEL)).padding([spacing::SM, spacing::MD]).on_press(on_press);
     if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
 }
 

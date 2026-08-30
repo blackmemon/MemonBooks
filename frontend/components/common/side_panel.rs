@@ -14,14 +14,9 @@ use iced::{Background, Element, Length};
 
 use crate::frontend::styles::borders;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::spacing;
 
 pub const WIDTH: f32 = 380.0;
-
-/// Bottom margin between the content area (table, and the panel when
-/// open) and the window's bottom edge -- matches the `24.0` each view
-/// already uses on the left/right/top of that same area, so all four
-/// sides are consistent instead of just three.
-const BOTTOM_MARGIN: f32 = 24.0;
 
 /// Lays `base` and `panel` out side by side when `panel` is `Some` --
 /// `base` (already `width(Length::Fill)` in every caller) narrows to
@@ -35,7 +30,7 @@ pub fn split<'a, Message: Clone + 'a>(theme: Theme, base: Element<'a, Message>, 
         None => base,
         Some(content) => {
             let card = container(content)
-                .padding(24.0)
+                .padding(spacing::LG)
                 .width(Length::Fixed(WIDTH))
                 .height(Length::Fill)
                 .style(move |_iced_theme: &iced::Theme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, borders::RADIUS_LG), ..container::Style::default() });
@@ -44,7 +39,7 @@ pub fn split<'a, Message: Clone + 'a>(theme: Theme, base: Element<'a, Message>, 
         }
     };
 
-    container(content).width(Length::Fill).height(Length::Fill).padding(iced::Padding { top: 0.0, right: 0.0, bottom: BOTTOM_MARGIN, left: 0.0 }).into()
+    container(content).width(Length::Fill).height(Length::Fill).padding(iced::Padding { top: 0.0, right: 0.0, bottom: spacing::LG, left: 0.0 }).into()
 }
 
 #[cfg(test)]

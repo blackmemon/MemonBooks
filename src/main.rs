@@ -35,14 +35,15 @@ use memonbooks::frontend::styles::colors::Theme;
 use memonbooks::frontend::styles::spacing;
 use memonbooks::frontend::styles::typography;
 use memonbooks::frontend::styles::dropdown;
-use memonbooks::frontend::views::accounting::{chart_of_accounts_view, fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
+use memonbooks::frontend::views::accounting::maintain::maintain_view;
+use memonbooks::frontend::views::accounting::{fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
 use memonbooks::frontend::views::hr::{employees_view, expenses_view};
-use memonbooks::frontend::views::inventory::{bills_view, products_view, vendors_view, warehouses_view};
+use memonbooks::frontend::views::inventory::{bills_view, products_view};
 use memonbooks::frontend::views::pos::pos_view;
-use memonbooks::frontend::views::reports::{bank_accounts_view, reports_view};
-use memonbooks::frontend::views::sales::{customers_view, invoices_view};
+use memonbooks::frontend::views::reports::reports_view;
+use memonbooks::frontend::views::sales::invoices_view;
 use memonbooks::frontend::views::settings::{companies_view, settings_view, users_view};
 use memonbooks::frontend::views::Ctx;
 
@@ -152,6 +153,7 @@ fn main() -> iced::Result {
         company_id,
         current_user_id: None,
         export_dir: config.data_dir.join("exports"),
+        uploads_dir: config.data_dir.join("uploads"),
     };
 
     let theme_path = config.data_dir.join("theme_preference.txt");
@@ -167,6 +169,14 @@ fn main() -> iced::Result {
         })
         .run_with(move || (MemonBooks::new(ctx, theme, theme_path), Task::none()))
 }
+
+/// The content area's margin on all four sides, as a fraction of its own
+/// available size (window size minus the sidebar's current width) rather
+/// than a fixed pixel value -- so it stays "5%" at any window size
+/// instead of drifting toward negligible on a maximized window or
+/// oversized on the 960x600 minimum. Applied once in `MemonBooks::view`
+/// via `responsive`, not per-view, so every route gets it uniformly.
+const CONTENT_MARGIN_FRACTION: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
@@ -208,33 +218,6 @@ const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::SwitchUser, "Switch User"),
     (Route::Users, "Users"),
 ];
-
-/// The five record types grouped behind the sidebar's "Maintain" entry.
-/// Each one keeps its own already-built `PageHeader` + `Toolbar` +
-/// `DataTable` view untouched -- this only controls which one is shown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MaintainSection {
-    ChartOfAccounts,
-    Vendors,
-    Warehouses,
-    BankAccounts,
-    Customers,
-}
-
-const MAINTAIN_SECTIONS: [MaintainSection; 5] =
-    [MaintainSection::ChartOfAccounts, MaintainSection::Vendors, MaintainSection::Warehouses, MaintainSection::BankAccounts, MaintainSection::Customers];
-
-impl std::fmt::Display for MaintainSection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            MaintainSection::ChartOfAccounts => "Chart of Account",
-            MaintainSection::Vendors => "Vendor",
-            MaintainSection::Warehouses => "Warehouse",
-            MaintainSection::BankAccounts => "Bank Accounts",
-            MaintainSection::Customers => "Customers",
-        })
-    }
-}
 
 /// Which side of the ledger the sidebar's "Transactions" screen is
 /// currently showing. Each side's document-type dropdown only lists
@@ -311,10 +294,6 @@ struct MemonBooks {
     /// is a device-level UI preference, not company data).
     theme_path: PathBuf,
     route: Route,
-    /// Which of the five `MaintainSection`s the "Maintain" area currently
-    /// shows -- independent of `route`, so it survives navigating away
-    /// and back.
-    maintain_selected: MaintainSection,
     /// Which side/document the "Transactions" area currently shows --
     /// independent of `route`, same reasoning as `maintain_selected`.
     transaction_side: TransactionSide,
@@ -323,19 +302,15 @@ struct MemonBooks {
     login: login_view::State,
     password_change: password_change_view::State,
     dashboard: dashboard_view::State,
-    chart_of_accounts: chart_of_accounts_view::State,
+    maintain: maintain_view::State,
     journal_entry: journal_entry_view::State,
     journal_entries: journal_entries_view::State,
     trial_balance: trial_balance_view::State,
     fixed_assets: fixed_assets_view::State,
     tax_rates: tax_rates_view::State,
-    customers: customers_view::State,
     invoices: invoices_view::State,
     products: products_view::State,
-    warehouses: warehouses_view::State,
-    vendors: vendors_view::State,
     bills: bills_view::State,
-    bank_accounts: bank_accounts_view::State,
     employees: employees_view::State,
     expenses: expenses_view::State,
     pos: pos_view::State,
@@ -349,7 +324,6 @@ struct MemonBooks {
 #[derive(Debug, Clone)]
 enum Message {
     Navigate(Route),
-    MaintainSelect(MaintainSection),
     TransactionSideSelect(TransactionSide),
     TransactionDocumentSelect(TransactionDocument),
     ToggleSidebar,
@@ -358,19 +332,15 @@ enum Message {
     Login(login_view::Message),
     PasswordChange(password_change_view::Message),
     Dashboard(dashboard_view::Message),
-    ChartOfAccounts(chart_of_accounts_view::Message),
+    Maintain(maintain_view::Message),
     JournalEntry(journal_entry_view::Message),
     JournalEntries(journal_entries_view::Message),
     TrialBalance(trial_balance_view::Message),
     FixedAssets(fixed_assets_view::Message),
     TaxRates(tax_rates_view::Message),
-    Customers(customers_view::Message),
     Invoices(invoices_view::Message),
     Products(products_view::Message),
-    Warehouses(warehouses_view::Message),
-    Vendors(vendors_view::Message),
     Bills(bills_view::Message),
-    BankAccounts(bank_accounts_view::Message),
     Employees(employees_view::Message),
     Expenses(expenses_view::Message),
     Pos(pos_view::Message),
@@ -390,26 +360,21 @@ impl MemonBooks {
             theme,
             theme_path,
             route: Route::Dashboard,
-            maintain_selected: MaintainSection::ChartOfAccounts,
             transaction_side: TransactionSide::Purchase,
             transaction_document: TransactionDocument::Bills,
             sidebar_collapsed: false,
             login: login_view::State::default(),
             password_change: password_change_view::State::default(),
             dashboard: dashboard_view::State::default(),
-            chart_of_accounts: chart_of_accounts_view::State::default(),
+            maintain: maintain_view::State::default(),
             journal_entry: journal_entry_view::State::default(),
             journal_entries: journal_entries_view::State::default(),
             trial_balance: trial_balance_view::State::default(),
             fixed_assets: fixed_assets_view::State::default(),
             tax_rates: tax_rates_view::State::default(),
-            customers: customers_view::State::default(),
             invoices: invoices_view::State::default(),
             products: products_view::State::default(),
-            warehouses: warehouses_view::State::default(),
-            vendors: vendors_view::State::default(),
             bills: bills_view::State::default(),
-            bank_accounts: bank_accounts_view::State::default(),
             employees: employees_view::State::default(),
             expenses: expenses_view::State::default(),
             pos: pos_view::State::default(),
@@ -426,7 +391,7 @@ impl MemonBooks {
     fn load_route(&mut self, route: Route) {
         match route {
             Route::Dashboard => self.dashboard = dashboard_view::load(&self.ctx),
-            Route::Maintain => self.load_maintain_section(self.maintain_selected),
+            Route::Maintain => self.maintain = maintain_view::load(&self.ctx),
             Route::JournalEntry => self.journal_entry = journal_entry_view::load(&self.ctx),
             Route::JournalEntries => self.journal_entries = journal_entries_view::load(&self.ctx),
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
@@ -442,19 +407,6 @@ impl MemonBooks {
             Route::Companies => self.companies = companies_view::load(&self.ctx),
             Route::SwitchUser => self.switch_user = switch_user_view::load(&self.ctx),
             Route::Users => self.users = users_view::load(&self.ctx),
-        }
-    }
-
-    /// Loads fresh data for one `MaintainSection` -- shared by
-    /// `load_route` (landing on "Maintain") and `Message::MaintainSelect`
-    /// (switching sections while already there).
-    fn load_maintain_section(&mut self, section: MaintainSection) {
-        match section {
-            MaintainSection::ChartOfAccounts => self.chart_of_accounts = chart_of_accounts_view::load(&self.ctx),
-            MaintainSection::Vendors => self.vendors = vendors_view::load(&self.ctx),
-            MaintainSection::Warehouses => self.warehouses = warehouses_view::load(&self.ctx),
-            MaintainSection::BankAccounts => self.bank_accounts = bank_accounts_view::load(&self.ctx),
-            MaintainSection::Customers => self.customers = customers_view::load(&self.ctx),
         }
     }
 
@@ -474,10 +426,6 @@ impl MemonBooks {
             Message::Navigate(route) => {
                 self.route = route;
                 self.load_route(route);
-            }
-            Message::MaintainSelect(section) => {
-                self.maintain_selected = section;
-                self.load_maintain_section(section);
             }
             Message::TransactionSideSelect(side) => {
                 self.transaction_side = side;
@@ -525,19 +473,15 @@ impl MemonBooks {
                 }
             }
             Message::Dashboard(inner) => dashboard_view::update(&mut self.dashboard, inner, &self.ctx),
-            Message::ChartOfAccounts(inner) => chart_of_accounts_view::update(&mut self.chart_of_accounts, inner, &self.ctx),
+            Message::Maintain(inner) => maintain_view::update(&mut self.maintain, inner, &self.ctx),
             Message::JournalEntry(inner) => journal_entry_view::update(&mut self.journal_entry, inner, &self.ctx),
             Message::JournalEntries(inner) => journal_entries_view::update(&mut self.journal_entries, inner, &self.ctx),
             Message::TrialBalance(inner) => trial_balance_view::update(&mut self.trial_balance, inner, &self.ctx),
             Message::FixedAssets(inner) => fixed_assets_view::update(&mut self.fixed_assets, inner, &self.ctx),
             Message::TaxRates(inner) => tax_rates_view::update(&mut self.tax_rates, inner, &self.ctx),
-            Message::Customers(inner) => customers_view::update(&mut self.customers, inner, &self.ctx),
             Message::Invoices(inner) => invoices_view::update(&mut self.invoices, inner, &self.ctx),
             Message::Products(inner) => products_view::update(&mut self.products, inner, &self.ctx),
-            Message::Warehouses(inner) => warehouses_view::update(&mut self.warehouses, inner, &self.ctx),
-            Message::Vendors(inner) => vendors_view::update(&mut self.vendors, inner, &self.ctx),
             Message::Bills(inner) => bills_view::update(&mut self.bills, inner, &self.ctx),
-            Message::BankAccounts(inner) => bank_accounts_view::update(&mut self.bank_accounts, inner, &self.ctx),
             Message::Employees(inner) => employees_view::update(&mut self.employees, inner, &self.ctx),
             Message::Expenses(inner) => expenses_view::update(&mut self.expenses, inner, &self.ctx),
             Message::Pos(inner) => pos_view::update(&mut self.pos, inner, &self.ctx),
@@ -608,9 +552,30 @@ impl MemonBooks {
             Message::ToggleTheme,
         );
 
-        let screen: Element<'_, Message> = match self.route {
+        // `responsive` (not a manually-tracked window-resize subscription)
+        // gives the actual available `Size` at layout time -- and since
+        // this sits as the row's second (`Fill`-width) child right after
+        // `sidebar`, that size is already "window size minus the sidebar's
+        // current width" with no manual subtraction needed, and stays
+        // correct across resizes and sidebar collapse/expand alike.
+        let content_area: Element<'_, Message> = iced::widget::responsive(move |size| {
+            let margin = iced::Padding { top: size.height * CONTENT_MARGIN_FRACTION, right: size.width * CONTENT_MARGIN_FRACTION, bottom: size.height * CONTENT_MARGIN_FRACTION, left: size.width * CONTENT_MARGIN_FRACTION };
+            container(self.screen()).width(Length::Fill).height(Length::Fill).padding(margin).into()
+        })
+        .into();
+
+        row![sidebar, content_area].into()
+    }
+
+    /// The route-matched screen `Element` for whatever `self.route`
+    /// currently is -- split out from `view` so the `responsive` wrapper
+    /// there can rebuild it on demand from a `Fn(Size)` closure (which
+    /// can be invoked more than once over the widget's lifetime, so it
+    /// can only borrow `self`, not consume an already-built `Element`).
+    fn screen(&self) -> Element<'_, Message> {
+        match self.route {
             Route::Dashboard => dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard),
-            Route::Maintain => self.maintain_view(),
+            Route::Maintain => maintain_view::view(&self.maintain, self.theme).map(Message::Maintain),
             Route::JournalEntry => journal_entry_view::view(&self.journal_entry, self.theme).map(Message::JournalEntry),
             Route::JournalEntries => journal_entries_view::view(&self.journal_entries, self.theme).map(Message::JournalEntries),
             Route::TrialBalance => trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance),
@@ -626,33 +591,15 @@ impl MemonBooks {
             Route::Companies => companies_view::view(&self.companies, self.theme).map(Message::Companies),
             Route::SwitchUser => switch_user_view::view(&self.switch_user, self.theme).map(Message::SwitchUser),
             Route::Users => users_view::view(&self.users, self.theme).map(Message::Users),
-        };
-
-        row![sidebar, container(screen).width(Length::Fill).height(Length::Fill)].into()
-    }
-
-    /// The "Maintain" screen: whichever of the five existing list views
-    /// (each with its own already-built `PageHeader` + `Toolbar` +
-    /// `DataTable`) is currently selected, with a section picker inline
-    /// on that view's own title row via `view_with_switcher`. The other
-    /// four aren't rendered at all.
-    fn maintain_view(&self) -> Element<'_, Message> {
-        let switcher: Element<'_, Message> =
-            pick_list(MAINTAIN_SECTIONS, Some(self.maintain_selected), Message::MaintainSelect).style(dropdown::style(self.theme)).padding(spacing::SM).width(Length::Fixed(220.0)).into();
-
-        match self.maintain_selected {
-            MaintainSection::ChartOfAccounts => chart_of_accounts_view::view_with_switcher(&self.chart_of_accounts, self.theme, switcher, Message::ChartOfAccounts),
-            MaintainSection::Vendors => vendors_view::view_with_switcher(&self.vendors, self.theme, switcher, Message::Vendors),
-            MaintainSection::Warehouses => warehouses_view::view_with_switcher(&self.warehouses, self.theme, switcher, Message::Warehouses),
-            MaintainSection::BankAccounts => bank_accounts_view::view_with_switcher(&self.bank_accounts, self.theme, switcher, Message::BankAccounts),
-            MaintainSection::Customers => customers_view::view_with_switcher(&self.customers, self.theme, switcher, Message::Customers),
         }
     }
 
     /// The "Transactions" screen: a Purchase/Sale toggle plus a
     /// document-type picker scoped to whichever side is active, above
     /// whichever document view is currently selected. Mirrors
-    /// `maintain_view`'s "one already-built view at a time" shape.
+    /// `accounting::maintain::maintain_view`'s "one already-built view
+    /// at a time" shape, kept inline here rather than factored out
+    /// since only Bills/Invoices ever use it.
     fn transactions_view(&self) -> Element<'_, Message> {
         let toggle = row![
             transaction_side_button(self.theme, "Purchase", self.transaction_side == TransactionSide::Purchase, Message::TransactionSideSelect(TransactionSide::Purchase)),

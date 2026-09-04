@@ -176,7 +176,7 @@ mod tests {
         let asset = Asset::new(company_id, category.id.unwrap(), "Office Laptop", date(2026, 1, 1), dec!(6000), dec!(0), 5);
         let (created, _transaction) = asset_repo.acquire_asset(&asset, cash.id.unwrap()).unwrap();
 
-        (Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }, created.id.unwrap())
+        (Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }, created.id.unwrap())
     }
 
     #[test]

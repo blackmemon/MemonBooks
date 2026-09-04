@@ -1,7 +1,3 @@
-//! List-view toolbar (Section 6): left side is a row of tabs (active tab
-//! bold + underlined in `white_primary`), right side is a search input
-//! plus "Filters" and "Sort by" dropdown buttons, all sharing one height.
-
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
 use iced::{Alignment, Element, Font, Length};
 
@@ -62,10 +58,6 @@ pub fn view<'a, Message: Clone + 'a>(
     row![tab_row, Space::with_width(Length::Fill), controls].align_y(Alignment::Center).into()
 }
 
-/// The generic "does this record match a status filter" concept behind
-/// every `is_active`-style field in the app -- shared by every list
-/// view's `list_toolbar` status picker rather than each view inventing
-/// its own Active/Inactive enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StatusFilter {
     #[default]
@@ -97,11 +89,6 @@ impl std::fmt::Display for StatusFilter {
     }
 }
 
-/// The always-visible list-view toolbar row used by the "Maintain"
-/// screens: search, a status filter, "Reset All", the `data_table`
-/// column-visibility toggle button, and the bulk Export/Delete actions
-/// promoted out of `bulk_action_bar` so they're reachable with zero
-/// rows selected (Delete stays disabled until 1+ are).
 #[allow(clippy::too_many_arguments)]
 pub fn list_toolbar<'a, Message: Clone + 'a>(
     theme: Theme,
@@ -116,14 +103,21 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     delete_enabled: bool,
     on_delete: Message,
 ) -> Element<'a, Message> {
-    let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([spacing::SM, spacing::SPACE_12]).size(typography::LABEL).width(Length::Fixed(220.0));
-
+    let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([spacing::SM, spacing::SPACE_12]).size(typography::LABEL).width(Length::Fill);
     let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([spacing::SM, spacing::SPACE_12]).text_size(typography::LABEL).style(dropdown::muted(theme));
-
     let reset_button = button(text("Reset All").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_reset_all);
     let columns_button = data_table::columns_button(theme, on_toggle_columns);
     let export_button = button(text("Export").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_export);
     let delete_button = button(text("Delete").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::destructive(theme)).on_press_maybe(delete_enabled.then_some(on_delete));
 
-    row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).into()
+    row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).width(Length::Fill).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn list_toolbar_builds_without_panicking() {
+        let _: Element<'_, ()> = list_toolbar(Theme::Light, "", "Search", |_| (), StatusFilter::All, |_| (), (), (), (), true, ());
+    }
 }

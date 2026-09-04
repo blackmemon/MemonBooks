@@ -22,6 +22,11 @@ pub struct Ctx {
     pub company_id: i64,
     pub current_user_id: Option<i64>,
     pub export_dir: PathBuf,
+    /// Where a view-attached file (e.g. Chart of Accounts' attachments)
+    /// is copied to once picked -- a runtime data directory, not the
+    /// `frontend/uploads/` scaffold in the source tree, since real
+    /// user files can't live inside the packaged app itself.
+    pub uploads_dir: PathBuf,
 }
 
 impl Ctx {
@@ -30,5 +35,13 @@ impl Ctx {
     pub fn export_path(&self, file_name: &str) -> PathBuf {
         let _ = std::fs::create_dir_all(&self.export_dir);
         Path::new(&self.export_dir).join(file_name)
+    }
+
+    /// Where an attached file with the given (already collision-safe)
+    /// file name should be copied to. Creates the uploads directory if
+    /// it doesn't exist yet.
+    pub fn upload_path(&self, file_name: &str) -> PathBuf {
+        let _ = std::fs::create_dir_all(&self.uploads_dir);
+        Path::new(&self.uploads_dir).join(file_name)
     }
 }

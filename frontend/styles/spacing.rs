@@ -42,7 +42,7 @@ pub const SPACE_40: f32 = 40.0;
 /// bottom (the gap down to the body comes from the column's own
 /// `spacing`, not from this). Copy-pasted identically, byte for byte,
 /// 11 times across `chart_of_accounts_view.rs`, `vendors_view.rs`,
-/// `warehouses_view.rs`, `bank_accounts_view.rs`, `customers_view.rs`,
+/// `warehouse_view.rs`, `bank_of_accounts_view.rs`, `customers_view.rs`,
 /// and `src/main.rs` before this constant existed.
 pub const HEADER_PADDING: Padding = Padding { top: LG, right: LG, bottom: 0.0, left: LG };
 

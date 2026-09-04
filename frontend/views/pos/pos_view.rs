@@ -73,7 +73,7 @@ pub fn load(ctx: &Ctx) -> State {
         .unwrap_or_default();
     let accounts: Vec<Choice> = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts| accounts.iter().map(|a: &crate::backend::accounting::chart_of_accounts::Account| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
+        .map(|accounts| accounts.iter().map(|a: &crate::backend::accounting::chart_of_accounts::Account| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
         .unwrap_or_default();
 
     State {
@@ -230,7 +230,7 @@ mod tests {
         let sales_repo = SalesRepository::new(db.clone());
         let terminal = sales_repo.create_terminal(&Terminal::new(company_id, warehouse.id.unwrap(), "Front Counter")).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: cashier.id, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: cashier.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let terminal_choice = Choice { id: terminal.id.unwrap(), label: terminal.name.clone() };
         let product_choice = Choice { id: product.id.unwrap(), label: product.name.clone() };
         let revenue_choice = Choice { id: revenue.id.unwrap(), label: "4000 - Sales Revenue".into() };

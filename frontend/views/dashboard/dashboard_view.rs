@@ -164,7 +164,7 @@ mod tests {
             )
             .unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     #[test]

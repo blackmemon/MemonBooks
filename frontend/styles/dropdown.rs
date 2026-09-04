@@ -54,6 +54,6 @@ fn styled(theme: Theme, text_color: Color) -> impl Fn(&iced::Theme, Status) -> S
             Status::Hovered | Status::Opened => Color { a: states::NEUTRAL_CONTROL_HOVER_ALPHA, ..theme.neutral_bg() },
             Status::Active => theme.surface(),
         };
-        Style { text_color, placeholder_color: theme.neutral_front(), handle_color: theme.neutral_front(), background: Background::Color(background), border: borders::card(theme, borders::RADIUS_SM) }
+        Style { text_color, placeholder_color: theme.neutral_front(), handle_color: theme.neutral_front(), background: Background::Color(background), border: borders::card(theme, states::RADIUS_SM) }
     }
 }

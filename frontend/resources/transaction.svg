@@ -1,0 +1,11 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="black" xmlns="http://www.w3.org/2000/svg">
+  <!-- Credit card -->
+  <rect x="96" y="176" width="320" height="160" rx="16"/>
+  <rect x="128" y="224" width="128" height="32" fill="white"/>
+  <rect x="128" y="272" width="192" height="16" fill="white"/>
+  
+  <!-- Transaction arrows -->
+  <path d="M256 96 L256 64 L288 80 Z"/>
+  <path d="M256 416 L256 448 L224 432 Z"/>
+  <line x1="256" y1="64" x2="256" y2="448" stroke="black" stroke-width="16" stroke-linecap="round"/>
+</svg>

@@ -1,11 +1,3 @@
-// Theme color tokens (Section 6 of PROJECT_SPEC.md).
-// Usage rule: no hex literals anywhere outside this file -- every component
-// and view calls a `Theme` method instead.
-//
-// `Color::from_rgb8` isn't a `const fn` in the pinned iced version, so these
-// are built as struct literals (`r`/`g`/`b`/`a` are public fields) to stay
-// usable in `const` position.
-
 use iced::Color;
 
 const fn rgb8(r: u8, g: u8, b: u8) -> Color {
@@ -17,13 +9,6 @@ const fn rgb8(r: u8, g: u8, b: u8) -> Color {
     }
 }
 
-/// Which palette is active. `Light` is the app's original (and so far
-/// only real) look -- every method's `Light` arm returns exactly the
-/// value the old `WHITE_*` constants used to. `Dark`'s values are
-/// PLACEHOLDERS (see the module-level note below): picked so the app
-/// is fully usable and visibly "dark" for testing the toggle, not a
-/// final palette -- expect every `Dark` arm in this file to be
-/// replaced wholesale later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Theme {
     Light,
@@ -34,10 +19,85 @@ impl Theme {
     /// Primary accent -- buttons, active nav item, links, focus rings.
     pub fn primary(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0x51, 0xA2, 0xFF),
-            // PLACEHOLDER: a lighter blue so it still contrasts against
-            // a dark surface -- swap for the real dark-palette accent.
+            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
+            Theme::Dark => rgb8(0x2C, 0x8F, 0xBD),
+        }
+    }
+
+    /// Primary button hover/pressed color.
+    pub fn primary_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x56, 0xAE, 0xD7),
+            Theme::Dark => rgb8(0x56, 0xAE, 0xD7),
+        }
+    }
+
+    /// Reset button hover border.
+    pub fn secondary(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
             Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
+        }
+    }
+
+    /// Reset button hover background.
+    pub fn secondary_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+            Theme::Dark => rgb8(0x1F, 0x29, 0x37),
+        }
+    }
+
+    pub fn secondary_font(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x11, 0x18, 0x27),
+            Theme::Dark => rgb8(0xF9, 0xFA, 0xFB),
+        }
+    }
+
+    pub fn secondary_border(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x11, 0x18, 0x27),
+            Theme::Dark => rgb8(0xF9, 0xFA, 0xFB),
+        }
+    }
+
+    pub fn secondary_border_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
+            Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
+        }
+    }
+
+    /// Neutral button color.
+    pub fn neutral(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x6B, 0x72, 0x80),
+            Theme::Dark => rgb8(0x4B, 0x55, 0x63),
+        }
+    }
+
+    /// Neutral button hover/pressed color.
+    pub fn neutral_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x4B, 0x55, 0x63),
+            Theme::Dark => rgb8(0x6B, 0x72, 0x80),
+        }
+    }
+
+    /// Add button color.
+    pub fn add(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0x89, 0x04),
+            Theme::Dark => rgb8(0xFF, 0x89, 0x04),
+        }
+    }
+
+    /// Add button hover/pressed color.
+    pub fn add_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0x9D, 0x2E),
+            Theme::Dark => rgb8(0xFF, 0x9D, 0x2E),
         }
     }
 
@@ -140,7 +200,7 @@ mod tests {
     // byte-for-byte what the old `WHITE_*` constants were.
     #[test]
     fn light_theme_matches_the_original_white_theme_values() {
-        assert_eq!(Theme::Light.primary(), rgb8(0x51, 0xA2, 0xFF));
+        assert_eq!(Theme::Light.primary(), rgb8(0x2C, 0x8F, 0xBD));
         assert_eq!(Theme::Light.positive_bg(), rgb8(0xC6, 0xF1, 0xCE));
         assert_eq!(Theme::Light.positive_front(), rgb8(0x00, 0x64, 0x00));
         assert_eq!(Theme::Light.negative_bg(), rgb8(0xFF, 0xC8, 0xCE));

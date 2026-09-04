@@ -1,16 +1,3 @@
-//! Canonical `checkbox` style (Section 6). Same situation as
-//! `inputs.rs`: the audit found zero styled `checkbox`es anywhere (the
-//! 3 in `data_table.rs`, including the Columns panel's, and the 1 in
-//! `users_view.rs` all fall back to iced's own `theme.
-//! extended_palette()`). A fresh design using this app's tokens --
-//! user-confirmed direction, since there was nothing to preserve.
-//!
-//! A checked checkbox is visually a small solid-primary-fill control,
-//! so its hover treatment reuses `states::SOLID_BUTTON_HOVER_ALPHA`
-//! (the same "darken a solid fill on hover" constant `button::primary`
-//! uses) rather than inventing a new value for something that's
-//! already the same kind of thing.
-
 use iced::widget::checkbox::{Status, Style};
 use iced::{Background, Border, Color};
 
@@ -36,6 +23,6 @@ pub fn style(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
         let icon_color = if is_disabled { theme.neutral_front() } else { Color::WHITE };
         let text_color = if is_disabled { Some(theme.neutral_front()) } else { None };
 
-        Style { background: Background::Color(background), icon_color, border: Border { color: border_color, width: 1.0, radius: borders::RADIUS_SM.into() }, text_color }
+        Style { background: Background::Color(background), icon_color, border: Border { color: border_color, width: 1.0, radius: states::RADIUS_SM.into() }, text_color }
     }
 }

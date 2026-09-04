@@ -126,7 +126,7 @@ mod tests {
         user.must_change_password = must_change_password;
         let user = repo.create_user(&user).unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: user.id, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id: 1, current_user_id: user.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         (ctx, user)
     }
 

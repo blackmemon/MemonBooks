@@ -7,7 +7,7 @@ license = "UNLICENSED"
 publish = false
 
 [dependencies]
-iced = "0.13"
+iced = { version = "0.13", features = ["lazy"] }
 rust_decimal = "1"
 rust_decimal_macros = "1"
 thiserror = "2"
@@ -24,3 +24,10 @@ printpdf = "0.7"
 hmac = "0.12"
 sha2 = "0.10"
 dark-light = "1"
+# `gtk3`, not the default `xdg-portal` -- the rest of the app is
+# entirely synchronous (every view's `update` runs blocking calls
+# straight through, no `iced::Task`), and only `gtk3` exposes the
+# blocking `FileDialog::pick_file()` this needs; `xdg-portal` is
+# async-only (`AsyncFileDialog`) and would need `Task`-returning
+# `update` signatures threaded through every view to use.
+rfd = { version = "0.15", default-features = false, features = ["gtk3"] }

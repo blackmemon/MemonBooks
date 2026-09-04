@@ -202,7 +202,7 @@ mod tests {
         }
         repo.create_user(&user).unwrap();
 
-        Ctx { db, company_id: 1, current_user_id: None, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id: 1, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     #[test]

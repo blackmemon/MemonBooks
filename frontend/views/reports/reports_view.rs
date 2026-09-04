@@ -67,7 +67,7 @@ pub fn load(ctx: &Ctx) -> State {
 
     let pl_accounts: Vec<(String, String)> = pl_balances
         .iter()
-        .filter_map(|b| account_lookup(b.account_id).map(|a| (a.code.clone(), a.name.clone())))
+        .filter_map(|b| account_lookup(b.account_id).map(|a| (a.account_code.clone(), a.account_name.clone())))
         .collect();
     let profit_and_loss = profit_loss::build(period_start, today, &pl_accounts, &pl_balances);
     let current_year_earnings = profit_and_loss.net_income();
@@ -200,7 +200,7 @@ mod tests {
             )
             .unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     #[test]

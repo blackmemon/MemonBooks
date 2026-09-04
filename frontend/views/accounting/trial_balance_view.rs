@@ -158,7 +158,7 @@ mod tests {
             .unwrap();
 
         let export_dir = std::env::temp_dir().join(format!("memonbooks_trial_balance_view_test_{:?}", std::thread::current().id()));
-        Ctx { db, company_id, current_user_id: None, export_dir }
+        Ctx { db, company_id, current_user_id: None, export_dir: export_dir.clone(), uploads_dir: export_dir }
     }
 
     #[test]

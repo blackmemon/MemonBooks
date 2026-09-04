@@ -329,7 +329,7 @@ mod tests {
         let staff_role = repo.create_role(&Role::new("Staff")).unwrap();
         let admin = repo.create_user(&User::new("admin", "Admin User", hash_password("correct horse battery staple").unwrap(), admin_role.id.unwrap())).unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: admin.id, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id: 1, current_user_id: admin.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         (ctx, admin, RoleChoice { id: staff_role.id.unwrap(), label: staff_role.name })
     }
 

@@ -68,7 +68,7 @@ pub fn load(ctx: &Ctx) -> State {
     let service = ExpenseService::new(ctx.db.clone());
     let accounts: Vec<Choice> = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
+        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
         .unwrap_or_default();
 
     State {
@@ -197,7 +197,7 @@ mod tests {
         let rent = accounting_repo.create_account(&Account::new(company_id, "6000", "Rent Expense", AccountType::Expense)).unwrap();
         let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let expense_account = Choice { id: rent.id.unwrap(), label: "6000 - Rent Expense".into() };
         let payment_account = Choice { id: cash.id.unwrap(), label: "1000 - Cash".into() };
         (ctx, expense_account, payment_account)

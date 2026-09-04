@@ -1,10 +1,5 @@
 //! List vendors, add new ones, edit or delete existing ones (singly or
-//! in bulk), and export a selection to CSV. Grouped under `inventory/`
-//! rather than a dedicated `purchases/` directory -- the frozen
-//! frontend/views/ structure (Section 2) only has nine subdirectories
-//! and none of them is `purchases/`; purchasing pairs naturally with
-//! inventory (goods bought feed stock) in the same way it does in most
-//! ERP navigation.
+//! in bulk), and export a selection to CSV.
 
 use std::collections::HashSet;
 
@@ -259,10 +254,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 /// own `Message` into whatever the caller's `switcher` produces, so the
 /// two can share one `Element` tree despite having different message
 /// types.
-pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add vendor" };
     let header =
-        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
+        container(page_header::page_header_view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
 
     column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
 }
@@ -379,7 +374,7 @@ mod tests {
         let org_repo = OrganizationRepository::new(db.clone());
         let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     fn ctx_with_temp_export_dir() -> Ctx {

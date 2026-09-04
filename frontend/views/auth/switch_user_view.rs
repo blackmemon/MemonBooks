@@ -185,7 +185,7 @@ mod tests {
         let alice = repo.create_user(&User::new("alice", "Alice Smith", hash_password("correct horse battery staple").unwrap(), role.id.unwrap())).unwrap();
         repo.create_user(&User::new("bob", "Bob Jones", hash_password("another good password").unwrap(), role.id.unwrap())).unwrap();
 
-        Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     #[test]
@@ -250,7 +250,7 @@ mod tests {
         bob.two_factor_secret = Some(secret.clone());
         repo.create_user(&bob).unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let mut state = load(&ctx);
         let bob_choice = state.available_users[0].0.clone();
 

@@ -159,7 +159,7 @@ pub fn load(ctx: &Ctx) -> State {
         .unwrap_or_default();
     let accounts: Vec<Choice> = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
+        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
         .unwrap_or_default();
     let bills = service.list_bills(ctx.company_id).unwrap_or_default();
 
@@ -708,7 +708,7 @@ mod tests {
         let ap = accounting_repo.create_account(&Account::new(company_id, "2000", "Accounts Payable", AccountType::Liability)).unwrap();
         let expense = accounting_repo.create_account(&Account::new(company_id, "6000", "Office Supplies", AccountType::Expense)).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let vendor_choice = Choice { id: vendor.id.unwrap(), label: vendor.name.clone() };
         let ap_choice = Choice { id: ap.id.unwrap(), label: "2000 - Accounts Payable".into() };
         let expense_choice = Choice { id: expense.id.unwrap(), label: "6000 - Office Supplies".into() };

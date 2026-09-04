@@ -330,9 +330,15 @@ MemomBooks/
 │   ├── uploads/
 │   └── views/
 │       ├── accounting/
-│       │   ├── chart_of_accounts_view.rs
 │       │   ├── journal_entry_view.rs
-│       │   └── trial_balance_view.rs
+│       │   ├── trial_balance_view.rs
+│       │   └── maintain/
+│       │       ├── maintain_view.rs
+│       │       ├── chart_of_accounts_view.rs
+│       │       ├── bank_of_accounts_view.rs
+│       │       ├── customers_view.rs
+│       │       ├── vendors_view.rs
+│       │       └── warehouse_view.rs
 │       ├── auth/
 │       ├── dashboard/
 │       ├── hr/

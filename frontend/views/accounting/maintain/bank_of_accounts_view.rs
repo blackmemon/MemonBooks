@@ -1,7 +1,4 @@
-//! Bank account summary: book balance and open items. Grouped under
-//! `reports/` rather than a dedicated `banking/` directory -- the frozen
-//! frontend/views/ structure (Section 2) has no slot for one, and a
-//! reconciliation summary is inherently report-like. Also supports
+//! Bank account summary: book balance and open items. Also supports
 //! editing/deleting bank accounts (singly or in bulk) and exporting a
 //! selection to CSV.
 
@@ -105,7 +102,7 @@ pub fn load(ctx: &Ctx) -> State {
 
     let gl_accounts = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
+        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
         .unwrap_or_default();
 
     State {
@@ -285,10 +282,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 /// own `Message` into whatever the caller's `switcher` produces, so the
 /// two can share one `Element` tree despite having different message
 /// types.
-pub fn view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
     let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add bank account" };
     let header =
-        container(page_header::view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
+        container(page_header::page_header_view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
 
     column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
 }
@@ -406,7 +403,7 @@ mod tests {
         let accounting_repo = AccountingRepository::new(db.clone());
         let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let choice = Choice { id: cash.id.unwrap(), label: "1000 - Cash".into() };
         (ctx, choice)
     }

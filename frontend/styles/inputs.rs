@@ -19,7 +19,7 @@ use iced::widget::text_input::{Status, Style};
 use iced::{Background, Border, Color};
 
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::borders;
+use crate::frontend::styles::{borders, states};
 
 /// A translucent primary tint for the selected-text highlight -- not
 /// one of `states.rs`'s reconciled-from-the-audit constants (this
@@ -39,7 +39,7 @@ pub fn text(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
 
         Style {
             background: Background::Color(background),
-            border: Border { color: border_color, width: 1.0, radius: borders::RADIUS_SM.into() },
+            border: Border { color: border_color, width: 1.0, radius: states::RADIUS_SM.into() },
             icon: theme.neutral_front(),
             placeholder: theme.neutral_front(),
             value: text_color,

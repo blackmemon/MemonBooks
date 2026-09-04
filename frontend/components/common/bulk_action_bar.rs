@@ -29,7 +29,7 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_del
     iced::widget::container(bar)
         .style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
             background: Some(Background::Color(Color { a: states::TINTED_PANEL_ALPHA, ..theme.primary() })),
-            border: borders::card(theme, borders::RADIUS_MD),
+            border: borders::card(theme, states::RADIUS_MD),
             ..iced::widget::container::Style::default()
         })
         .width(Length::Fill)

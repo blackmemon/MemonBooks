@@ -297,7 +297,7 @@ mod tests {
         let org_repo = OrganizationRepository::new(db.clone());
         let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") }
+        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
     }
 
     fn ctx_with_temp_export_dir() -> Ctx {

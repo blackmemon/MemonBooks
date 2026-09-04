@@ -159,7 +159,7 @@ pub fn load(ctx: &Ctx) -> State {
         .unwrap_or_default();
     let accounts: Vec<Choice> = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.code, a.name) }).collect())
+        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
         .unwrap_or_default();
 
     let invoices = service.list_invoices(ctx.company_id).unwrap_or_default();
@@ -709,7 +709,7 @@ mod tests {
         let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
         let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         let customer_choice = Choice { id: customer.id.unwrap(), label: customer.name.clone() };
         let ar_choice = Choice { id: ar.id.unwrap(), label: "1100 - Accounts Receivable".into() };
         let revenue_choice = Choice { id: revenue.id.unwrap(), label: "4000 - Sales Revenue".into() };

@@ -1,18 +1,10 @@
-//! Reusable data table (Section 6): a card-contained table used by every
-//! list-style view. Header row carries column labels with a sort-
-//! direction indicator and a trailing empty action column; body rows are
-//! separated by hairline dividers (not alternating stripes) and highlight
-//! subtly on hover; cells come in five variants covering what the app's
-//! list views need (plain text, dates, a person avatar + two-line name,
-//! a colored status pill, and a progress bar with a percentage label).
-
 use iced::widget::{button, checkbox, column, container, progress_bar, row, scrollable, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, icons, panels, spacing, table as table_style};
+use crate::frontend::styles::{borders, icons, panels, spacing, states, table as table_style};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::checkbox as checkbox_style;
 
@@ -158,7 +150,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     // Must match the outer card's own radius below (`borders::RADIUS_LG`)
     // -- see `table_style::header_row`'s doc comment for why a mismatch
     // (or an unrounded header) visually flattens the card's top corners.
-    let header_container = container(header).style(table_style::header_row(theme, borders::RADIUS_LG));
+    let header_container = container(header).style(table_style::header_row(theme, states::RADIUS_LG));
 
     let mut body = column![];
     let row_count = rows.len();
@@ -217,7 +209,7 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     // as the card lifting off the page. Confirmed with the user in
     // Batch 12 rather than applied silently, since it's the one
     // visible change in the whole consistency-audit pass.
-    container(card).style(panels::card(theme, borders::RADIUS_LG)).width(Length::Fill).into()
+    container(card).style(panels::card(theme, states::RADIUS_LG)).width(Length::Fill).into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {
@@ -233,7 +225,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
                 .align_y(iced::alignment::Vertical::Center)
                 .style(move |_iced_theme: &IcedTheme| container::Style {
                     background: Some(Background::Color(theme.primary())),
-                    border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() },
+                    border: Border { radius: states::RADIUS_SM.into(), ..Border::default() },
                     ..container::Style::default()
                 });
             row![avatar, column![text(name).size(typography::LABEL).color(theme.text_primary()), text(subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2)]
@@ -247,7 +239,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
                 .padding([spacing::XS, spacing::SPACE_10])
                 .style(move |_iced_theme: &IcedTheme| container::Style {
                     background: Some(Background::Color(bg)),
-                    border: Border { radius: borders::RADIUS_PILL.into(), ..Border::default() },
+                    border: Border { radius: states::RADIUS_PILL.into(), ..Border::default() },
                     ..container::Style::default()
                 })
                 .into()

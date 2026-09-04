@@ -74,7 +74,7 @@ fn balance_sheet_and_profit_and_loss_agree_with_the_trial_balance() {
         .iter()
         .map(|b| {
             let account = accounts.iter().find(|a| a.id == Some(b.account_id)).unwrap();
-            (account.code.clone(), account.name.clone())
+            (account.account_code.clone(), account.account_name.clone())
         })
         .collect();
     let profit_and_loss = profit_loss::build(date(2026, 1, 1), as_of, &pl_accounts, &pl_balances);

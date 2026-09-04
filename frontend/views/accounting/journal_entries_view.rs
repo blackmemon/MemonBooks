@@ -214,7 +214,7 @@ mod tests {
         let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
 
         Fixture {
-            ctx: Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") },
+            ctx: Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") },
             cash: cash.id.unwrap(),
             capital: capital.id.unwrap(),
             revenue: revenue.id.unwrap(),

@@ -11,6 +11,7 @@
 
 use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+use crate::backend::accounting::trial_balance::TrialBalance;
 use crate::backend::core::errors::AppResult;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::transactions::transaction::Transaction;
@@ -41,6 +42,14 @@ impl AccountingService {
 
     pub fn delete_account(&self, id: i64) -> AppResult<()> {
         self.repo.delete_account(id)
+    }
+
+    /// Every account's net balance as of `as_of` -- exposed here (not
+    /// just through `ReportService`) so `chart_of_accounts_view` can
+    /// show live debit/credit/net balance columns without a second
+    /// service dependency.
+    pub fn trial_balance_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<TrialBalance> {
+        self.repo.trial_balance_as_of(company_id, as_of)
     }
 
     pub fn post_transaction(&self, transaction: &Transaction) -> AppResult<Transaction> {

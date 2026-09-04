@@ -55,7 +55,7 @@ pub enum Message {
 fn to_option(account: &Account) -> AccountOption {
     AccountOption {
         id: account.id.unwrap_or_default(),
-        label: format!("{} - {}", account.code, account.name),
+        label: format!("{} - {}", account.account_code, account.account_name),
     }
 }
 
@@ -169,7 +169,7 @@ mod tests {
         let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
         let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from(".") };
+        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
         (ctx, to_option(&cash), to_option(&capital))
     }
 

@@ -5,7 +5,7 @@
 //! migration set and company-scoped schema.
 
 use rust_decimal::Decimal;
-use rusqlite::{params, OptionalExtension, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::accounts_payable::payables::Payable;
@@ -67,6 +67,38 @@ pub const MIGRATIONS: &[Migration] = &[
             -- to each other under a UNIQUE index, so pre-existing rows
             -- with no reference_code don't collide with one another.
             CREATE UNIQUE INDEX accounts_reference_code_unique ON accounts (reference_code) WHERE reference_code IS NOT NULL;
+        ",
+    },
+    Migration {
+        // 502: Chart of Accounts gained a handful of fields beyond the
+        // original five -- three plain renames (RENAME COLUMN carries
+        // the inline UNIQUE(company_id, code) constraint along with
+        // it), `is_active` widened from a bool into a `status` string
+        // (backfilled from the old column before it's dropped, same
+        // "retrofit, don't edit an already-shipped migration" reasoning
+        // as 501), and a normalized `account_attachments` child table
+        // for `Account::attachments`, mirroring `role_permissions`
+        // (user_repository) rather than packing a list into one column.
+        version: 502,
+        name: "accounts_chart_of_accounts_fields",
+        sql: "
+            ALTER TABLE accounts RENAME COLUMN code TO account_code;
+            ALTER TABLE accounts RENAME COLUMN name TO account_name;
+            ALTER TABLE accounts RENAME COLUMN parent_id TO parent_account;
+
+            ALTER TABLE accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'Active';
+            UPDATE accounts SET status = CASE WHEN is_active = 1 THEN 'Active' ELSE 'Inactive' END;
+            ALTER TABLE accounts DROP COLUMN is_active;
+
+            ALTER TABLE accounts ADD COLUMN description TEXT NOT NULL DEFAULT '';
+            ALTER TABLE accounts ADD COLUMN create_timestamp INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE accounts ADD COLUMN modified_timestamp INTEGER NOT NULL DEFAULT 0;
+
+            CREATE TABLE account_attachments (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id  INTEGER NOT NULL REFERENCES accounts(id),
+                file_name   TEXT NOT NULL
+            );
         ",
     },
     Migration {
@@ -144,75 +176,103 @@ impl AccountingRepository {
 
     pub fn create_account(&self, account: &Account) -> AppResult<Account> {
         account.validate()?;
-        self.db.with_connection(|conn| {
-            conn.execute(
-                "INSERT INTO accounts (company_id, code, name, account_type, parent_id, is_active, reference_code)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        self.db.with_transaction(|tx| {
+            tx.execute(
+                "INSERT INTO accounts (company_id, account_code, account_name, account_type, parent_account, status, reference_code, description, create_timestamp, modified_timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     account.company_id,
-                    account.code,
-                    account.name,
+                    account.account_code,
+                    account.account_name,
                     account.account_type.as_str(),
-                    account.parent_id,
-                    account.is_active,
+                    account.parent_account,
+                    account.status,
                     account.reference_code,
+                    account.description,
+                    account.create_timestamp,
+                    account.modified_timestamp,
                 ],
             )?;
-            Ok(Account {
-                id: Some(conn.last_insert_rowid()),
-                ..account.clone()
-            })
+            let id = tx.last_insert_rowid();
+            for file_name in &account.attachments {
+                tx.execute("INSERT INTO account_attachments (account_id, file_name) VALUES (?1, ?2)", params![id, file_name])?;
+            }
+            Ok(Account { id: Some(id), ..account.clone() })
         })
     }
 
     pub fn get_account(&self, id: i64) -> AppResult<Account> {
         self.db.with_connection(|conn| {
-            conn.query_row(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code FROM accounts WHERE id = ?1",
-                params![id],
-                map_account,
-            )
-            .optional()?
-            .ok_or_else(|| AppError::NotFound(format!("account {id} not found")))
+            let mut account = conn
+                .query_row(
+                    "SELECT id, company_id, account_code, account_name, account_type, parent_account, status, reference_code, description, create_timestamp, modified_timestamp
+                     FROM accounts WHERE id = ?1",
+                    params![id],
+                    map_account,
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("account {id} not found")))?;
+            account.attachments = account_attachments(conn, id)?;
+            Ok(account)
         })
     }
 
-    pub fn get_account_by_code(&self, company_id: i64, code: &str) -> AppResult<Option<Account>> {
+    pub fn get_account_by_code(&self, company_id: i64, account_code: &str) -> AppResult<Option<Account>> {
         self.db.with_connection(|conn| {
-            conn.query_row(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code
-                 FROM accounts WHERE company_id = ?1 AND code = ?2",
-                params![company_id, code],
-                map_account,
-            )
-            .optional()
-            .map_err(AppError::from)
+            let found = conn
+                .query_row(
+                    "SELECT id, company_id, account_code, account_name, account_type, parent_account, status, reference_code, description, create_timestamp, modified_timestamp
+                     FROM accounts WHERE company_id = ?1 AND account_code = ?2",
+                    params![company_id, account_code],
+                    map_account,
+                )
+                .optional()?;
+            match found {
+                Some(mut account) => {
+                    account.attachments = account_attachments(conn, account.id.expect("persisted account must have an id"))?;
+                    Ok(Some(account))
+                }
+                None => Ok(None),
+            }
         })
     }
 
     pub fn list_accounts_for_company(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, code, name, account_type, parent_id, is_active, reference_code
-                 FROM accounts WHERE company_id = ?1 ORDER BY code",
+                "SELECT id, company_id, account_code, account_name, account_type, parent_account, status, reference_code, description, create_timestamp, modified_timestamp
+                 FROM accounts WHERE company_id = ?1 ORDER BY account_code",
             )?;
             let rows = stmt.query_map(params![company_id], map_account)?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+            let mut accounts = rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)?;
+            for account in &mut accounts {
+                account.attachments = account_attachments(conn, account.id.expect("persisted account must have an id"))?;
+            }
+            Ok(accounts)
         })
     }
 
+    /// Always stamps `modified_timestamp` with the current time on
+    /// write, regardless of whatever `account.modified_timestamp` the
+    /// caller passed in -- this is infrastructure bookkeeping, not a
+    /// value any view should have to remember to set correctly itself.
     pub fn update_account(&self, account: &Account) -> AppResult<()> {
         account.validate()?;
         let id = account
             .id
             .ok_or_else(|| AppError::Validation("cannot update an account without an id".into()))?;
-        self.db.with_connection(|conn| {
-            let affected = conn.execute(
-                "UPDATE accounts SET code = ?1, name = ?2, account_type = ?3, parent_id = ?4, is_active = ?5 WHERE id = ?6",
-                params![account.code, account.name, account.account_type.as_str(), account.parent_id, account.is_active, id],
+        self.db.with_transaction(|tx| {
+            let modified_timestamp = chrono::Utc::now().timestamp();
+            let affected = tx.execute(
+                "UPDATE accounts SET account_code = ?1, account_name = ?2, account_type = ?3, parent_account = ?4, status = ?5, description = ?6, modified_timestamp = ?7 WHERE id = ?8",
+                params![account.account_code, account.account_name, account.account_type.as_str(), account.parent_account, account.status, account.description, modified_timestamp, id],
             )?;
             if affected == 0 {
                 return Err(AppError::NotFound(format!("account {id} not found")));
+            }
+            tx.execute("DELETE FROM account_attachments WHERE account_id = ?1", params![id])?;
+            for file_name in &account.attachments {
+                tx.execute("INSERT INTO account_attachments (account_id, file_name) VALUES (?1, ?2)", params![id, file_name])?;
             }
             Ok(())
         })
@@ -220,14 +280,15 @@ impl AccountingRepository {
 
     /// Rejects with a clear message, rather than a raw SQLite one, when
     /// the account is still referenced elsewhere -- posted transaction
-    /// lines, another account's `parent_id`, tax rates, fixed asset
+    /// lines, another account's `parent_account`, tax rates, fixed asset
     /// categories, and more all reference an account by id, and every
     /// one of those foreign keys is enforced (`PRAGMA foreign_keys` is
     /// on for every connection this app opens).
     pub fn delete_account(&self, id: i64) -> AppResult<()> {
         self.db
-            .with_connection(|conn| {
-                let affected = conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
+            .with_transaction(|tx| {
+                tx.execute("DELETE FROM account_attachments WHERE account_id = ?1", params![id])?;
+                let affected = tx.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
                 if affected == 0 {
                     return Err(AppError::NotFound(format!("account {id} not found")));
                 }
@@ -593,7 +654,7 @@ impl AccountingRepository {
             .into_iter()
             .filter_map(|account| {
                 let net = *net_movements.get(&account.id.unwrap())?;
-                Some(TrialBalanceLine::from_net_movement(account.id.unwrap(), account.code, account.name, net))
+                Some(TrialBalanceLine::from_net_movement(account.id.unwrap(), account.account_code, account.account_name, net))
             })
             .collect();
 
@@ -784,13 +845,29 @@ fn map_account(row: &Row) -> rusqlite::Result<Account> {
     Ok(Account {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
-        code: row.get(2)?,
-        name: row.get(3)?,
+        account_code: row.get(2)?,
+        account_name: row.get(3)?,
         account_type,
-        parent_id: row.get(5)?,
-        is_active: row.get(6)?,
+        parent_account: row.get(5)?,
+        status: row.get(6)?,
         reference_code: row.get(7)?,
+        description: row.get(8)?,
+        // Loaded separately from `account_attachments` (see
+        // `account_attachments` below) -- never part of this row.
+        attachments: Vec::new(),
+        create_timestamp: row.get(9)?,
+        modified_timestamp: row.get(10)?,
     })
+}
+
+/// The file names attached to one account, in insertion order --
+/// mirrors `role_permissions`' "own child table, not a packed column"
+/// shape (user_repository) since SQLite has no native array/JSON type
+/// this codebase otherwise relies on.
+fn account_attachments(conn: &Connection, account_id: i64) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT file_name FROM account_attachments WHERE account_id = ?1 ORDER BY id")?;
+    let rows = stmt.query_map(params![account_id], |row| row.get::<_, String>(0))?;
+    rows.collect()
 }
 
 fn map_fiscal_period(row: &Row) -> rusqlite::Result<FiscalPeriod> {
@@ -918,7 +995,7 @@ mod tests {
             .get_account_by_code(company_id, "1000")
             .unwrap()
             .expect("account should exist");
-        assert_eq!(found.name, "Cash");
+        assert_eq!(found.account_name, "Cash");
         assert_eq!(found.account_type, AccountType::Asset);
     }
 
@@ -935,10 +1012,10 @@ mod tests {
         let (repo, company_id) = repo_with_company();
         let created = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
 
-        repo.update_account(&Account { name: "Petty Cash".into(), ..created.clone() }).unwrap();
+        repo.update_account(&Account { account_name: "Petty Cash".into(), ..created.clone() }).unwrap();
 
         let fetched = repo.get_account(created.id.unwrap()).unwrap();
-        assert_eq!(fetched.name, "Petty Cash");
+        assert_eq!(fetched.account_name, "Petty Cash");
     }
 
     #[test]
@@ -981,11 +1058,11 @@ mod tests {
             .unwrap();
 
         let mut child = Account::new(company_id, "1010", "Cash", AccountType::Asset);
-        child.parent_id = parent.id;
+        child.parent_account = parent.id;
         let child = repo.create_account(&child).unwrap();
 
         let fetched = repo.get_account(child.id.unwrap()).unwrap();
-        assert_eq!(fetched.parent_id, parent.id);
+        assert_eq!(fetched.parent_account, parent.id);
     }
 
     #[test]

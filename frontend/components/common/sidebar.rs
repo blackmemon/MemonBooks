@@ -12,7 +12,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, icons, spacing};
+use crate::frontend::styles::{borders, icons, spacing, states};
 use crate::frontend::styles::button as button_style;
 
 pub const EXPANDED_WIDTH: f32 = 252.0;
@@ -142,7 +142,7 @@ fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'
         .height(Length::Fixed(36.0))
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Center)
-        .style(move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(bg)), border: Border { radius: borders::RADIUS_SM.into(), ..Border::default() }, ..container::Style::default() })
+        .style(move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(bg)), border: Border { radius: states::RADIUS_SM.into(), ..Border::default() }, ..container::Style::default() })
         .into()
 }
 

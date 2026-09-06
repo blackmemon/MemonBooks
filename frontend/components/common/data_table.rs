@@ -127,7 +127,6 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let show_checkbox = selected.is_some();
     let is_visible = |index: usize| visible_columns.get(index).copied().unwrap_or(true);
-
     let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
     if let Some(selected) = &selected {
         let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
@@ -257,25 +256,11 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
     }
 }
 
-/// The "Columns" toggle button for a toolbar row -- pairs with
-/// [`columns_panel`], which the caller opens via `side_panel::split`
-/// while `open`. Two separate pieces (rather than one popover) because
-/// iced 0.13 has no anchored-overlay primitive in this codebase yet.
+/// The show/hide checklist content opened by [`columns_button`] --
 pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
-    button(text("Columns").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_toggle).into()
+    button(text("Columns").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle).into()
 }
 
-/// The show/hide checklist content opened by [`columns_button`] --
-/// "Select All"/"Deselect All" under the title, a scrollable checkbox
-/// per entry in `labels` (`visible[i]`, missing entries default to
-/// visible, drives its checked state; `on_toggle(index)` fires when one
-/// flips), and "Reset to Default" pinned below the scroll area rather
-/// than scrolling away with the list. Applying any of these live is the
-/// caller's job, via `view_with_column_visibility` and its own
-/// `Message` handling. Returns bare content, not a bordered card --
-/// callers open it inside a `side_panel::split`, which supplies that
-/// chrome.
-#[allow(clippy::too_many_arguments)]
 pub fn columns_panel<'a, Message: Clone + 'a>(
     theme: Theme,
     labels: &'a [&'a str],
@@ -285,22 +270,48 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
     on_deselect_all: Message,
     on_reset: Message,
 ) -> Element<'a, Message> {
-    let select_all = button(text("Select All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_select_all);
+    let select_all = button(text("Select All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::primary(theme)).on_press(on_select_all);
     let deselect_all = button(text("Deselect All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::secondary(theme)).on_press(on_deselect_all);
 
-    let mut list = column![].spacing(spacing::SPACE_12);
+    let mut list = column![].spacing(spacing::SPACE_10).padding(spacing::SM);
     for (index, label) in labels.iter().enumerate() {
         let is_visible = visible.get(index).copied().unwrap_or(true);
         let toggle_this = on_toggle.clone();
-        list = list.push(checkbox(*label, is_visible).style(checkbox_style::style(theme)).on_toggle(move |_| toggle_this(index)).size(16).text_size(typography::LABEL));
+        let option = checkbox(*label, is_visible)
+            .style(checkbox_style::style(theme))
+            .on_toggle(move |_| toggle_this(index))
+            .size(16)
+            .text_size(typography::LABEL);
+        list = list.push(
+            container(option)
+                .width(Length::Fill)
+                .padding([spacing::SM, spacing::MD])
+                .style(move |_iced_theme| container::Style {
+                    border: Border {
+                        width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                        color: theme.neutral_bg(),
+                        radius: states::RADIUS_SM.into(),
+                    },
+                    ..container::Style::default()
+                }),
+        );
     }
 
     let reset = button(text("Reset to Default").size(typography::LABEL)).padding([spacing::SPACE_10, spacing::MD]).width(Length::Fill).style(button_style::secondary(theme)).on_press(on_reset);
-
     column![
         text("Select Columns to Display").size(typography::PANEL_TITLE).color(theme.text_primary()),
         row![select_all, deselect_all].spacing(spacing::SM),
-        scrollable(list).height(Length::Fill),
+        scrollable(list.width(Length::Fill))
+            .height(Length::Fill)
+            .style(move |iced_theme, status| {
+                let mut style = iced::widget::scrollable::default(iced_theme, status);
+                style.container.border = Border {
+                    width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                    color: theme.neutral_bg(),
+                    radius: states::RADIUS_SM.into(),
+                };
+                style
+            }),
         reset,
     ]
     .spacing(spacing::MD)

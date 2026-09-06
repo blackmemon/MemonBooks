@@ -111,6 +111,21 @@ fn ensure_default_admin(db: &Database) {
     log::warn!("Log in and change this password as soon as possible.");
 }
 
+/// Temporary development startup session: open the app directly as the
+/// first active user while authentication UI is being finalized.
+fn load_startup_user(db: &Database) -> User {
+    UserRepository::new(db.clone())
+        .list_users()
+        .expect("failed to load startup user")
+        .into_iter()
+        .find(|user| user.is_active)
+        .map(|mut user| {
+            user.must_change_password = false;
+            user
+        })
+        .expect("no active user available for startup session")
+}
+
 /// OS-level light/dark detection, consulted only at launch and only
 /// when no manual preference has been saved yet (see `theme_preference`).
 ///
@@ -147,11 +162,12 @@ fn main() -> iced::Result {
 
     let company_id = ensure_default_company(&database);
     ensure_default_admin(&database);
+    let startup_user = load_startup_user(&database);
 
     let ctx = Ctx {
         db: database,
         company_id,
-        current_user_id: None,
+        current_user_id: startup_user.id,
         export_dir: config.data_dir.join("exports"),
         uploads_dir: config.data_dir.join("uploads"),
     };
@@ -167,7 +183,7 @@ fn main() -> iced::Result {
             resizable: true,
             ..iced::window::Settings::default()
         })
-        .run_with(move || (MemonBooks::new(ctx, theme, theme_path), Task::none()))
+        .run_with(move || (MemonBooks::new(ctx, theme, theme_path, startup_user), Task::none()))
 }
 
 /// The content area's margin on all four sides, as a fraction of its own
@@ -352,11 +368,14 @@ enum Message {
 }
 
 impl MemonBooks {
-    fn new(ctx: Ctx, theme: Theme, theme_path: PathBuf) -> Self {
+    fn new(ctx: Ctx, theme: Theme, theme_path: PathBuf, startup_user: User) -> Self {
+        let can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(ctx.db.clone())
+            .has_permission(&startup_user, "users.manage")
+            .unwrap_or(false);
         Self {
             ctx,
-            session: None,
-            can_manage_users: false,
+            session: Some(startup_user),
+            can_manage_users,
             theme,
             theme_path,
             route: Route::Dashboard,

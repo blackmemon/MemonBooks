@@ -33,7 +33,7 @@ impl Theme {
     }
 
     /// Reset button hover border.
-    pub fn secondary(&self) -> Color {
+    pub fn neutral(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
             Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
@@ -41,28 +41,28 @@ impl Theme {
     }
 
     /// Reset button hover background.
-    pub fn secondary_hover(&self) -> Color {
+    pub fn neutral_hover(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
             Theme::Dark => rgb8(0x1F, 0x29, 0x37),
         }
     }
 
-    pub fn secondary_font(&self) -> Color {
+    pub fn neutral_font(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x11, 0x18, 0x27),
             Theme::Dark => rgb8(0xF9, 0xFA, 0xFB),
         }
     }
 
-    pub fn secondary_border(&self) -> Color {
+    pub fn neutral_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0x11, 0x18, 0x27),
-            Theme::Dark => rgb8(0xF9, 0xFA, 0xFB),
+            Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
+            Theme::Dark => rgb8(0x2A, 0x2C, 0x31),
         }
     }
 
-    pub fn secondary_border_hover(&self) -> Color {
+    pub fn neutral_bg_hover(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
             Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
@@ -70,7 +70,7 @@ impl Theme {
     }
 
     /// Neutral button color.
-    pub fn neutral(&self) -> Color {
+    pub fn secondary(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x6B, 0x72, 0x80),
             Theme::Dark => rgb8(0x4B, 0x55, 0x63),
@@ -78,7 +78,7 @@ impl Theme {
     }
 
     /// Neutral button hover/pressed color.
-    pub fn neutral_hover(&self) -> Color {
+    pub fn secondary_hover(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x4B, 0x55, 0x63),
             Theme::Dark => rgb8(0x6B, 0x72, 0x80),
@@ -101,15 +101,24 @@ impl Theme {
         }
     }
 
-    /// Success / positive background (badges, toasts, confirmations).
+
+    /// Success / positive background.
     pub fn positive_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0xC6, 0xF1, 0xCE),
-            Theme::Dark => rgb8(0x16, 0x32, 0x1C), // PLACEHOLDER
+            Theme::Light => rgb8(0x22, 0xC5, 0x5E),
+            Theme::Dark => rgb8(0x22, 0xC5, 0x5E),
         }
     }
 
-    /// Success / positive text & icon color.
+    /// Success / positive hover background.
+    pub fn positive_bg_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x16, 0xA3, 0x4A),
+            Theme::Dark => rgb8(0x16, 0xA3, 0x4A),
+        }
+    }
+
+        /// Success / positive text & icon color.
     pub fn positive_front(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x00, 0x64, 0x00),
@@ -117,11 +126,19 @@ impl Theme {
         }
     }
 
-    /// Error / negative background (validation errors, destructive confirmations).
+    /// Error / negative background.
     pub fn negative_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
-            Theme::Dark => rgb8(0x3A, 0x14, 0x18), // PLACEHOLDER
+            Theme::Light => rgb8(0xEF, 0x44, 0x44),
+            Theme::Dark => rgb8(0xEF, 0x44, 0x44),
+        }
+    }
+
+    /// Error / negative hover background.
+    pub fn negative_bg_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xDC, 0x26, 0x26),
+            Theme::Dark => rgb8(0xDC, 0x26, 0x26),
         }
     }
 
@@ -130,6 +147,13 @@ impl Theme {
         match self {
             Theme::Light => rgb8(0x9C, 0x00, 0x0A),
             Theme::Dark => rgb8(0xFF, 0x8A, 0x93), // PLACEHOLDER
+        }
+    }
+
+    pub fn surface_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+            Theme::Dark => rgb8(0x1F, 0x29, 0x37),
         }
     }
 
@@ -151,12 +175,7 @@ impl Theme {
 
     /// Neutral background -- status pills with no positive/negative/warning
     /// meaning (e.g. "Draft"), muted panels.
-    pub fn neutral_bg(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
-            Theme::Dark => rgb8(0x2A, 0x2C, 0x31), // PLACEHOLDER
-        }
-    }
+
 
     /// Neutral text & icon color. Doubles as the app's one muted/secondary
     /// text tone (descriptions, secondary avatar lines, inactive tabs) and as

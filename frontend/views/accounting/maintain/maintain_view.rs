@@ -31,7 +31,7 @@ impl std::fmt::Display for Section {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct State {
     selected: Section,
     chart_of_accounts: chart_of_accounts_view::State,

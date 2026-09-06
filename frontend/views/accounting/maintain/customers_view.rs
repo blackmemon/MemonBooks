@@ -330,7 +330,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.editing_id.is_some() {
         form = form.push(iced::widget::row![
             button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-            button(text("Cancel")).style(button_style::neutral(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
         ].spacing(spacing::SM));
     } else {
         form = form.push(button(text("Add customer")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));

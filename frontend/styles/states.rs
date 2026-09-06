@@ -10,3 +10,5 @@ pub const SELECTED_ALPHA: f32 = 0.14;
 pub const TINTED_PANEL_ALPHA: f32 = 0.08;
 pub const TABLE_ROW_HOVER_ALPHA: f32 = 0.5;
 pub const BUTTON_BORDER_WIDTH_ALPHA: f32 = 1.2;
+pub const TEXTBOX_WIDTH_ALPHA: f32 = 1.2;
+pub const TEXTBOX_SELECTION_TINT_ALPHA: f32 = 0.25;

@@ -31,24 +31,12 @@ pub const LG: f32 = 24.0;
 pub const XL: f32 = 32.0;
 
 pub const SPACE_2: f32 = 2.0;
+pub const SPACE_4: f32 = 4.0;
 pub const SPACE_6: f32 = 6.0;
 pub const SPACE_10: f32 = 10.0;
 pub const SPACE_12: f32 = 12.0;
 pub const SPACE_14: f32 = 14.0;
 pub const SPACE_20: f32 = 20.0;
 pub const SPACE_40: f32 = 40.0;
-
-/// The "Maintain" views' page-header padding: top/right/left `LG`, no
-/// bottom (the gap down to the body comes from the column's own
-/// `spacing`, not from this). Copy-pasted identically, byte for byte,
-/// 11 times across `chart_of_accounts_view.rs`, `vendors_view.rs`,
-/// `warehouse_view.rs`, `bank_of_accounts_view.rs`, `customers_view.rs`,
-/// and `src/main.rs` before this constant existed.
 pub const HEADER_PADDING: Padding = Padding { top: LG, right: LG, bottom: 0.0, left: LG };
-
-/// The same five views' body-content padding: right/left/bottom `LG`,
-/// no top (the header above already supplies that gap via
-/// [`HEADER_PADDING`] plus the wrapping column's own `spacing`).
-/// Copy-pasted identically, byte for byte, 5 times before this constant
-/// existed.
 pub const CONTENT_PADDING: Padding = Padding { top: 0.0, right: LG, bottom: LG, left: LG };

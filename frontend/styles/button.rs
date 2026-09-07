@@ -2,31 +2,24 @@ use iced::widget::button::{Status, Style};
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, states};
+use crate::frontend::styles::{states};
 
 pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {
-        match status {
-            Status::Hovered | Status::Pressed => Style {
-                background: None,
-                text_color: theme.neutral_font(),
-                border: Border {
-                    width: states::BUTTON_BORDER_WIDTH_ALPHA,
-                    color: theme.neutral_bg_hover(),
-                    radius: states::RADIUS_SM.into(),
-                },
-                shadow: iced::Shadow::default(),
+        let background = match status {
+            Status::Hovered | Status::Pressed => theme.neutral_bg_hover(),
+            _ => theme.neutral_bg(),
+        };
+
+        Style {
+            background: Some(Background::Color(background)),
+            text_color: theme.neutral_font(),
+            border: Border {
+                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                color: background,
+                radius: states::RADIUS_SM.into(),
             },
-            _ => Style {
-                background: None,
-                text_color: theme.neutral_font(),
-                border: Border {
-                    width: states::BUTTON_BORDER_WIDTH_ALPHA,
-                    color: theme.neutral_bg(),
-                    radius: states::RADIUS_SM.into(),
-                },
-                shadow: iced::Shadow::default(),
-            },
+            shadow: iced::Shadow::default(),
         }
     }
 }
@@ -41,7 +34,7 @@ pub fn primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
         };
         Style {
             background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
+            text_color: theme.accent_front(),
             border: Border {
                 width: states::BUTTON_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
@@ -63,7 +56,31 @@ pub fn secondary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 
         Style {
             background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
+            text_color: theme.accent_front(),
+            border: Border {
+                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                radius: states::RADIUS_SM.into(),
+                ..Border::default()
+            },
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
+pub fn mode(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> Style {
+    move |_iced_theme: &IcedTheme, status: Status| {
+        let (normal, hover) = match active {
+            true => (theme.primary(), theme.primary_hover()),
+            false => (theme.secondary(), theme.secondary_hover()),
+        };
+        let background = match status {
+            Status::Hovered | Status::Pressed => hover,
+            _ => normal,
+        };
+
+        Style {
+            background: Some(Background::Color(background)),
+            text_color: theme.accent_front(),
             border: Border {
                 width: states::BUTTON_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
@@ -83,7 +100,7 @@ pub fn positive(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 
         Style {
             background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
+            text_color: theme.accent_front(),
             border: Border {
                 width: states::BUTTON_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
@@ -103,7 +120,7 @@ pub fn negative(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 
         Style {
             background: Some(Background::Color(background)),
-            text_color: Color::WHITE,
+            text_color: theme.accent_front(),
             border: Border {
                 width: states::BUTTON_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
@@ -121,7 +138,7 @@ pub fn destructive(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             Status::Hovered | Status::Pressed => Color { a: states::SOLID_BUTTON_HOVER_ALPHA, ..theme.negative_front() },
             Status::Active => theme.negative_front(),
         };
-        let text_color = if matches!(status, Status::Disabled) { theme.neutral_front() } else { Color::WHITE };
+        let text_color = if matches!(status, Status::Disabled) { theme.neutral_front() } else { theme.accent_front() };
         Style { background: Some(Background::Color(background)), text_color, border: Border { radius: states::RADIUS_SM.into(), ..Border::default() }, shadow: iced::Shadow::default() }
     }
 }
@@ -137,7 +154,7 @@ pub fn outline_primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {
         let background = match status {
             Status::Hovered | Status::Pressed => Color { a: states::OUTLINE_BUTTON_HOVER_ALPHA, ..theme.primary() },
-            _ => Color::TRANSPARENT,
+            _ => theme.transparent(),
         };
         Style {
             background: Some(Background::Color(background)),
@@ -155,7 +172,7 @@ pub fn nav_item(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> St
         } else if matches!(status, Status::Hovered) {
             Color { a: states::GHOST_ROW_HOVER_ALPHA, ..theme.neutral_front() }
         } else {
-            Color::TRANSPARENT
+            theme.transparent()
         };
         let text_color = if active { theme.primary() } else { theme.neutral_front() };
         Style { background: Some(Background::Color(background)), text_color, border: Border { radius: states::RADIUS_MD.into(), ..Border::default() }, shadow: iced::Shadow::default() }

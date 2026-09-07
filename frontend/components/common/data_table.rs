@@ -1,10 +1,10 @@
 use iced::widget::{button, checkbox, column, container, progress_bar, row, scrollable, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Background, Border, Element, Font, Length, Theme as IcedTheme};
 
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, icons, panels, spacing, states, table as table_style};
+use crate::frontend::styles::{icons, panels, spacing, states, table as table_style};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::checkbox as checkbox_style;
 
@@ -217,7 +217,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
         Cell::Date(value) => text(value).size(typography::LABEL).color(theme.neutral_front()).into(),
         Cell::Person { name, subtitle } => {
             let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
-            let avatar = container(text(initial).size(typography::BODY).color(Color::WHITE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
+            let avatar = container(text(initial).size(typography::BODY).color(theme.accent_front()).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
                 .width(Length::Fixed(28.0))
                 .height(Length::Fixed(28.0))
                 .align_x(iced::alignment::Horizontal::Center)

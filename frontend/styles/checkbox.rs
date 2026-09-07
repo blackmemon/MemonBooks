@@ -37,7 +37,7 @@ pub fn style(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
 
         Style {
             background: Background::Color(background),
-            icon_color: Color::TRANSPARENT,
+            icon_color: theme.transparent(),
             border: Border {
                 color: border_color,
                 width: 1.0,

@@ -1,5 +1,5 @@
 use iced::widget::pick_list::{Status, Style};
-use iced::{Background, Border, Color, Theme as IcedTheme};
+use iced::{Background, Color, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, states};

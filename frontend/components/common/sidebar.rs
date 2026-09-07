@@ -46,7 +46,7 @@ pub fn view<'a, Message: Clone + 'a>(
     on_toggle_theme: Message,
 ) -> Element<'a, Message> {
     let logo_row = row![
-        icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), Color::WHITE),
+        icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), theme.accent_front()),
         if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, typography::APP_NAME, theme.text_primary()) },
         Space::with_width(Length::Fill),
         button(text(if collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_LEFT }).size(typography::EMPHASIS))

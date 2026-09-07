@@ -16,6 +16,25 @@ pub enum Theme {
 }
 
 impl Theme {
+    pub fn accent_front(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+        }
+    }
+
+    pub fn transparent(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => Color { a: 0.0, ..Color::BLACK },
+        }
+    }
+
+    pub fn page_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+            Theme::Dark => rgb8(0x11, 0x18, 0x27),
+        }
+    }
+
     /// Primary accent -- buttons, active nav item, links, focus rings.
     pub fn primary(&self) -> Color {
         match self {
@@ -51,7 +70,7 @@ impl Theme {
     pub fn neutral_font(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x11, 0x18, 0x27),
-            Theme::Dark => rgb8(0xF9, 0xFA, 0xFB),
+            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
         }
     }
 

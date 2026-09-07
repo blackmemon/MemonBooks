@@ -1,7 +1,6 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
 use iced::{Alignment, Element, Font, Length};
 
-use crate::frontend::components::common::data_table;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};

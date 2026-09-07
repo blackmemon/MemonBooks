@@ -505,7 +505,14 @@ impl MemonBooks {
             Message::Expenses(inner) => expenses_view::update(&mut self.expenses, inner, &self.ctx),
             Message::Pos(inner) => pos_view::update(&mut self.pos, inner, &self.ctx),
             Message::Reports(inner) => reports_view::update(&mut self.reports, inner, &self.ctx),
-            Message::Settings(inner) => settings_view::update(&mut self.settings, inner, &self.ctx),
+            Message::Settings(inner) => {
+                if let settings_view::Event::ThemeChanged(theme) = settings_view::update(&mut self.settings, inner, &self.ctx) {
+                    self.theme = theme;
+                    if let Err(err) = theme_preference::save(&self.theme_path, theme) {
+                        log::warn!("failed to persist theme preference: {err}");
+                    }
+                }
+            }
             Message::Companies(inner) => {
                 if let companies_view::Event::Switched(company_id) = companies_view::update(&mut self.companies, inner, &self.ctx) {
                     self.ctx.company_id = company_id;

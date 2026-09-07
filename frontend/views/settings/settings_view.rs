@@ -1,6 +1,6 @@
 //! Company settings: view and edit the current company's basic info.
 
-use iced::widget::{button, column, container, text, text_input};
+use iced::widget::{button, column, container, row, text, text_input};
 use iced::Element;
 
 use crate::backend::core::validation::Validate;
@@ -26,7 +26,14 @@ pub struct State {
 pub enum Message {
     NameChanged(String),
     LegalNameChanged(String),
+    ThemeChanged(Theme),
     Save,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Event {
+    None,
+    ThemeChanged(Theme),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -46,12 +53,13 @@ pub fn load(ctx: &Ctx) -> State {
     }
 }
 
-pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
+pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
     match message {
         Message::NameChanged(value) => state.name_input = value,
         Message::LegalNameChanged(value) => state.legal_name_input = value,
+        Message::ThemeChanged(theme) => return Event::ThemeChanged(theme),
         Message::Save => {
-            let Some(company) = state.company.clone() else { return };
+            let Some(company) = state.company.clone() else { return Event::None };
             let updated = Company {
                 name: state.name_input.clone(),
                 legal_name: if state.legal_name_input.trim().is_empty() { None } else { Some(state.legal_name_input.clone()) },
@@ -60,7 +68,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             if let Err(err) = updated.validate() {
                 state.error = Some(err.to_string());
                 state.message = None;
-                return;
+                return Event::None;
             }
             let service = OrganizationService::new(ctx.db.clone());
             match service.update_company(&updated) {
@@ -76,6 +84,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
     }
+    Event::None
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -84,6 +93,17 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         return container(text(message).color(theme.negative_front())).padding(spacing::SPACE_20).into();
     };
 
+    let light_theme_button: Element<'_, Message> = button(text("Light"))
+        .style(button_style::mode(theme, theme == Theme::Light))
+        .on_press(Message::ThemeChanged(Theme::Light))
+        .padding(spacing::SM)
+        .into();
+    let dark_theme_button: Element<'_, Message> = button(text("Dark"))
+        .style(button_style::mode(theme, theme == Theme::Dark))
+        .on_press(Message::ThemeChanged(Theme::Dark))
+        .padding(spacing::SM)
+        .into();
+
     let mut content = column![
         text("Company Settings").size(typography::TITLE),
         text(format!("Base currency: {}", company.base_currency_code)).size(typography::EMPHASIS),
@@ -91,6 +111,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         text_input("Company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).padding(spacing::SM),
         text("Legal name"),
         text_input("Legal name (optional)", &state.legal_name_input).style(inputs::text(theme)).on_input(Message::LegalNameChanged).padding(spacing::SM),
+        text("Appearance").size(typography::LABEL),
+        row![light_theme_button, dark_theme_button].spacing(spacing::SM),
         button(text("Save")).style(button_style::primary(theme)).on_press(Message::Save).padding(spacing::SM),
     ]
     .spacing(spacing::SPACE_12)

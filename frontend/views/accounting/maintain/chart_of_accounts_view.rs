@@ -16,6 +16,7 @@ use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
+use crate::frontend::styles::fonts;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
@@ -630,6 +631,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
             container(
                 pick_list(ACCOUNT_TYPES,state.account_type,Message::AccountTypeChanged,)
                     .style(dropdown::style(theme))
+                    .menu_style(dropdown::dropdown_menu(theme))
                     .placeholder("Account Type")
                     .width(Length::Fill),
             )
@@ -645,6 +647,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
                     state.parent_account_input.clone(),
                     Message::ParentAccountSelected,)
                     .style(dropdown::style(theme))
+                    .menu_style(dropdown::dropdown_menu(theme))
                     .placeholder("Parent Account")
                     .width(Length::Fill),
             )
@@ -658,6 +661,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
             container(
                 pick_list(STATUS_CHOICES,Some(state.status_input),Message::StatusSelected,)
                     .style(dropdown::style(theme))
+                    .menu_style(dropdown::dropdown_menu(theme))
                     .placeholder("Status")
                     .width(Length::Fill),
             )
@@ -686,7 +690,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
             container(
                 iced::widget::row![
                     button(text("Save")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-                    button(text("Cancel")).style(button_style::neutral(theme)).on_press(cancel_message).padding(spacing::SM),
+                    button(text("Cancel").font(fonts::BOLD)).style(button_style::neutral(theme)).on_press(cancel_message).padding(spacing::SM),
                 ]
                 .spacing(spacing::SM),
             )
@@ -702,8 +706,8 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
 
 /// The "Export" panel's own content -- opened via `side_panel::split`
 fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
-    let select_all = button(text("Select All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::SelectAllExportColumns);
-    let deselect_all = button(text("Deselect All").size(typography::BODY)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::DeselectAllExportColumns);
+    let select_all = button(text("Select All").size(typography::BODY).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::SelectAllExportColumns);
+    let deselect_all = button(text("Deselect All").size(typography::BODY).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::DeselectAllExportColumns);
 
     let mut list = column![].spacing(spacing::SPACE_12);
     for (index, label) in EXPORT_COLUMN_LABELS.iter().enumerate() {

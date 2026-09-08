@@ -31,48 +31,10 @@ impl Theme {
     pub fn page_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
-            Theme::Dark => rgb8(0x11, 0x18, 0x27),
+            Theme::Dark => rgb8(34, 34, 38),
         }
     }
 
-    /// Primary accent -- buttons, active nav item, links, focus rings.
-    pub fn primary(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
-            Theme::Dark => rgb8(0x2C, 0x8F, 0xBD),
-        }
-    }
-
-    /// Primary button hover/pressed color.
-    pub fn primary_hover(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0x56, 0xAE, 0xD7),
-            Theme::Dark => rgb8(0x56, 0xAE, 0xD7),
-        }
-    }
-
-    /// Reset button hover border.
-    pub fn neutral(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
-            Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
-        }
-    }
-
-    /// Reset button hover background.
-    pub fn neutral_hover(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
-            Theme::Dark => rgb8(0x1F, 0x29, 0x37),
-        }
-    }
-
-    pub fn neutral_font(&self) -> Color {
-        match self {
-            Theme::Light => rgb8(0x11, 0x18, 0x27),
-            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
-        }
-    }
 
     pub fn neutral_bg(&self) -> Color {
         match self {
@@ -83,8 +45,31 @@ impl Theme {
 
     pub fn neutral_bg_hover(&self) -> Color {
         match self {
+            Theme::Light => rgb8(248, 250, 252),
+            Theme::Dark => rgb8(107, 114, 128),
+        }
+    }
+
+    pub fn neutral_font(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x11, 0x18, 0x27),
+            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+        }
+    }
+
+        /// Primary accent -- buttons, active nav item, links, focus rings.
+    pub fn primary(&self) -> Color {
+        match self {
             Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
-            Theme::Dark => rgb8(0x7A, 0xB8, 0xFF),
+            Theme::Dark => rgb8(0x4B, 0x55, 0x63),
+        }
+    }
+
+    /// Primary button hover/pressed color.
+    pub fn primary_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x56, 0xAE, 0xD7),
+            Theme::Dark => rgb8(107, 114, 128),
         }
     }
 

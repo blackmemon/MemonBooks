@@ -4,6 +4,7 @@ use iced::{Alignment, Background, Border, Element, Font, Length, Theme as IcedTh
 use crate::frontend::styles::badges::{tone_colors, BadgeTone};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
+use crate::frontend::styles::fonts;
 use crate::frontend::styles::{icons, panels, spacing, states, table as table_style};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::checkbox as checkbox_style;
@@ -258,7 +259,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
 
 /// The show/hide checklist content opened by [`columns_button`] --
 pub fn columns_button<'a, Message: Clone + 'a>(theme: Theme, on_toggle: Message) -> Element<'a, Message> {
-    button(text("Columns").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle).into()
+    button(text("Columns").size(typography::LABEL).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle).into()
 }
 
 pub fn columns_panel<'a, Message: Clone + 'a>(
@@ -288,7 +289,7 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
                 .padding([spacing::SM, spacing::MD])
                 .style(move |_iced_theme| container::Style {
                     border: Border {
-                        width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                        width: states::STYLES_BORDER_WIDTH_ALPHA,
                         color: theme.neutral_bg(),
                         radius: states::RADIUS_SM.into(),
                     },
@@ -306,7 +307,7 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
             .style(move |iced_theme, status| {
                 let mut style = iced::widget::scrollable::default(iced_theme, status);
                 style.container.border = Border {
-                    width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                    width: states::STYLES_BORDER_WIDTH_ALPHA,
                     color: theme.neutral_bg(),
                     radius: states::RADIUS_SM.into(),
                 };

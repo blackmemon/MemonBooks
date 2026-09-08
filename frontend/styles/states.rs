@@ -1,3 +1,4 @@
+pub const CONTENT_MARGIN_FRACTION: f32 = 0.01;
 pub const RADIUS_SM: f32 = 6.0;
 pub const RADIUS_MD: f32 = 10.0;
 pub const RADIUS_LG: f32 = 14.0;
@@ -9,6 +10,6 @@ pub const GHOST_ROW_HOVER_ALPHA: f32 = 0.06;
 pub const SELECTED_ALPHA: f32 = 0.14;
 pub const TINTED_PANEL_ALPHA: f32 = 0.08;
 pub const TABLE_ROW_HOVER_ALPHA: f32 = 0.5;
-pub const BUTTON_BORDER_WIDTH_ALPHA: f32 = 1.2;
+pub const STYLES_BORDER_WIDTH_ALPHA: f32 = 1.2;
 pub const TEXTBOX_WIDTH_ALPHA: f32 = 1.2;
 pub const TEXTBOX_SELECTION_TINT_ALPHA: f32 = 0.25;

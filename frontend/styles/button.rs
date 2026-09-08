@@ -15,7 +15,7 @@ pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             background: Some(Background::Color(background)),
             text_color: theme.neutral_font(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 color: background,
                 radius: states::RADIUS_SM.into(),
             },
@@ -27,8 +27,7 @@ pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 pub fn primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {
         let background = match status {
-            Status::Hovered | Status::Pressed => 
-                theme.primary_hover(),
+            Status::Hovered | Status::Pressed => theme.primary_hover(),
             _ => 
                 theme.primary()
         };
@@ -36,7 +35,7 @@ pub fn primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },
@@ -48,8 +47,7 @@ pub fn primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 pub fn secondary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {
         let background = match status {
-            Status::Hovered | Status::Pressed =>
-                theme.secondary_hover(),
+            Status::Hovered | Status::Pressed =>theme.secondary_hover(),
             _ => 
                 theme.secondary()
         };
@@ -58,7 +56,7 @@ pub fn secondary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },
@@ -82,7 +80,7 @@ pub fn mode(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> Style 
             background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },
@@ -102,7 +100,7 @@ pub fn positive(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },
@@ -122,7 +120,7 @@ pub fn negative(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                width: states::BUTTON_BORDER_WIDTH_ALPHA,
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },
@@ -159,7 +157,7 @@ pub fn outline_primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
         Style {
             background: Some(Background::Color(background)),
             text_color: theme.primary(),
-            border: Border { color: theme.primary(), width: states::BUTTON_BORDER_WIDTH_ALPHA, radius: states::RADIUS_SM.into() },
+            border: Border { color: theme.primary(), width: states::STYLES_BORDER_WIDTH_ALPHA, radius: states::RADIUS_SM.into() },
             shadow: iced::Shadow::default(),
         }
     }

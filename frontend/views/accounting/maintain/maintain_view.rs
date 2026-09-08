@@ -83,7 +83,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let switcher: Element<'_, Message> = pick_list(SECTIONS, Some(state.selected), Message::Select).style(dropdown::style(theme)).padding(spacing::SM).width(Length::Fixed(220.0)).into();
+    let switcher: Element<'_, Message> = pick_list(SECTIONS, Some(state.selected), Message::Select).style(dropdown::style(theme)).menu_style(dropdown::dropdown_menu(theme)).padding(spacing::SM).width(Length::Fixed(220.0)).into();
 
     match state.selected {
         Section::ChartOfAccounts => chart_of_accounts_view::page_header_view_with_switcher(&state.chart_of_accounts, theme, switcher, Message::ChartOfAccounts),

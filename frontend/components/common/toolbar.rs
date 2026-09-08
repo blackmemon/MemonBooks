@@ -3,6 +3,7 @@ use iced::{Alignment, Element, Font, Length};
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
+use crate::frontend::styles::fonts;
 use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::dropdown;
@@ -104,9 +105,9 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([spacing::SM, spacing::SPACE_12]).size(typography::LABEL).width(Length::Fill);
     let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([spacing::SM, spacing::SPACE_12]).text_size(typography::LABEL).style(dropdown::muted(theme));
-    let reset_button = button(text("Reset All").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_reset_all);
-    let columns_button = button(text("Columns").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle_columns);
-    let export_button = button(text("Export").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_export);
+    let reset_button = button(text("Reset All").size(typography::LABEL).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_reset_all);
+    let columns_button = button(text("Columns").size(typography::LABEL).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle_columns);
+    let export_button = button(text("Export").size(typography::LABEL).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_export);
     let delete_button = button(text("Delete").size(typography::LABEL)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::negative(theme)).on_press_maybe(delete_enabled.then_some(on_delete));
 
     row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).width(Length::Fill).into()

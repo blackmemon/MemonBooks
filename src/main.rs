@@ -32,9 +32,7 @@ use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
-use memonbooks::frontend::styles::spacing;
-use memonbooks::frontend::styles::typography;
-use memonbooks::frontend::styles::dropdown;
+use memonbooks::frontend::styles::{spacing, states, typography, dropdown};
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
 use memonbooks::frontend::views::accounting::{fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
@@ -176,6 +174,10 @@ fn main() -> iced::Result {
     let theme = theme_preference::load(&theme_path).unwrap_or_else(detect_os_theme);
 
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
+        .theme(|state: &MemonBooks| match state.theme {
+            Theme::Light => iced::Theme::Light,
+            Theme::Dark => iced::Theme::Dark,
+        })
         .window(iced::window::Settings {
             size: iced::Size::new(1280.0, 800.0),
             min_size: Some(iced::Size::new(960.0, 600.0)),
@@ -186,13 +188,6 @@ fn main() -> iced::Result {
         .run_with(move || (MemonBooks::new(ctx, theme, theme_path, startup_user), Task::none()))
 }
 
-/// The content area's margin on all four sides, as a fraction of its own
-/// available size (window size minus the sidebar's current width) rather
-/// than a fixed pixel value -- so it stays "5%" at any window size
-/// instead of drifting toward negligible on a maximized window or
-/// oversized on the 960x600 minimum. Applied once in `MemonBooks::view`
-/// via `responsive`, not per-view, so every route gets it uniformly.
-const CONTENT_MARGIN_FRACTION: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
@@ -585,12 +580,19 @@ impl MemonBooks {
         // current width" with no manual subtraction needed, and stays
         // correct across resizes and sidebar collapse/expand alike.
         let content_area: Element<'_, Message> = iced::widget::responsive(move |size| {
-            let margin = iced::Padding { top: size.height * CONTENT_MARGIN_FRACTION, right: size.width * CONTENT_MARGIN_FRACTION, bottom: size.height * CONTENT_MARGIN_FRACTION, left: size.width * CONTENT_MARGIN_FRACTION };
+            let margin = iced::Padding { top: size.height * states::CONTENT_MARGIN_FRACTION, right: size.width * states::CONTENT_MARGIN_FRACTION, bottom: size.height * states::CONTENT_MARGIN_FRACTION, left: size.width * states::CONTENT_MARGIN_FRACTION };
             container(self.screen()).width(Length::Fill).height(Length::Fill).padding(margin).into()
         })
         .into();
 
-        row![sidebar, content_area].into()
+        container(row![sidebar, content_area])
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
+                background: Some(iced::Background::Color(self.theme.page_bg())),
+                ..iced::widget::container::Style::default()
+            })
+            .into()
     }
 
     /// The route-matched screen `Element` for whatever `self.route`

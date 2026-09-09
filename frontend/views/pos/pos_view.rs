@@ -153,7 +153,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     };
 
     let mut content = column![
-        text("Point of Sale").size(typography::TITLE),
+        text("Point of Sale").size(typography::title()),
         pick_list(state.terminals.as_slice(), state.terminal.clone(), Message::TerminalSelected).style(dropdown::style(theme)).placeholder("Terminal"),
         row![session_status, button(text("Open session")).style(button_style::primary(theme)).on_press(Message::OpenSession).padding(spacing::SPACE_6)].spacing(spacing::SPACE_12),
         pick_list(state.products.as_slice(), state.product.clone(), Message::ProductSelected).style(dropdown::style(theme)).placeholder("Product"),

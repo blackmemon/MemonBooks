@@ -282,7 +282,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit tax rate" } else { "Add a tax rate" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Rate %", &state.rate_input).style(inputs::text(theme)).on_input(Message::RateChanged).width(Length::Fill).padding(spacing::SM),
         pick_list(DIRECTIONS, state.direction, Message::DirectionSelected).style(dropdown::style(theme)).placeholder("Direction"),

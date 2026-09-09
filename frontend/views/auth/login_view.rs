@@ -120,19 +120,19 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let title = text("MemonBooks").size(typography::TITLE).color(theme.primary());
+    let title = text("MemonBooks").size(typography::title()).color(theme.primary());
 
     let form: Element<'_, Message> = if state.forgot_password {
         if state.reset_request_submitted {
             column![
-                text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(typography::LABEL),
+                text("If an account with that username exists, an administrator has been notified and can reset your password for you.").size(typography::label()),
                 button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(spacing::SM),
             ]
             .spacing(spacing::SPACE_12)
             .into()
         } else {
             column![
-                text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(typography::LABEL),
+                text("Only an administrator can reset your password. Enter your username below and we'll flag your account so an administrator knows to help.").size(typography::label()),
                 text_input("Username", &state.reset_request_username).style(inputs::text(theme)).on_input(Message::ResetRequestUsernameChanged).padding(spacing::SM),
                 button(text("Request Reset")).style(button_style::primary(theme)).on_press(Message::SubmitResetRequest).padding(spacing::SM),
                 button(text("Back to login")).style(button_style::secondary(theme)).on_press(Message::BackToLoginClicked).padding(spacing::SM),

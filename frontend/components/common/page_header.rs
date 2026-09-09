@@ -12,12 +12,12 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: 
 
 pub fn view_with_action_style<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: &'a str, action_label: &'a str, on_action: Message, secondary_action: bool) -> Element<'a, Message> {
     let titles = column![
-        text(title).size(headers::PAGE_TITLE_SIZE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }),
-        text(description).size(headers::PAGE_DESCRIPTION_SIZE).color(theme.neutral_front()),
+        text(title).size(headers::page_title_size()).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }),
+        text(description).size(headers::page_description_size()).color(theme.neutral_front()),
     ]
     .spacing(spacing::XS);
 
-    let action = button(row![text(if secondary_action { "" } else { "+" }).size(typography::EMPHASIS), text(action_label).size(typography::LABEL)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
+    let action = button(row![text(if secondary_action { "" } else { "+" }).size(typography::emphasis()), text(action_label).size(typography::label())].spacing(spacing::SPACE_6).align_y(Alignment::Center))
         .padding([spacing::SPACE_10, spacing::MD])
         .style(move |iced_theme, status| {
             if secondary_action { button_style::secondary(theme)(iced_theme, status) } else { button_style::primary(theme)(iced_theme, status) }
@@ -32,9 +32,9 @@ pub fn view_with_switcher<'a, Message: Clone + 'a>(theme: Theme, title: &'a str,
 }
 
 pub fn view_with_switcher_action_style<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: &'a str, switcher: Element<'a, Message>, action_label: &'a str, on_action: Message, secondary_action: bool) -> Element<'a, Message> {
-    let title_row = row![text(title).size(headers::PAGE_TITLE_SIZE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }), switcher].spacing(spacing::SPACE_12).align_y(Alignment::Center);
-    let titles = column![title_row, text(description).size(headers::PAGE_DESCRIPTION_SIZE).color(theme.neutral_front())].spacing(spacing::XS);
-    let action = button(row![text(if secondary_action { "" } else { "+" }).size(typography::EMPHASIS), text(action_label).size(typography::LABEL)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
+    let title_row = row![text(title).size(headers::page_title_size()).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }), switcher].spacing(spacing::SPACE_12).align_y(Alignment::Center);
+    let titles = column![title_row, text(description).size(headers::page_description_size()).color(theme.neutral_front())].spacing(spacing::XS);
+    let action = button(row![text(if secondary_action { "" } else { "+" }).size(typography::emphasis()), text(action_label).size(typography::label())].spacing(spacing::SPACE_6).align_y(Alignment::Center))
         .padding([spacing::SPACE_10, spacing::MD])
         .style(move |iced_theme, status| {
             if secondary_action { button_style::secondary(theme)(iced_theme, status) } else { button_style::primary(theme)(iced_theme, status) }
@@ -44,11 +44,11 @@ pub fn view_with_switcher_action_style<'a, Message: Clone + 'a>(theme: Theme, ti
 }
 
 pub fn page_header_view_with_switcher<'a, Message: Clone + 'a>(theme: Theme, title: &'a str, description: &'a str, switcher: Element<'a, Message>, action_label: &'a str, on_action: Message) -> Element<'a, Message> {
-    let title_row = row![text(title).size(headers::PAGE_TITLE_SIZE).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }), switcher].spacing(spacing::SPACE_12).align_y(Alignment::Center);
+    let title_row = row![text(title).size(headers::page_title_size()).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }), switcher].spacing(spacing::SPACE_12).align_y(Alignment::Center);
 
-    let titles = column![title_row, text(description).size(headers::PAGE_DESCRIPTION_SIZE).color(theme.neutral_front())].spacing(spacing::XS);
+    let titles = column![title_row, text(description).size(headers::page_description_size()).color(theme.neutral_front())].spacing(spacing::XS);
 
-    let action = button(row![text("+").size(typography::EMPHASIS), text(action_label).size(typography::LABEL)].spacing(spacing::SPACE_6).align_y(Alignment::Center))
+    let action = button(row![text("+").size(typography::emphasis()), text(action_label).size(typography::label())].spacing(spacing::SPACE_6).align_y(Alignment::Center))
         .padding([spacing::SPACE_10, spacing::MD])
         .style(button_style::primary(theme))
         .on_press(on_action);

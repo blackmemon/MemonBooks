@@ -113,7 +113,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     };
 
     let mut bs_column = column![
-        text("Balance Sheet").size(typography::SUBTITLE),
+        text("Balance Sheet").size(typography::subtitle()),
         text(format!("Total assets: {}", balance_sheet.total_assets())),
         text(format!("Total liabilities: {}", balance_sheet.total_liabilities())),
         text(format!("Total equity (incl. current year earnings): {}", balance_sheet.total_equity())),
@@ -127,7 +127,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     bs_column = bs_column.push(button(text("Export CSV")).style(button_style::secondary(theme)).on_press(Message::ExportBalanceSheetCsv).padding(spacing::SPACE_6));
 
     let pl_column = column![
-        text("Profit & Loss (year to date)").size(typography::SUBTITLE),
+        text("Profit & Loss (year to date)").size(typography::subtitle()),
         text(format!("Total revenue: {}", profit_and_loss.total_revenue())),
         text(format!("Total expenses: {}", profit_and_loss.total_expenses())),
         text(format!("Net income: {}", profit_and_loss.net_income())),
@@ -135,7 +135,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     ]
     .spacing(spacing::SPACE_6);
 
-    let mut content = column![text("Reports").size(typography::TITLE), row![bs_column, pl_column].spacing(spacing::SPACE_40)].spacing(spacing::MD).padding(spacing::SPACE_20);
+    let mut content = column![text("Reports").size(typography::title()), row![bs_column, pl_column].spacing(spacing::SPACE_40)].spacing(spacing::MD).padding(spacing::SPACE_20);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(theme.positive_front()));

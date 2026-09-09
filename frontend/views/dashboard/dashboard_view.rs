@@ -59,7 +59,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
 fn summary_card(theme: Theme, label: impl Into<String>, value: impl Into<String>) -> Element<'static, Message> {
     container(
-        column![text(label.into()).size(typography::EMPHASIS).color(theme.primary()), text(value.into()).size(typography::STAT_VALUE).color(theme.text_primary())].spacing(spacing::SPACE_6),
+        column![text(label.into()).size(typography::emphasis()).color(theme.primary()), text(value.into()).size(typography::stat_value()).color(theme.text_primary())].spacing(spacing::SPACE_6),
     )
     .padding(spacing::MD)
     .width(Length::FillPortion(1))
@@ -74,7 +74,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     }
 
     column![
-        text("Dashboard").size(typography::TITLE).color(theme.text_primary()),
+        text("Dashboard").size(typography::title()).color(theme.text_primary()),
         row![
             summary_card(theme, "Total Debits (Trial Balance)", state.total_assets.clone()),
             summary_card(theme, "Total Credits (Trial Balance)", state.total_equity.clone()),

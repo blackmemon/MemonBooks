@@ -1,4 +1,4 @@
-pub const CONTENT_MARGIN_FRACTION: f32 = 0.01;
+pub const CONTENT_MARGIN_FRACTION: f32 = 0.005;
 pub const RADIUS_SM: f32 = 6.0;
 pub const RADIUS_MD: f32 = 10.0;
 pub const RADIUS_LG: f32 = 14.0;

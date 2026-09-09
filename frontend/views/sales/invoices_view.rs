@@ -570,7 +570,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit draft invoice" } else { "Create an invoice" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         pick_list(state.customers.as_slice(), state.customer.clone(), Message::CustomerSelected).style(dropdown::style(theme)).placeholder("Customer"),
     ]
     .spacing(spacing::SM);
@@ -609,8 +609,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a draft row's Post button to choose an invoice".to_string());
     let post_form = column![
-        text("Post this draft").size(typography::LABEL),
-        text(format!("Invoice: {post_target_label}")).size(typography::BODY).color(theme.neutral_front()),
+        text("Post this draft").size(typography::label()),
+        text(format!("Invoice: {post_target_label}")).size(typography::body()).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.post_ar_account.clone(), Message::PostArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
         button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(spacing::SM),
     ]
@@ -625,8 +625,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a row's Record Payment button to choose an invoice".to_string());
     let payment_form = column![
-        text("Record a payment").size(typography::LABEL),
-        text(format!("Invoice: {payment_target_label}")).size(typography::BODY).color(theme.neutral_front()),
+        text("Record a payment").size(typography::label()),
+        text(format!("Invoice: {payment_target_label}")).size(typography::body()).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).style(dropdown::style(theme)).placeholder("Cash account"),
         pick_list(state.accounts.as_slice(), state.payment_ar_account.clone(), Message::PaymentArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
         text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(spacing::SM),
@@ -643,8 +643,8 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .unwrap_or_else(|| "Click a posted row's kebab menu to choose an invoice".to_string());
     let credit_note_form = column![
-        text("Issue a credit note").size(typography::LABEL),
-        text(format!("Invoice: {credit_note_target_label}")).size(typography::BODY).color(theme.neutral_front()),
+        text("Issue a credit note").size(typography::label()),
+        text(format!("Invoice: {credit_note_target_label}")).size(typography::body()).color(theme.neutral_front()),
         pick_list(state.accounts.as_slice(), state.credit_note_revenue_account.clone(), Message::CreditNoteRevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"),
         pick_list(state.accounts.as_slice(), state.credit_note_ar_account.clone(), Message::CreditNoteArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
         text_input("Description", &state.credit_note_description_input).style(inputs::text(theme)).on_input(Message::CreditNoteDescriptionChanged).width(Length::Fill).padding(spacing::SM),

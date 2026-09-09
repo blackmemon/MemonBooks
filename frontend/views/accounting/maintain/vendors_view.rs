@@ -317,7 +317,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit vendor" } else { "Add a vendor" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         text_input("Vendor name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Email (optional)", &state.email_input).style(inputs::text(theme)).on_input(Message::EmailChanged).width(Length::Fill).padding(spacing::SM),
     ]

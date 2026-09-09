@@ -11,7 +11,7 @@ use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
-use crate::frontend::components::common::{page_header, section_heading, side_panel};
+use crate::frontend::components::common::{page_header, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::spacing;
@@ -521,7 +521,6 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::BulkDelete,
     );
 
-    let heading = section_heading::view(theme, "Account list", "Every account, grouped by code order.");
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
 
@@ -580,17 +579,6 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let mut content = column![toolbar].spacing(spacing::SPACE_20).padding(spacing::CONTENT_PADDING).width(Length::Fill);
-    content = content.push(heading).push(table);
-
-    if let Some(message) = &state.message {
-        content = content.push(text(message.clone()).color(theme.positive_front()));
-    }
-    if let Some(error) = &state.error {
-        content = content.push(text(error.clone()).color(theme.negative_front()));
-    }
-
-    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
     let panel: Option<Element<'_, Message>> = if state.add_panel_open {
         Some(add_panel(state, theme))
     } else if state.columns_open {
@@ -601,7 +589,32 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         None
     };
 
-    side_panel::split(theme, base, panel)
+    let mut table_content = column![table].spacing(spacing::SPACE_20).width(Length::Fill);
+
+    if let Some(message) = &state.message {
+        table_content = table_content.push(text(message.clone()).color(theme.positive_front()));
+    }
+    if let Some(error) = &state.error {
+        table_content = table_content.push(text(error.clone()).color(theme.negative_front()));
+    }
+
+    let table_area: Element<'_, Message> = container(scrollable(table_content).height(Length::Fill)).width(Length::Fill).into();
+    let below_toolbar: Element<'_, Message> = if let Some(panel) = panel {
+        iced::widget::row![table_area, side_panel::card(theme, panel)]
+            .spacing(spacing::SPACE_20)
+            .height(Length::Fill)
+            .into()
+    } else {
+        table_area
+    };
+    let content = column![toolbar, below_toolbar]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::CONTENT_PADDING)
+        .width(Length::Fill)
+        .height(Length::Fill);
+    let base: Element<'_, Message> = content.into();
+
+    side_panel::split(theme, base, None)
 }
 
 /// The "Add Account" panel's own content -- opened via
@@ -613,21 +626,21 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
     column![
 
         iced::widget::row![
-            container(text("Account Code").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Account Code").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(text_input("Account Code", code_value).style(inputs::text(theme)).on_input_maybe(is_editing.then_some(Message::CodeChanged)).width(Length::Fill).padding(spacing::SM)).width(Length::FillPortion(7)),
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
 
         iced::widget::row![
-            container(text("Account Name").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Account Name").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(text_input("Account Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM)).width(Length::FillPortion(7)),
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
 
         iced::widget::row![
-            container(text("Account Type").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Account Type").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
                 pick_list(ACCOUNT_TYPES,state.account_type,Message::AccountTypeChanged,)
                     .style(dropdown::style(theme))
@@ -641,7 +654,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         .align_y(iced::Alignment::Center),
 
         iced::widget::row![
-            container(text("Parent Account").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Parent Account").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
                 pick_list(parent_choices(&state.accounts,state.editing_id,),
                     state.parent_account_input.clone(),
@@ -657,7 +670,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         .align_y(iced::Alignment::Center),
 
         iced::widget::row![
-            container(text("Status").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Status").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
                 pick_list(STATUS_CHOICES,Some(state.status_input),Message::StatusSelected,)
                     .style(dropdown::style(theme))
@@ -671,7 +684,7 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         .align_y(iced::Alignment::Center),
 
         iced::widget::row![
-            container(text("Description").size(typography::BODY).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(text("Description").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
                 text_editor(&state.description_content)
                     .style(inputs::text_edit(theme))
@@ -706,24 +719,23 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
 
 /// The "Export" panel's own content -- opened via `side_panel::split`
 fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
-    let select_all = button(text("Select All").size(typography::BODY).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::SelectAllExportColumns);
-    let deselect_all = button(text("Deselect All").size(typography::BODY).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::DeselectAllExportColumns);
+    let select_all = button(text("Select All").size(typography::body()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::SelectAllExportColumns);
+    let deselect_all = button(text("Deselect All").size(typography::body()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::DeselectAllExportColumns);
 
     let mut list = column![].spacing(spacing::SPACE_12);
     for (index, label) in EXPORT_COLUMN_LABELS.iter().enumerate() {
         let is_visible = state.export_column_visible.get(index).copied().unwrap_or(true);
-        list = list.push(iced::widget::checkbox(*label, is_visible).style(crate::frontend::styles::checkbox::style(theme)).on_toggle(move |_| Message::ExportColumnToggled(index)).size(16).text_size(typography::LABEL));
+        list = list.push(iced::widget::checkbox(*label, is_visible).style(crate::frontend::styles::checkbox::style(theme)).on_toggle(move |_| Message::ExportColumnToggled(index)).size(16).text_size(typography::label()));
     }
 
-    let export_button = button(text("Export").size(typography::LABEL)).padding([spacing::SPACE_10, spacing::MD]).width(Length::Fill).style(button_style::primary(theme)).on_press(Message::ConfirmExport);
+    let export_button = button(text("Export").size(typography::label())).padding([spacing::SPACE_10, spacing::MD]).width(Length::Fill).style(button_style::primary(theme)).on_press(Message::ConfirmExport);
 
     column![
-        text("Select Columns to Export").size(typography::PANEL_TITLE).color(theme.text_primary()),
+        text("Select Columns to Export").size(typography::panel_title()).color(theme.text_primary()),
         iced::widget::row![select_all, deselect_all].spacing(spacing::SM),
-        scrollable(list).height(Length::Fill),
+        scrollable(list).height(Length::Shrink),
         export_button,
     ]
     .spacing(spacing::MD)
-    .height(Length::Fill)
     .into()
 }

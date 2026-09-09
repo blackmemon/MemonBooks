@@ -302,7 +302,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit warehouse" } else { "Add a warehouse" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
     ]

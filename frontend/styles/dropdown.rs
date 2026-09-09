@@ -9,10 +9,6 @@ pub fn style(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     styled(theme, theme.text_primary())
 }
 
-pub fn muted(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
-    styled(theme, theme.neutral_front())
-}
-
 pub fn dropdown_menu(theme: Theme) -> impl Fn(&IcedTheme) -> menu_widget::Style {
     move |_iced_theme: &IcedTheme| menu_widget::Style {
         background: Background::Color(theme.surface()),

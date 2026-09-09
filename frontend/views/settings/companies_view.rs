@@ -125,7 +125,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
 
     let form = column![
-        text("Create a company").size(typography::LABEL),
+        text("Create a company").size(typography::label()),
         text_input("New company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
         button(text("Create company")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
     ]

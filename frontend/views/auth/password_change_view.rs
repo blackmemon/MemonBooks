@@ -70,7 +70,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, current_user: &Use
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let mut content = column![
-        text("Change Your Password").size(typography::TITLE),
+        text("Change Your Password").size(typography::title()),
         text("You must set a new password before continuing.").color(theme.primary()),
         text("Current password"),
         text_input("Current password", &state.current_password)

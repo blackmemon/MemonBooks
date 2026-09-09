@@ -1,6 +1,6 @@
 //! Company settings: view and edit the current company's basic info.
 
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, text, text_input};
 use iced::Element;
 
 use crate::backend::core::validation::Validate;
@@ -11,6 +11,8 @@ use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
 use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::dropdown;
+use crate::frontend::styles::font_scale::{self, FontScale};
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -27,6 +29,7 @@ pub enum Message {
     NameChanged(String),
     LegalNameChanged(String),
     ThemeChanged(Theme),
+    FontScaleChanged(FontScale),
     Save,
 }
 
@@ -34,6 +37,7 @@ pub enum Message {
 pub enum Event {
     None,
     ThemeChanged(Theme),
+    FontScaleChanged(FontScale),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -58,6 +62,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
         Message::NameChanged(value) => state.name_input = value,
         Message::LegalNameChanged(value) => state.legal_name_input = value,
         Message::ThemeChanged(theme) => return Event::ThemeChanged(theme),
+        Message::FontScaleChanged(scale) => return Event::FontScaleChanged(scale),
         Message::Save => {
             let Some(company) = state.company.clone() else { return Event::None };
             let updated = Company {
@@ -87,7 +92,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
     Event::None
 }
 
-pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+pub fn view(state: &State, theme: Theme, font_scale: FontScale) -> Element<'_, Message> {
     let Some(company) = &state.company else {
         let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
         return container(text(message).color(theme.negative_front())).padding(spacing::SPACE_20).into();
@@ -104,15 +109,24 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .padding(spacing::SM)
         .into();
 
+    let font_size_picker: Element<'_, Message> = pick_list(font_scale::ALL, Some(font_scale), Message::FontScaleChanged)
+        .style(dropdown::style(theme))
+        .menu_style(dropdown::dropdown_menu(theme))
+        .padding(spacing::SM)
+        .width(iced::Length::Fixed(180.0))
+        .into();
+
     let mut content = column![
-        text("Company Settings").size(typography::TITLE),
-        text(format!("Base currency: {}", company.base_currency_code)).size(typography::EMPHASIS),
+        text("Company Settings").size(typography::title()),
+        text(format!("Base currency: {}", company.base_currency_code)).size(typography::emphasis()),
         text("Name"),
         text_input("Company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).padding(spacing::SM),
         text("Legal name"),
         text_input("Legal name (optional)", &state.legal_name_input).style(inputs::text(theme)).on_input(Message::LegalNameChanged).padding(spacing::SM),
-        text("Appearance").size(typography::LABEL),
+        text("Appearance").size(typography::label()),
         row![light_theme_button, dark_theme_button].spacing(spacing::SM),
+        text("Font Size").size(typography::label()),
+        font_size_picker,
         button(text("Save")).style(button_style::primary(theme)).on_press(Message::Save).padding(spacing::SM),
     ]
     .spacing(spacing::SPACE_12)
@@ -198,5 +212,21 @@ mod tests {
         let stored = OrganizationService::new(ctx.db.clone()).get_company(ctx.company_id).unwrap();
         assert_eq!(stored.name, "Acme Holdings");
         assert_eq!(stored.legal_name.as_deref(), Some("Acme Holdings LLC"));
+    }
+
+    // `update()`-only tests never call `view()`, so they can't catch the
+    // iced widget-construction panics that only fire when the widget
+    // tree is actually built (e.g. `Scrollable`'s Fill-on-scroll-axis
+    // `debug_assert`) -- see the `data_table` precedent for this
+    // pattern. Sweeping every `FontScale` here doubles as the
+    // construction check for the new Font Size picker this view added.
+    #[test]
+    fn view_builds_without_panicking_at_every_font_scale() {
+        let ctx = ctx_with_company();
+        let state = load(&ctx);
+
+        for scale in font_scale::ALL {
+            let _: Element<'_, Message> = view(&state, Theme::Light, scale);
+        }
     }
 }

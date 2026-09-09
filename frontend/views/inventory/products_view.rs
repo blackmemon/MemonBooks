@@ -270,7 +270,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit product" } else { "Add a product" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         text_input("SKU", &state.sku_input).style(inputs::text(theme)).on_input(Message::SkuChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Sale price", &state.price_input).style(inputs::text(theme)).on_input(Message::PriceChanged).width(Length::Fill).padding(spacing::SM),

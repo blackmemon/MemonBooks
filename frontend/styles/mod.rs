@@ -9,6 +9,7 @@ pub mod combobox;
 pub mod datepicker;
 pub mod dialogs;
 pub mod dropdown;
+pub mod font_scale;
 pub mod fonts;
 pub mod forms;
 pub mod frames;

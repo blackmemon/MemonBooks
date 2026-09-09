@@ -18,7 +18,7 @@
 //! appears as a bare single-value `.padding(N)`, only as the
 //! horizontal half of a button's `[8.0, 14.0]` pair (11 call sites), so
 //! the original single-value audit pass didn't catch it. It numerically
-//! matches `typography::EMPHASIS` (`14.0`), but that's coincidence, not
+//! matches `typography::emphasis()` (`14.0`), but that's coincidence, not
 //! shared meaning -- one is a padding distance, the other a font size --
 //! so it gets its own constant here rather than reusing that one.
 

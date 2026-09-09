@@ -27,11 +27,12 @@ use memonbooks::backend::repositories::accounting_repository::AccountingReposito
 use memonbooks::backend::repositories::organization_repository::OrganizationRepository;
 use memonbooks::backend::repositories::user_repository::UserRepository;
 use memonbooks::configs::app::AppConfig;
-use memonbooks::configs::theme_preference;
+use memonbooks::configs::{font_scale_preference, theme_preference};
 use memonbooks::database::database::Database;
 use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
+use memonbooks::frontend::styles::font_scale::{self, FontScale};
 use memonbooks::frontend::styles::{spacing, states, typography, dropdown};
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
 use memonbooks::frontend::views::accounting::{fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
@@ -173,6 +174,15 @@ fn main() -> iced::Result {
     let theme_path = config.data_dir.join("theme_preference.txt");
     let theme = theme_preference::load(&theme_path).unwrap_or_else(detect_os_theme);
 
+    let font_scale_path = config.data_dir.join("font_scale_preference.txt");
+    let font_scale = font_scale_preference::load(&font_scale_path).unwrap_or_default();
+    // Every `typography`/`headers`/`fonts` size getter reads through
+    // this global mirror (see `frontend::styles::font_scale`) -- set it
+    // once here before the first `view()` so the very first frame
+    // already renders at the persisted size, then again whenever the
+    // Settings picker changes it.
+    font_scale::set(font_scale);
+
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
         .theme(|state: &MemonBooks| match state.theme {
             Theme::Light => iced::Theme::Light,
@@ -185,7 +195,7 @@ fn main() -> iced::Result {
             resizable: true,
             ..iced::window::Settings::default()
         })
-        .run_with(move || (MemonBooks::new(ctx, theme, theme_path, startup_user), Task::none()))
+        .run_with(move || (MemonBooks::new(ctx, theme, theme_path, font_scale, font_scale_path, startup_user), Task::none()))
 }
 
 
@@ -304,6 +314,15 @@ struct MemonBooks {
     /// text file under the app's data directory, not the database (this
     /// is a device-level UI preference, not company data).
     theme_path: PathBuf,
+    /// The Settings screen's Font Size choice. Mirrored into
+    /// `frontend::styles::font_scale`'s global on every change (see
+    /// `Message::Settings`) so every view's `.size()` call picks it up
+    /// without a restart -- this field itself just drives the Settings
+    /// picker's display and persistence, same relationship `theme` has
+    /// with the sidebar toggle.
+    font_scale: FontScale,
+    /// Same reasoning as `theme_path`, for `font_scale`.
+    font_scale_path: PathBuf,
     route: Route,
     /// Which side/document the "Transactions" area currently shows --
     /// independent of `route`, same reasoning as `maintain_selected`.
@@ -363,7 +382,7 @@ enum Message {
 }
 
 impl MemonBooks {
-    fn new(ctx: Ctx, theme: Theme, theme_path: PathBuf, startup_user: User) -> Self {
+    fn new(ctx: Ctx, theme: Theme, theme_path: PathBuf, font_scale: FontScale, font_scale_path: PathBuf, startup_user: User) -> Self {
         let can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(ctx.db.clone())
             .has_permission(&startup_user, "users.manage")
             .unwrap_or(false);
@@ -373,6 +392,8 @@ impl MemonBooks {
             can_manage_users,
             theme,
             theme_path,
+            font_scale,
+            font_scale_path,
             route: Route::Dashboard,
             transaction_side: TransactionSide::Purchase,
             transaction_document: TransactionDocument::Bills,
@@ -500,14 +521,22 @@ impl MemonBooks {
             Message::Expenses(inner) => expenses_view::update(&mut self.expenses, inner, &self.ctx),
             Message::Pos(inner) => pos_view::update(&mut self.pos, inner, &self.ctx),
             Message::Reports(inner) => reports_view::update(&mut self.reports, inner, &self.ctx),
-            Message::Settings(inner) => {
-                if let settings_view::Event::ThemeChanged(theme) = settings_view::update(&mut self.settings, inner, &self.ctx) {
+            Message::Settings(inner) => match settings_view::update(&mut self.settings, inner, &self.ctx) {
+                settings_view::Event::ThemeChanged(theme) => {
                     self.theme = theme;
                     if let Err(err) = theme_preference::save(&self.theme_path, theme) {
                         log::warn!("failed to persist theme preference: {err}");
                     }
                 }
-            }
+                settings_view::Event::FontScaleChanged(scale) => {
+                    self.font_scale = scale;
+                    font_scale::set(scale);
+                    if let Err(err) = font_scale_preference::save(&self.font_scale_path, scale) {
+                        log::warn!("failed to persist font size preference: {err}");
+                    }
+                }
+                settings_view::Event::None => {}
+            },
             Message::Companies(inner) => {
                 if let companies_view::Event::Switched(company_id) = companies_view::update(&mut self.companies, inner, &self.ctx) {
                     self.ctx.company_id = company_id;
@@ -615,7 +644,7 @@ impl MemonBooks {
             Route::Expenses => expenses_view::view(&self.expenses, self.theme).map(Message::Expenses),
             Route::Pos => pos_view::view(&self.pos, self.theme).map(Message::Pos),
             Route::Reports => reports_view::view(&self.reports, self.theme).map(Message::Reports),
-            Route::Settings => settings_view::view(&self.settings, self.theme).map(Message::Settings),
+            Route::Settings => settings_view::view(&self.settings, self.theme, self.font_scale).map(Message::Settings),
             Route::Companies => companies_view::view(&self.companies, self.theme).map(Message::Companies),
             Route::SwitchUser => switch_user_view::view(&self.switch_user, self.theme).map(Message::SwitchUser),
             Route::Users => users_view::view(&self.users, self.theme).map(Message::Users),
@@ -654,7 +683,7 @@ impl MemonBooks {
 /// `button::secondary`.
 fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
     let label = label.to_string();
-    let btn = button(text(label).size(typography::LABEL)).padding([spacing::SM, spacing::MD]).on_press(on_press);
+    let btn = button(text(label).size(typography::label())).padding([spacing::SM, spacing::MD]).on_press(on_press);
     if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
 }
 

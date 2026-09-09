@@ -16,11 +16,11 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_del
     let label = if selected_count == 1 { "1 selected".to_string() } else { format!("{selected_count} selected") };
 
     let bar = row![
-        text(label).size(typography::LABEL).color(theme.primary()),
+        text(label).size(typography::label()).color(theme.primary()),
         Space::with_width(Length::Fill),
-        button(text("Export CSV").size(typography::BODY)).style(button_style::secondary(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_export_csv),
-        button(text("Delete").size(typography::BODY)).style(button_style::destructive(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_delete),
-        button(text("Clear").size(typography::BODY)).style(button_style::plain(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_clear_selection),
+        button(text("Export CSV").size(typography::body())).style(button_style::secondary(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_export_csv),
+        button(text("Delete").size(typography::body())).style(button_style::destructive(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_delete),
+        button(text("Clear").size(typography::body())).style(button_style::plain(theme)).padding([spacing::SM, spacing::SPACE_14]).on_press(on_clear_selection),
     ]
     .spacing(spacing::SM)
     .align_y(Alignment::Center)

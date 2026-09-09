@@ -338,7 +338,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let form_heading = if state.editing_id.is_some() { "Edit bank account" } else { "Add a bank account" };
     let mut form = column![
-        text(form_heading).size(typography::LABEL),
+        text(form_heading).size(typography::label()),
         pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).style(dropdown::style(theme)).placeholder("GL account"),
         text_input("Bank name", &state.bank_name_input).style(inputs::text(theme)).on_input(Message::BankNameChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Account number", &state.account_number_input).style(inputs::text(theme)).on_input(Message::AccountNumberChanged).width(Length::Fill).padding(spacing::SM),

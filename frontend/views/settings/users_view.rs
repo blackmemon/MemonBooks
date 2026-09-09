@@ -256,7 +256,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     );
 
     let create_form = column![
-        text("Create a user").size(typography::LABEL),
+        text("Create a user").size(typography::label()),
         text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(spacing::SM),
         text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(spacing::SM),
         pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).style(dropdown::style(theme)).placeholder("Role"),
@@ -268,9 +268,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     if let Some(password) = &state.generated_password {
         let notice = column![
-            text(format!("Temporary password for {}", state.generated_password_for)).size(typography::LABEL),
-            text(password.clone()).size(typography::SUBTITLE).color(theme.primary()),
-            text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(typography::BODY).color(theme.neutral_front()),
+            text(format!("Temporary password for {}", state.generated_password_for)).size(typography::label()),
+            text(password.clone()).size(typography::subtitle()).color(theme.primary()),
+            text("Shown once -- copy it now and hand it to the user directly. They'll be asked to set their own password on first login.").size(typography::body()).color(theme.neutral_front()),
             button(text("Done")).style(button_style::secondary(theme)).on_press(Message::DismissGeneratedPassword).padding(spacing::SPACE_6),
         ]
         .spacing(spacing::SPACE_6)
@@ -285,7 +285,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         let editing_user = state.users.iter().find(|u| u.id == Some(id));
         let heading_text = editing_user.map(|u| format!("Edit {}", u.display_name)).unwrap_or_else(|| "Edit user".to_string());
         let edit_panel = column![
-            text(heading_text).size(typography::LABEL),
+            text(heading_text).size(typography::label()),
             pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).style(dropdown::style(theme)).placeholder("Role"),
             checkbox("Active", state.edit_is_active).style(checkbox_style::style(theme)).on_toggle(Message::EditActiveToggled),
             iced::widget::row![

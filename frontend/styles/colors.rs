@@ -38,7 +38,7 @@ impl Theme {
 
     pub fn neutral_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
+            Theme::Light => rgb8(248, 250, 252),
             Theme::Dark => rgb8(0x2A, 0x2C, 0x31),
         }
     }

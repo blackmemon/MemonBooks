@@ -157,7 +157,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .into()
     };
 
-    let mut content = column![text("Switch User").size(typography::TITLE), form].spacing(spacing::MD).padding(spacing::SPACE_20).max_width(360);
+    let mut content = column![text("Switch User").size(typography::title()), form].spacing(spacing::MD).padding(spacing::SPACE_20).max_width(360);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));

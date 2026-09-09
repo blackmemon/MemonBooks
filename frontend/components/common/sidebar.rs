@@ -47,9 +47,9 @@ pub fn view<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let logo_row = row![
         icon_slot(&app_name.chars().take(2).collect::<String>(), theme.primary(), theme.accent_front()),
-        if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, typography::APP_NAME, theme.text_primary()) },
+        if collapsed { Space::with_width(Length::Fixed(0.0)).into() } else { bold_text(app_name, typography::app_name(), theme.text_primary()) },
         Space::with_width(Length::Fill),
-        button(text(if collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_LEFT }).size(typography::EMPHASIS))
+        button(text(if collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_LEFT }).size(typography::emphasis()))
             .style(button_style::plain(theme))
             .on_press(on_toggle_collapse)
     ]
@@ -73,9 +73,9 @@ pub fn view<'a, Message: Clone + 'a>(
     } else {
         row![
             icon_slot(&profile_initial, theme.neutral_bg(), theme.neutral_front()),
-            column![bold_text(user_name, typography::PROFILE_NAME, theme.text_primary()), text(user_subtitle).size(typography::CAPTION).color(theme.neutral_front())].spacing(spacing::SPACE_2),
+            column![bold_text(user_name, typography::profile_name(), theme.text_primary()), text(user_subtitle).size(typography::caption()).color(theme.neutral_front())].spacing(spacing::SPACE_2),
             Space::with_width(Length::Fill),
-            text(icons::CARET_DOWN).size(typography::CAPTION).color(theme.neutral_front()),
+            text(icons::CARET_DOWN).size(typography::caption()).color(theme.neutral_front()),
         ]
         .spacing(spacing::SM)
         .align_y(Alignment::Center)
@@ -90,7 +90,7 @@ pub fn view<'a, Message: Clone + 'a>(
     // icon for the mode a click would switch *to*, sitting right beside
     // the profile card so it's always reachable regardless of collapse
     // state.
-    let theme_toggle = button(text(if theme == Theme::Dark { icons::SUN } else { icons::MOON }).size(typography::EMPHASIS))
+    let theme_toggle = button(text(if theme == Theme::Dark { icons::SUN } else { icons::MOON }).size(typography::emphasis()))
         .style(button_style::plain(theme))
         .on_press(on_toggle_theme)
         .width(Length::Fixed(36.0));
@@ -124,9 +124,9 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
 
     let monogram = item.label.chars().next().unwrap_or('?').to_uppercase().to_string();
     let content: Element<'a, Message> = if collapsed {
-        container(text(monogram).size(typography::BODY).color(front)).width(Length::Fill).align_x(iced::alignment::Horizontal::Center).into()
+        container(text(monogram).size(typography::body()).color(front)).width(Length::Fill).align_x(iced::alignment::Horizontal::Center).into()
     } else {
-        row![text(monogram).size(typography::BODY).color(front).width(Length::Fixed(22.0)), text(item.label).size(typography::LABEL).color(front)].spacing(spacing::SM).align_y(Alignment::Center).into()
+        row![text(monogram).size(typography::body()).color(front).width(Length::Fixed(22.0)), text(item.label).size(typography::label()).color(front)].spacing(spacing::SM).align_y(Alignment::Center).into()
     };
 
     button(container(content).padding([spacing::SPACE_10, spacing::SPACE_12]).width(Length::Fill))
@@ -137,7 +137,7 @@ fn nav_row<'a, Message: Clone + 'a>(theme: Theme, item: NavEntry<'a>, collapsed:
 }
 
 fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'a, Message> {
-    container(text(label.to_string()).size(typography::BODY).color(front).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
+    container(text(label.to_string()).size(typography::body()).color(front).font(Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT }))
         .width(Length::Fixed(36.0))
         .height(Length::Fixed(36.0))
         .align_x(iced::alignment::Horizontal::Center)

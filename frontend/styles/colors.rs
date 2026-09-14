@@ -30,7 +30,7 @@ impl Theme {
 
     pub fn page_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+            Theme::Light => rgb8(252, 252, 252),
             Theme::Dark => rgb8(34, 34, 38),
         }
     }
@@ -38,7 +38,7 @@ impl Theme {
 
     pub fn neutral_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(248, 250, 252),
+            Theme::Light => rgb8(255, 255, 255),
             Theme::Dark => rgb8(0x2A, 0x2C, 0x31),
         }
     }
@@ -53,6 +53,20 @@ impl Theme {
     pub fn neutral_font(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x11, 0x18, 0x27),
+            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+        }
+    }
+
+    pub fn neutral_border(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(235, 235, 235),
+            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+        }
+    }
+
+    pub fn neutral_border_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
             Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
         }
     }

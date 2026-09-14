@@ -10,13 +10,17 @@ pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
             Status::Hovered | Status::Pressed => theme.neutral_bg_hover(),
             _ => theme.neutral_bg(),
         };
+        let border_color = match status {
+            Status::Hovered | Status::Pressed => theme.neutral_border_hover(),
+            _ => theme.neutral_border(),
+        };
 
         Style {
             background: Some(Background::Color(background)),
             text_color: theme.neutral_font(),
             border: Border {
                 width: states::STYLES_BORDER_WIDTH_ALPHA,
-                color: background,
+                color: border_color,
                 radius: states::RADIUS_SM.into(),
                 ..Border::default()
             },

@@ -503,7 +503,7 @@ pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a 
     let header_action: Message = if state.add_panel_open { Message::CloseAddPanel } else { Message::OpenAddPanel };
     let header =
         container(page_header::view_with_switcher_action_style(theme, TITLE, "", switcher, header_label, wrap(header_action), state.add_panel_open)).padding(spacing::HEADER_PADDING);
-    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
+    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_4).into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -608,7 +608,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         table_area
     };
     let content = column![toolbar, below_toolbar]
-        .spacing(spacing::SPACE_20)
+        .spacing(spacing::SPACE_12)
         .padding(spacing::CONTENT_PADDING)
         .width(Length::Fill)
         .height(Length::Fill);

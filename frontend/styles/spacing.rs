@@ -33,6 +33,7 @@ pub const XL: f32 = 32.0;
 pub const SPACE_2: f32 = 2.0;
 pub const SPACE_4: f32 = 4.0;
 pub const SPACE_6: f32 = 6.0;
+pub const SPACE_8: f32 = 8.0;
 pub const SPACE_10: f32 = 10.0;
 pub const SPACE_12: f32 = 12.0;
 pub const SPACE_14: f32 = 14.0;

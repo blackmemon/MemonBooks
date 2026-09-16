@@ -37,3 +37,16 @@ pub const KEBAB: &str = "\u{22EE}";
 
 /// Leading dot on a data table status pill (`Cell::Status`).
 pub const STATUS_DOT: &str = "\u{25CF}";
+
+/// Tree row toggle, shown when a parent node (an account with children)
+/// is expanded -- points down since that's the direction its children
+/// are listed. Kept distinct from `SORT_DESCENDING`, even though both
+/// are the same down-triangle glyph today, since the two meanings
+/// (tree state vs. column sort) have no reason to stay visually
+/// coupled if either changes later.
+pub const TREE_EXPANDED: &str = "\u{25BC}";
+
+/// Tree row toggle, shown when a parent node is collapsed (points the
+/// direction -- right, toward its hidden children -- a click would
+/// expand it).
+pub const TREE_COLLAPSED: &str = "\u{25BA}";

@@ -11,6 +11,7 @@ use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
+use crate::frontend::components::common::tree_view;
 use crate::frontend::components::common::{page_header, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
@@ -101,6 +102,18 @@ impl std::fmt::Display for StatusChoice {
 
 const STATUS_CHOICES: [StatusChoice; 2] = [StatusChoice::Active, StatusChoice::Inactive];
 
+/// Which layout the account list renders in -- the flat, sortable
+/// table (with search/filter/bulk-select/export) or the hierarchical
+/// tree (always showing the full chart, unfiltered, since collapsing
+/// a parent that a search match lives under would just hide the
+/// result).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ViewMode {
+    #[default]
+    List,
+    Tree,
+}
+
 fn format_timestamp(unix_seconds: i64) -> String {
     chrono::DateTime::from_timestamp(unix_seconds, 0).map(|dt| dt.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default()
 }
@@ -119,6 +132,8 @@ pub struct State {
     search: String,
     editing_id: Option<i64>,
     selected: HashSet<i64>,
+    view_mode: ViewMode,
+    expanded_accounts: HashSet<i64>,
     add_panel_open: bool,
     add_reference_code: String,
     status_filter: StatusFilter,
@@ -147,6 +162,8 @@ pub enum Message {
     RowSelected(i64, bool),
     SelectAllChanged(Vec<i64>, bool),
     ClearSelection,
+    ViewModeChanged(ViewMode),
+    ToggleAccountExpanded(i64),
     BulkDelete,
     ToggleExportPanel,
     ExportColumnToggled(usize),
@@ -170,7 +187,11 @@ pub fn load(ctx: &Ctx) -> State {
         Err(err) => return State { error: Some(err.to_string()), ..Default::default() },
     };
     let balances = account_balances(&service, ctx.company_id);
-    State { accounts, balances, ..Default::default() }
+    // Top-level accounts (Assets, Liabilities, ...) start expanded so
+    // the tree shows something useful before the user touches a
+    // toggle at all; everything below that starts collapsed.
+    let expanded_accounts = accounts.iter().filter(|a| a.parent_account.is_none()).filter_map(|a| a.id).collect();
+    State { accounts, balances, expanded_accounts, ..Default::default() }
 }
 
 /// Every account's current debit/credit/net balance, derived from
@@ -373,6 +394,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::ClearSelection => state.selected.clear(),
+        Message::ViewModeChanged(mode) => state.view_mode = mode,
+        Message::ToggleAccountExpanded(id) => {
+            if !state.expanded_accounts.remove(&id) {
+                state.expanded_accounts.insert(id);
+            }
+        }
         Message::BulkDelete => {
             state.message = None;
             state.error = None;
@@ -521,63 +548,88 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::BulkDelete,
     );
 
-    let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
+    let view_mode_toggle = iced::widget::row![
+        button(text("List").size(typography::label()).font(fonts::BOLD)).style(button_style::mode(theme, state.view_mode == ViewMode::List)).padding([spacing::SM, spacing::SPACE_14]).on_press(Message::ViewModeChanged(ViewMode::List)),
+        button(text("Tree").size(typography::label()).font(fonts::BOLD)).style(button_style::mode(theme, state.view_mode == ViewMode::Tree)).padding([spacing::SM, spacing::SPACE_14]).on_press(Message::ViewModeChanged(ViewMode::Tree)),
+    ]
+    .spacing(spacing::SPACE_2);
 
-    let columns = COLUMN_LABELS
-        .iter()
-        .enumerate()
-        .map(|(index, &label)| {
-            let width = match index {
-                0 | 1 | 3 | 5 | 6 | 7 | 8 => Length::FillPortion(1),
-                2 => Length::FillPortion(3),
-                4 => Length::FillPortion(2),
-                9..=11 => Length::FillPortion(2),
-                _ => Length::FillPortion(1),
-            };
-            let column = ColumnDef::new(label, width);
-            if index == 1 { column.sorted(SortDirection::Ascending) } else { column }
-        })
-        .collect();
+    let primary_view: Element<'_, Message> = match state.view_mode {
+        ViewMode::List => {
+            let query = state.search.trim().to_lowercase();
+            let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
 
-    let rows = filtered
-        .iter()
-        .enumerate()
-        .map(|(index, account)| {
-            let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
-            Row::new(vec![
-                Cell::text((index + 1).to_string()),
-                Cell::text(account.account_code.clone()),
-                Cell::text(account.account_name.clone()),
-                Cell::text(account.account_type.as_str()),
-                Cell::text(account_parent_label(&state.accounts, account)),
-                Cell::text(format!("{:.2}", balance.debit)),
-                Cell::text(format!("{:.2}", balance.credit)),
-                Cell::text(format!("{:.2}", balance.net_balance)),
-                if account.is_active() { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
-                Cell::text(account.description.clone()),
-                Cell::text(format_timestamp(account.create_timestamp)),
-                Cell::text(format_timestamp(account.modified_timestamp)),
-            ])
-        })
-        .collect();
-    
-    let row_ids: Vec<i64> = filtered.iter().map(|a| a.id.unwrap_or_default()).collect();
-    let select_ids = row_ids.clone();
-    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
-    let edit_ids = row_ids.clone();
-    let edit_ids_primary = row_ids.clone();
-    let table = data_table::view_with_column_visibility(
-        theme,
-        columns,
-        &state.column_visible,
-        rows,
-        Some(selected_flags),
-        move |index, checked| Message::RowSelected(row_ids[index], checked),
-        move |checked| Message::SelectAllChanged(select_ids.clone(), checked),
-        move |index| Message::EditRow(edit_ids[index]),
-        move |index| Message::EditRow(edit_ids_primary[index]),
-    );
+            let columns = COLUMN_LABELS
+                .iter()
+                .enumerate()
+                .map(|(index, &label)| {
+                    let width = match index {
+                        0 | 1 | 3 | 5 | 6 | 7 | 8 => Length::FillPortion(1),
+                        2 => Length::FillPortion(3),
+                        4 => Length::FillPortion(2),
+                        9..=11 => Length::FillPortion(2),
+                        _ => Length::FillPortion(1),
+                    };
+                    let column = ColumnDef::new(label, width);
+                    if index == 1 { column.sorted(SortDirection::Ascending) } else { column }
+                })
+                .collect();
+
+            let rows = filtered
+                .iter()
+                .enumerate()
+                .map(|(index, account)| {
+                    let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
+                    Row::new(vec![
+                        Cell::text((index + 1).to_string()),
+                        Cell::text(account.account_code.clone()),
+                        Cell::text(account.account_name.clone()),
+                        Cell::text(account.account_type.as_str()),
+                        Cell::text(account_parent_label(&state.accounts, account)),
+                        Cell::text(format!("{:.2}", balance.debit)),
+                        Cell::text(format!("{:.2}", balance.credit)),
+                        Cell::text(format!("{:.2}", balance.net_balance)),
+                        if account.is_active() { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+                        Cell::text(account.description.clone()),
+                        Cell::text(format_timestamp(account.create_timestamp)),
+                        Cell::text(format_timestamp(account.modified_timestamp)),
+                    ])
+                })
+                .collect();
+
+            let row_ids: Vec<i64> = filtered.iter().map(|a| a.id.unwrap_or_default()).collect();
+            let select_ids = row_ids.clone();
+            let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+            let edit_ids = row_ids.clone();
+            let edit_ids_primary = row_ids.clone();
+            data_table::view_with_column_visibility(
+                theme,
+                columns,
+                &state.column_visible,
+                rows,
+                Some(selected_flags),
+                move |index, checked| Message::RowSelected(row_ids[index], checked),
+                move |checked| Message::SelectAllChanged(select_ids.clone(), checked),
+                move |index| Message::EditRow(edit_ids[index]),
+                move |index| Message::EditRow(edit_ids_primary[index]),
+            )
+        }
+        ViewMode::Tree => {
+            let nodes: Vec<tree_view::Node> = state
+                .accounts
+                .iter()
+                .map(|account| {
+                    let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
+                    let content = tree_view::NodeContent::new(account.account_name.clone())
+                        .with_code(account.account_code.clone())
+                        .with_trailing(format!("{:.2}", balance.net_balance))
+                        .muted(!account.is_active());
+                    tree_view::Node::new(account.id.unwrap_or_default(), account.parent_account, content)
+                })
+                .collect();
+            tree_view::view(theme, nodes, &state.expanded_accounts, Message::ToggleAccountExpanded, Message::EditRow)
+        }
+    };
 
     let panel: Option<Element<'_, Message>> = if state.add_panel_open {
         Some(add_panel(state, theme))
@@ -589,7 +641,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         None
     };
 
-    let mut table_content = column![table].spacing(spacing::SPACE_20).width(Length::Fill);
+    let mut table_content = column![primary_view].spacing(spacing::SPACE_20).width(Length::Fill);
 
     if let Some(message) = &state.message {
         table_content = table_content.push(text(message.clone()).color(theme.positive_front()));
@@ -607,7 +659,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     } else {
         table_area
     };
-    let content = column![toolbar, below_toolbar]
+    let content = column![toolbar, view_mode_toggle, below_toolbar]
         .spacing(spacing::SPACE_12)
         .padding(spacing::CONTENT_PADDING)
         .width(Length::Fill)

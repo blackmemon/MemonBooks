@@ -15,3 +15,4 @@ pub mod section_heading;
 pub mod side_panel;
 pub mod sidebar;
 pub mod toolbar;
+pub mod tree_view;

@@ -11,7 +11,6 @@ use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
-use crate::frontend::components::common::tree_view;
 use crate::frontend::components::common::{page_header, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
 use crate::frontend::styles::colors::Theme;
@@ -102,18 +101,6 @@ impl std::fmt::Display for StatusChoice {
 
 const STATUS_CHOICES: [StatusChoice; 2] = [StatusChoice::Active, StatusChoice::Inactive];
 
-/// Which layout the account list renders in -- the flat, sortable
-/// table (with search/filter/bulk-select/export) or the hierarchical
-/// tree (always showing the full chart, unfiltered, since collapsing
-/// a parent that a search match lives under would just hide the
-/// result).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ViewMode {
-    #[default]
-    List,
-    Tree,
-}
-
 fn format_timestamp(unix_seconds: i64) -> String {
     chrono::DateTime::from_timestamp(unix_seconds, 0).map(|dt| dt.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default()
 }
@@ -132,8 +119,6 @@ pub struct State {
     search: String,
     editing_id: Option<i64>,
     selected: HashSet<i64>,
-    view_mode: ViewMode,
-    expanded_accounts: HashSet<i64>,
     add_panel_open: bool,
     add_reference_code: String,
     status_filter: StatusFilter,
@@ -162,8 +147,6 @@ pub enum Message {
     RowSelected(i64, bool),
     SelectAllChanged(Vec<i64>, bool),
     ClearSelection,
-    ViewModeChanged(ViewMode),
-    ToggleAccountExpanded(i64),
     BulkDelete,
     ToggleExportPanel,
     ExportColumnToggled(usize),
@@ -187,11 +170,7 @@ pub fn load(ctx: &Ctx) -> State {
         Err(err) => return State { error: Some(err.to_string()), ..Default::default() },
     };
     let balances = account_balances(&service, ctx.company_id);
-    // Top-level accounts (Assets, Liabilities, ...) start expanded so
-    // the tree shows something useful before the user touches a
-    // toggle at all; everything below that starts collapsed.
-    let expanded_accounts = accounts.iter().filter(|a| a.parent_account.is_none()).filter_map(|a| a.id).collect();
-    State { accounts, balances, expanded_accounts, ..Default::default() }
+    State { accounts, balances, ..Default::default() }
 }
 
 /// Every account's current debit/credit/net balance, derived from
@@ -320,7 +299,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.add_panel_open = true;
             state.columns_open = false;
             state.export_panel_open = false;
-            state.add_reference_code = reference_code::generate_code("coa");
+            state.add_reference_code = reference_code::generate_code("COA");
             state.code_input.clear();
             state.name_input.clear();
             state.account_type = None;
@@ -394,12 +373,6 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::ClearSelection => state.selected.clear(),
-        Message::ViewModeChanged(mode) => state.view_mode = mode,
-        Message::ToggleAccountExpanded(id) => {
-            if !state.expanded_accounts.remove(&id) {
-                state.expanded_accounts.insert(id);
-            }
-        }
         Message::BulkDelete => {
             state.message = None;
             state.error = None;
@@ -548,88 +521,81 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::BulkDelete,
     );
 
-    let view_mode_toggle = iced::widget::row![
-        button(text("List").size(typography::label()).font(fonts::BOLD)).style(button_style::mode(theme, state.view_mode == ViewMode::List)).padding([spacing::SM, spacing::SPACE_14]).on_press(Message::ViewModeChanged(ViewMode::List)),
-        button(text("Tree").size(typography::label()).font(fonts::BOLD)).style(button_style::mode(theme, state.view_mode == ViewMode::Tree)).padding([spacing::SM, spacing::SPACE_14]).on_press(Message::ViewModeChanged(ViewMode::Tree)),
-    ]
-    .spacing(spacing::SPACE_2);
+    let query = state.search.trim().to_lowercase();
+    let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
 
-    let primary_view: Element<'_, Message> = match state.view_mode {
-        ViewMode::List => {
-            let query = state.search.trim().to_lowercase();
-            let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
+    let columns: Vec<ColumnDef> = COLUMN_LABELS
+        .iter()
+        .enumerate()
+        .map(|(index, &label)| {
+            let width = match index {
+                0 => Length::Fixed(70.0),
+                1 => Length::Fixed(130.0),
+                2 => Length::Fixed(260.0),
+                3 => Length::Fixed(140.0),
+                4 => Length::Fixed(220.0),
+                5 => Length::Fixed(110.0),
+                6 => Length::Fixed(110.0),
+                7 => Length::Fixed(120.0),
+                8 => Length::Fixed(110.0),
+                9 => Length::Fixed(220.0),
+                10 | 11 => Length::Fixed(160.0),
+                _ => Length::Fixed(120.0),
+            };
+            let column = ColumnDef::new(label, width);
+            if index == 1 { column.sorted(SortDirection::Ascending) } else { column }
+        })
+        .collect();
+    let table_width = data_table::frozen_header_row_width(&columns, &state.column_visible, true);
 
-            let columns = COLUMN_LABELS
-                .iter()
-                .enumerate()
-                .map(|(index, &label)| {
-                    let width = match index {
-                        0 | 1 | 3 | 5 | 6 | 7 | 8 => Length::FillPortion(1),
-                        2 => Length::FillPortion(3),
-                        4 => Length::FillPortion(2),
-                        9..=11 => Length::FillPortion(2),
-                        _ => Length::FillPortion(1),
-                    };
-                    let column = ColumnDef::new(label, width);
-                    if index == 1 { column.sorted(SortDirection::Ascending) } else { column }
-                })
-                .collect();
+    let rows = filtered
+        .iter()
+        .enumerate()
+        .map(|(index, account)| {
+            let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
+            Row::new(vec![
+                Cell::text((index + 1).to_string()),
+                Cell::text(account.account_code.clone()),
+                Cell::text(account.account_name.clone()),
+                Cell::text(account.account_type.as_str()),
+                Cell::text(account_parent_label(&state.accounts, account)),
+                Cell::text(format!("{:.2}", balance.debit)),
+                Cell::text(format!("{:.2}", balance.credit)),
+                Cell::text(format!("{:.2}", balance.net_balance)),
+                if account.is_active() { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+                Cell::text(account.description.clone()),
+                Cell::text(format_timestamp(account.create_timestamp)),
+                Cell::text(format_timestamp(account.modified_timestamp)),
+            ])
+            .highlighted(state.editing_id.is_some() && account.id == state.editing_id)
+        })
+        .collect();
 
-            let rows = filtered
-                .iter()
-                .enumerate()
-                .map(|(index, account)| {
-                    let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
-                    Row::new(vec![
-                        Cell::text((index + 1).to_string()),
-                        Cell::text(account.account_code.clone()),
-                        Cell::text(account.account_name.clone()),
-                        Cell::text(account.account_type.as_str()),
-                        Cell::text(account_parent_label(&state.accounts, account)),
-                        Cell::text(format!("{:.2}", balance.debit)),
-                        Cell::text(format!("{:.2}", balance.credit)),
-                        Cell::text(format!("{:.2}", balance.net_balance)),
-                        if account.is_active() { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
-                        Cell::text(account.description.clone()),
-                        Cell::text(format_timestamp(account.create_timestamp)),
-                        Cell::text(format_timestamp(account.modified_timestamp)),
-                    ])
-                })
-                .collect();
-
-            let row_ids: Vec<i64> = filtered.iter().map(|a| a.id.unwrap_or_default()).collect();
-            let select_ids = row_ids.clone();
-            let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
-            let edit_ids = row_ids.clone();
-            let edit_ids_primary = row_ids.clone();
-            data_table::view_with_column_visibility(
-                theme,
-                columns,
-                &state.column_visible,
-                rows,
-                Some(selected_flags),
-                move |index, checked| Message::RowSelected(row_ids[index], checked),
-                move |checked| Message::SelectAllChanged(select_ids.clone(), checked),
-                move |index| Message::EditRow(edit_ids[index]),
-                move |index| Message::EditRow(edit_ids_primary[index]),
-            )
-        }
-        ViewMode::Tree => {
-            let nodes: Vec<tree_view::Node> = state
-                .accounts
-                .iter()
-                .map(|account| {
-                    let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
-                    let content = tree_view::NodeContent::new(account.account_name.clone())
-                        .with_code(account.account_code.clone())
-                        .with_trailing(format!("{:.2}", balance.net_balance))
-                        .muted(!account.is_active());
-                    tree_view::Node::new(account.id.unwrap_or_default(), account.parent_account, content)
-                })
-                .collect();
-            tree_view::view(theme, nodes, &state.expanded_accounts, Message::ToggleAccountExpanded, Message::EditRow)
-        }
-    };
+    let row_ids: Vec<i64> = filtered.iter().map(|a| a.id.unwrap_or_default()).collect();
+    let select_ids = row_ids.clone();
+    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let edit_ids = row_ids.clone();
+    let edit_ids_primary = row_ids.clone();
+    let table = data_table::view_with_frozen_header(
+        theme,
+        columns,
+        &state.column_visible,
+        rows,
+        Some(selected_flags),
+        move |index, checked| Message::RowSelected(row_ids[index], checked),
+        move |checked| Message::SelectAllChanged(select_ids.clone(), checked),
+        move |index| Message::EditRow(edit_ids[index]),
+        move |index| Message::EditRow(edit_ids_primary[index]),
+    );
+    // Fixed-width so the table keeps its original size (columns don't
+    // compress) when the side panel narrows the space available to it
+    // -- `scrollable` then grows a horizontal scrollbar for the part
+    // that no longer fits, instead of the table shrinking to match.
+    let primary_view: Element<'_, Message> = scrollable(container(table).width(Length::Fixed(table_width)).height(Length::Shrink))
+        .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into();
 
     let panel: Option<Element<'_, Message>> = if state.add_panel_open {
         Some(add_panel(state, theme))
@@ -641,7 +607,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         None
     };
 
-    let mut table_content = column![primary_view].spacing(spacing::SPACE_20).width(Length::Fill);
+    let mut table_content = column![].spacing(spacing::SPACE_20).width(Length::Fill).height(Length::Fill);
 
     if let Some(message) = &state.message {
         table_content = table_content.push(text(message.clone()).color(theme.positive_front()));
@@ -649,8 +615,9 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     if let Some(error) = &state.error {
         table_content = table_content.push(text(error.clone()).color(theme.negative_front()));
     }
+    table_content = table_content.push(primary_view);
 
-    let table_area: Element<'_, Message> = container(scrollable(table_content).height(Length::Fill)).width(Length::Fill).into();
+    let table_area: Element<'_, Message> = container(table_content).width(Length::Fill).height(Length::Fill).into();
     let below_toolbar: Element<'_, Message> = if let Some(panel) = panel {
         iced::widget::row![table_area, side_panel::card(theme, panel)]
             .spacing(spacing::SPACE_20)
@@ -659,7 +626,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     } else {
         table_area
     };
-    let content = column![toolbar, view_mode_toggle, below_toolbar]
+    let content = column![toolbar, below_toolbar]
         .spacing(spacing::SPACE_12)
         .padding(spacing::CONTENT_PADDING)
         .width(Length::Fill)
@@ -790,4 +757,26 @@ fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
     ]
     .spacing(spacing::MD)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Building the widget tree, not just running `update`, exercises
+    /// the horizontally-scrolling table added for the frozen-column-width
+    /// layout -- a `Scrollable` panics at construction (not later) if its
+    /// content still fills the axis it scrolls, a class of bug `update`
+    /// tests never touch. Covers both panel states since opening the add
+    /// panel is what narrows the table's available space and is the
+    /// scenario the horizontal scrollbar exists for.
+    #[test]
+    fn body_builds_without_panicking_with_and_without_the_side_panel() {
+        let account = Account::new(1, "1000", "Assets", AccountType::Asset);
+        let state = State { accounts: vec![account], ..Default::default() };
+        let _: Element<'_, Message> = body(&state, Theme::Light);
+
+        let state_with_panel = State { add_panel_open: true, ..state };
+        let _: Element<'_, Message> = body(&state_with_panel, Theme::Dark);
+    }
 }

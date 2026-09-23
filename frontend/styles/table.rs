@@ -29,12 +29,19 @@ pub fn header_row(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container
 
 /// A row rendered as a `button` so it gets hover feedback for free from
 /// iced's `button::Status` -- pressing it opens that row's action menu,
-/// same as its trailing kebab button.
-pub fn row(theme: Theme) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
+/// same as its trailing kebab button. `highlighted` keeps the row's
+/// tinted background on (e.g. the row currently being edited) instead
+/// of only tinting while the mouse hovers it, mirroring `nav_item`'s
+/// `active` flag.
+pub fn row(theme: Theme, highlighted: bool) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
     move |_iced_theme: &IcedTheme, status: button::Status| {
-        let background = match status {
-            button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color { a: states::TABLE_ROW_HOVER_ALPHA, ..theme.neutral_bg() })),
-            _ => None,
+        let background = if highlighted {
+            Some(Background::Color(Color { a: states::SELECTED_ALPHA, ..theme.primary() }))
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color { a: states::TABLE_ROW_HOVER_ALPHA, ..theme.neutral_bg() })),
+                _ => None,
+            }
         };
         button::Style { background, text_color: theme.text_primary(), border: Border::default(), shadow: iced::Shadow::default() }
     }
@@ -42,6 +49,16 @@ pub fn row(theme: Theme) -> impl Fn(&IcedTheme, button::Status) -> button::Style
 
 pub fn divider_color(theme: Theme) -> Color {
     theme.neutral_bg()
+}
+
+/// The 1px grid-line color drawn between columns and between rows in a
+/// `bordered` table (e.g. `view_with_frozen_header`) -- a visible line,
+/// unlike the barely-there `divider_color` hairline the plain table uses
+/// between rows. Used as a thin `Space`'s background on both axes so the
+/// grid reads as continuous lines between cells rather than a border
+/// boxing in every individual cell.
+pub fn grid_line_color(theme: Theme) -> Color {
+    theme.neutral_border()
 }
 
 #[cfg(test)]

@@ -29,10 +29,10 @@ pub fn style(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
         };
 
         let border_color = match (is_checked, is_disabled, is_hovered) {
-            (_, true, _) => theme.neutral_bg(),
+            (_, true, _) => theme.neutral_border(),
             (true, false, _) => theme.primary(),
-            (false, false, true) => theme.neutral_bg_hover(),
-            (false, false, false) => theme.neutral_bg(),
+            (false, false, true) => theme.neutral_border_hover(),
+            (false, false, false) => theme.neutral_border(),
         };
 
         Style {

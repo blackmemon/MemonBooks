@@ -21,7 +21,10 @@ pub fn dropdown_menu(theme: Theme) -> impl Fn(&IcedTheme) -> menu_widget::Style 
 
 fn styled(theme: Theme, text_color: Color) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {
-        let is_interacting = matches!(status, Status::Hovered | Status::Opened);
+        let border_color = match status {
+            Status::Hovered | Status::Opened => theme.neutral_border_hover(),
+            _ => theme.neutral_border(),
+        };
         let background = match status {
             Status::Hovered | Status::Opened => theme.surface_hover(),
             Status::Active => theme.surface(),
@@ -32,11 +35,7 @@ fn styled(theme: Theme, text_color: Color) -> impl Fn(&IcedTheme, Status) -> Sty
             handle_color: theme.neutral_front(),
             background: Background::Color(background),
             border: iced::Border {
-                color: if is_interacting {
-                    theme.primary()
-                } else {
-                    borders::card(theme, states::RADIUS_SM).color
-                },
+                color: border_color,
                 width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
             },

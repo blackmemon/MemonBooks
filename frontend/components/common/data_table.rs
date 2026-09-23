@@ -62,11 +62,12 @@ impl Cell {
 pub struct Row {
     pub cells: Vec<Cell>,
     pub primary_action_label: Option<String>,
+    pub highlighted: bool,
 }
 
 impl Row {
     pub fn new(cells: Vec<Cell>) -> Self {
-        Self { cells, primary_action_label: None }
+        Self { cells, primary_action_label: None, highlighted: false }
     }
 
     /// Gives this row a visible primary-action button (e.g. "Switch to",
@@ -78,6 +79,14 @@ impl Row {
     /// columns stay aligned.
     pub fn with_primary_action(mut self, label: impl Into<String>) -> Self {
         self.primary_action_label = Some(label.into());
+        self
+    }
+
+    /// Keeps this row's background persistently highlighted (e.g. the
+    /// row the caller is currently editing) rather than only tinting on
+    /// hover.
+    pub fn highlighted(mut self, highlighted: bool) -> Self {
+        self.highlighted = highlighted;
         self
     }
 }
@@ -126,45 +135,167 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
     on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
-    let show_checkbox = selected.is_some();
+    let header_container = build_header(theme, &columns, visible_columns, &selected, on_select_all, false);
+    let body = build_body(theme, &columns, visible_columns, rows, selected, on_row_select, on_row_action, on_primary_action, false);
+
+    let card = column![header_container, body].width(Length::Fill);
+
+    // Same radius token as `side_panel`'s card (RADIUS_LG), so the table
+    // and an open side panel show matching rounded corners -- applied
+    // unconditionally here since this component has no notion of
+    // whether a panel is open next to it.
+    //
+    // Uses the shadowed `panels::card` (not `flat_card`): this is a
+    // top-level panel sitting directly on the page background, not
+    // nested inside an already-shadowed ancestor, so the shadow reads
+    // as the card lifting off the page. Confirmed with the user in
+    // Batch 12 rather than applied silently, since it's the one
+    // visible change in the whole consistency-audit pass.
+    container(card).style(panels::card(theme, states::RADIUS_LG)).width(Length::Fill).into()
+}
+
+/// Same as [`view_with_column_visibility`], except the header row stays
+/// fixed in place while the rows beneath it scroll independently -- for
+/// tables with enough rows that keeping the column headers on screen
+/// while scrolling matters.
+#[allow(clippy::too_many_arguments)]
+pub fn view_with_frozen_header<'a, Message: Clone + 'a>(
+    theme: Theme,
+    columns: Vec<ColumnDef<'a>>,
+    visible_columns: &[bool],
+    rows: Vec<Row>,
+    selected: Option<Vec<bool>>,
+    on_row_select: impl Fn(usize, bool) -> Message + Clone + 'a,
+    on_select_all: impl Fn(bool) -> Message + 'a,
+    on_row_action: impl Fn(usize) -> Message + Clone + 'a,
+    on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
+) -> Element<'a, Message> {
+    let header_container = build_header(theme, &columns, visible_columns, &selected, on_select_all, true);
+    let body = build_body(theme, &columns, visible_columns, rows, selected, on_row_select, on_row_action, on_primary_action, true);
+    let header_divider = container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(table_style::grid_line_color(theme))),
+        ..container::Style::default()
+    });
+
+    let card = column![header_container, header_divider, scrollable(body).height(Length::Fill)].width(Length::Fill).height(Length::Fill);
+
+    container(card).style(panels::card(theme, states::RADIUS_LG)).width(Length::Fill).height(Length::Fill).into()
+}
+
+/// The pixel width a [`view_with_frozen_header`] table renders at when
+/// every visible column has a [`Length::Fixed`] width -- lets a caller
+/// wrap the table in a container of exactly this width before putting
+/// it in a horizontally-scrolling container, so the table keeps this
+/// size instead of its columns compressing to fit whatever space
+/// happens to be available. Columns with a non-fixed width (e.g.
+/// `FillPortion`) don't contribute a measurable amount and are
+/// effectively counted as zero-width.
+pub fn frozen_header_row_width(columns: &[ColumnDef], visible_columns: &[bool], has_selection: bool) -> f32 {
     let is_visible = |index: usize| visible_columns.get(index).copied().unwrap_or(true);
-    let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
-    if let Some(selected) = &selected {
-        let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
-        header = header.push(container(checkbox("", all_selected).style(checkbox_style::style(theme)).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
+    let mut segments = 0usize;
+    let mut total = 2.0 * spacing::MD;
+    if has_selection {
+        total += 24.0;
+        segments += 1;
     }
     for (index, column_def) in columns.iter().enumerate() {
         if !is_visible(index) {
             continue;
         }
+        if let Length::Fixed(width) = column_def.width {
+            total += width;
+        }
+        segments += 1;
+    }
+    total += PRIMARY_ACTION_WIDTH + 32.0;
+    segments += 2;
+    total + segments.saturating_sub(1) as f32 * spacing::MD
+}
+
+// Must match the outer card's own radius (`states::RADIUS_LG`) -- see
+// `table_style::header_row`'s doc comment for why a mismatch (or an
+// unrounded header) visually flattens the card's top corners.
+fn build_header<'a, Message: Clone + 'a>(theme: Theme, columns: &[ColumnDef<'a>], visible_columns: &[bool], selected: &Option<Vec<bool>>, on_select_all: impl Fn(bool) -> Message + 'a, bordered: bool) -> Element<'a, Message> {
+    let is_visible = |index: usize| visible_columns.get(index).copied().unwrap_or(true);
+    let mut header = row![].spacing(spacing::MD).padding(iced::Padding { top: spacing::SM, right: spacing::MD, bottom: spacing::SM, left: spacing::MD }).align_y(Alignment::Center);
+    if let Some(selected) = selected {
+        let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
+        header = header.push(container(checkbox("", all_selected).style(checkbox_style::style(theme)).on_toggle(on_select_all)).width(Length::Fixed(24.0)));
+    }
+    let mut is_first_column = true;
+    for (index, column_def) in columns.iter().enumerate() {
+        if !is_visible(index) {
+            continue;
+        }
+        if bordered && !is_first_column {
+            header = header.push(column_divider(theme));
+        }
+        is_first_column = false;
         let arrow = match column_def.sort {
             SortDirection::Ascending => format!(" {}", icons::SORT_ASCENDING),
             SortDirection::Descending => format!(" {}", icons::SORT_DESCENDING),
             SortDirection::None => String::new(),
         };
-        header = header.push(text(format!("{}{}", column_def.label, arrow)).size(typography::body()).color(theme.neutral_front()).width(column_def.width));
+        let label = text(format!("{}{}", column_def.label, arrow)).size(typography::body()).color(theme.neutral_front());
+        header = header.push(label.width(column_def.width));
     }
     header = header.push(Space::with_width(Length::Fixed(PRIMARY_ACTION_WIDTH)));
     header = header.push(Space::with_width(Length::Fixed(32.0)));
 
-    // Must match the outer card's own radius below (`borders::RADIUS_LG`)
-    // -- see `table_style::header_row`'s doc comment for why a mismatch
-    // (or an unrounded header) visually flattens the card's top corners.
-    let header_container = container(header).style(table_style::header_row(theme, states::RADIUS_LG));
+    // See the matching comment in `build_body`: a pushed `column_divider`
+    // reports `Length::Fill` height so the grid line stretches to the
+    // row's cross-axis size, which would otherwise make this row (and
+    // the `container` wrapping it) report `Fill` too and compete with
+    // the scrollable body for vertical space in the enclosing column.
+    header = header.height(Length::Shrink);
 
+    container(header).style(table_style::header_row(theme, states::RADIUS_LG)).into()
+}
+
+/// A 1px vertical grid line dropped between two column cells in a
+/// `bordered` table -- mirrors the horizontal divider `build_body`
+/// draws between rows, so the grid reads as lines between cells rather
+/// than a border boxing in each cell individually.
+fn column_divider<'a, Message: 'a>(theme: Theme) -> Element<'a, Message> {
+    container(Space::with_width(Length::Fixed(1.0)))
+        .height(Length::Fill)
+        .style(move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(table_style::grid_line_color(theme))), ..container::Style::default() })
+        .into()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_body<'a, Message: Clone + 'a>(
+    theme: Theme,
+    columns: &[ColumnDef<'a>],
+    visible_columns: &[bool],
+    rows: Vec<Row>,
+    selected: Option<Vec<bool>>,
+    on_row_select: impl Fn(usize, bool) -> Message + Clone + 'a,
+    on_row_action: impl Fn(usize) -> Message + Clone + 'a,
+    on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
+    bordered: bool,
+) -> Element<'a, Message> {
+    let show_checkbox = selected.is_some();
+    let is_visible = |index: usize| visible_columns.get(index).copied().unwrap_or(true);
     let mut body = column![];
     let row_count = rows.len();
     for (row_index, table_row) in rows.into_iter().enumerate() {
+        let highlighted = table_row.highlighted;
         let mut cells_row = row![].spacing(spacing::MD).padding([spacing::SM, spacing::MD]).align_y(Alignment::Center);
         if show_checkbox {
             let is_checked = selected.as_ref().and_then(|s| s.get(row_index)).copied().unwrap_or(false);
             let select_this_row = on_row_select.clone();
             cells_row = cells_row.push(container(checkbox("", is_checked).style(checkbox_style::style(theme)).on_toggle(move |value| select_this_row(row_index, value))).width(Length::Fixed(24.0)));
         }
+        let mut is_first_column = true;
         for (index, (cell, column_def)) in table_row.cells.into_iter().zip(columns.iter()).enumerate() {
             if !is_visible(index) {
                 continue;
             }
+            if bordered && !is_first_column {
+                cells_row = cells_row.push(column_divider(theme));
+            }
+            is_first_column = false;
             cells_row = cells_row.push(container(cell_view::<Message>(theme, cell)).width(column_def.width));
         }
         let primary_action_slot: Element<'a, Message> = match table_row.primary_action_label {
@@ -185,31 +316,29 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
             .width(Length::Fixed(32.0)),
         );
 
-        let interactive_row = button(cells_row).style(table_style::row(theme)).on_press(on_row_action(row_index)).width(Length::Fill);
+        // `column_divider`'s `Length::Fill` height (needed so the grid
+        // line stretches to the row's actual cross-axis size during
+        // layout) would otherwise propagate through `Row::push`'s
+        // enclose logic and make this whole row -- and in turn the
+        // `column![]` body feeding `scrollable` -- report a `Fill`
+        // height too, which trips `scrollable`'s "must not fill its
+        // vertical scrolling axis" assertion. Pin the row back to
+        // `Shrink` explicitly now that every child (dividers included)
+        // has been pushed.
+        cells_row = cells_row.height(Length::Shrink);
+        let interactive_row = button(cells_row).style(table_style::row(theme, highlighted)).on_press(on_row_action(row_index)).width(Length::Fill);
 
         body = body.push(interactive_row);
         if row_index + 1 < row_count {
+            let line_color = if bordered { table_style::grid_line_color(theme) } else { table_style::divider_color(theme) };
             body = body.push(container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_iced_theme: &IcedTheme| container::Style {
-                background: Some(Background::Color(table_style::divider_color(theme))),
+                background: Some(Background::Color(line_color)),
                 ..container::Style::default()
             }));
         }
     }
 
-    let card = column![header_container, body].width(Length::Fill);
-
-    // Same radius token as `side_panel`'s card (RADIUS_LG), so the table
-    // and an open side panel show matching rounded corners -- applied
-    // unconditionally here since this component has no notion of
-    // whether a panel is open next to it.
-    //
-    // Uses the shadowed `panels::card` (not `flat_card`): this is a
-    // top-level panel sitting directly on the page background, not
-    // nested inside an already-shadowed ancestor, so the shadow reads
-    // as the card lifting off the page. Confirmed with the user in
-    // Batch 12 rather than applied silently, since it's the one
-    // visible change in the whole consistency-audit pass.
-    container(card).style(panels::card(theme, states::RADIUS_LG)).width(Length::Fill).into()
+    body.into()
 }
 
 fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> {
@@ -350,6 +479,17 @@ mod tests {
         let rows = vec![Row::new(vec![Cell::text("1"), Cell::text("2"), Cell::text("3")])];
 
         let _: Element<'_, ()> = view_with_column_visibility(Theme::Dark, columns, &[true, false, true], rows, None, |_, _| (), |_| (), |_| (), |_| ());
+    }
+
+    #[test]
+    fn view_with_frozen_header_builds_without_panicking() {
+        let columns = vec![ColumnDef::new("A", Length::FillPortion(1)).sorted(SortDirection::Ascending), ColumnDef::new("B", Length::FillPortion(2))];
+        let rows = vec![
+            Row::new(vec![Cell::text("1"), Cell::status("Active", BadgeTone::Positive)]).with_primary_action("Go"),
+            Row::new(vec![Cell::date("2026-01-01"), Cell::person("Name", "Subtitle")]),
+        ];
+
+        let _: Element<'_, ()> = view_with_frozen_header(Theme::Light, columns, &[], rows, Some(vec![false, true]), |_, _| (), |_| (), |_| (), |_| ());
     }
 
     #[test]

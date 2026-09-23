@@ -15,8 +15,8 @@ pub fn text(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
         };
 
         let border_color = match status {
-            Status::Hovered | Status::Focused => theme.primary(),
-            _ => theme.neutral_bg(),
+            Status::Hovered | Status::Focused => theme.neutral_border_hover(),
+            _ => theme.neutral_border(),
         };
 
         let text_color = match status {
@@ -55,8 +55,8 @@ pub fn text_edit(theme: Theme) -> impl Fn(&iced::Theme, EditStatus) -> EditStyle
         };
 
         let border_color = match status {
-            EditStatus::Hovered | EditStatus::Focused => theme.primary(),
-            _ => theme.neutral_bg(),
+            EditStatus::Hovered | EditStatus::Focused => theme.neutral_border_hover(),
+            _ => theme.neutral_border(),
         };
 
         let text_color = match status {

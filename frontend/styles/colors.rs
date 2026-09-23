@@ -53,14 +53,14 @@ impl Theme {
     pub fn neutral_font(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x11, 0x18, 0x27),
-            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+            Theme::Dark => rgb8(181, 181, 181),
         }
     }
 
     pub fn neutral_border(&self) -> Color {
         match self {
             Theme::Light => rgb8(235, 235, 235),
-            Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+            Theme::Dark => rgb8(99, 99, 99),
         }
     }
 

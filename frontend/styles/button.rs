@@ -22,7 +22,6 @@ pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
                 width: states::STYLES_BORDER_WIDTH_ALPHA,
                 color: border_color,
                 radius: states::RADIUS_SM.into(),
-                ..Border::default()
             },
             shadow: iced::Shadow::default(),
         }

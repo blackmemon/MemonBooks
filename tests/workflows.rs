@@ -225,6 +225,44 @@ fn editing_stock_document_replaces_effect_instead_of_doubling() {
         .unwrap();
     assert_eq!(count, 0);
 }
+
+#[test]
+fn posted_purchase_and_sale_returns_reverse_stock_in_their_location() {
+    let (db, service, company) = setup();
+    for (kind, party_key, party, direction) in [
+        (Kind::PurchaseReturn, "Vendor", "1 · Vendor", -1),
+        (Kind::SaleReturn, "Customer", "1 · Customer", 1),
+    ] {
+        let mut returned = Document::new(company, kind);
+        returned.set("Date", "2026-10-04");
+        returned.set(party_key, party);
+        returned.set("Location", "1 · Warehouse");
+        returned.lines = vec![line(&[
+            ("Item", "1 · Widget"),
+            ("Qty", "1"),
+            ("Unit Price", "50"),
+        ])];
+        returned.status = "Posted".into();
+        let saved = service.save(&returned).unwrap();
+        let stock_delta = db
+            .with_connection(|connection| {
+                Ok(connection.query_row(
+                    "SELECT quantity_delta FROM stock_movements WHERE reference=?",
+                    [format!("workflow:{}", saved.id.unwrap())],
+                    |row| row.get::<_, String>(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(stock_delta.parse::<i32>().unwrap(), direction);
+    }
+    assert_eq!(
+        InventoryRepository::new(db)
+            .on_hand_quantity(company, 1, 1)
+            .unwrap(),
+        dec!(0)
+    );
+}
+
 #[test]
 fn conversion_is_new_draft_and_carries_source_link() {
     let (_, s, c) = setup();

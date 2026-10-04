@@ -197,8 +197,6 @@ impl Theme {
 
     /// Neutral background -- status pills with no positive/negative/warning
     /// meaning (e.g. "Draft"), muted panels.
-
-
     /// Neutral text & icon color. Doubles as the app's one muted/secondary
     /// text tone (descriptions, secondary avatar lines, inactive tabs) and as
     /// the subtle border/divider color for cards and table rows, so the shell

@@ -223,7 +223,7 @@ fn apply_stock(tx: &rusqlite::Transaction, d: &Document, id: i64) -> AppResult<(
             Some(true) => {}
             None => return invalid("Choose an active item in this company"),
         };
-        tx.execute("INSERT INTO stock_movements(company_id,product_id,warehouse_id,movement_date,movement_type,quantity_delta,reference,transaction_id) VALUES (?,?,?,?,?,?,?,?)",params![d.company_id,product,warehouse,parse_date(d.get("Date"))?,if direction>Decimal::ZERO{"purchase_receipt"}else{"sale_issue"},(quantity*direction).to_string(),reference,d.transaction_id])?;
+        tx.execute("INSERT INTO stock_movements(company_id,product_id,warehouse_id,movement_date,movement_type,quantity_delta,reference,transaction_id) VALUES (?,?,?,?,?,?,?,?)",params![d.company_id,product,warehouse,parse_date(d.get("Date"))?,if direction>Decimal::ZERO{"purchase"}else{"sale"},(quantity*direction).to_string(),reference,d.transaction_id])?;
     }
     Ok(())
 }

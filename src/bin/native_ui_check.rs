@@ -90,7 +90,7 @@ impl Check {
                         .label()
                         .to_lowercase()
                         .replace(' ', "-")
-                        + if (self.step - 2) % 2 == 0 {
+                        + if (self.step - 2).is_multiple_of(2) {
                             "-list"
                         } else {
                             "-form"

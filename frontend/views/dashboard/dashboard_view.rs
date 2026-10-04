@@ -79,9 +79,8 @@ fn load_summary(ctx: &Ctx) -> AppResult<State> {
 }
 
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
-    match message {
-        Message::Refresh => *state = load(ctx),
-        _ => {}
+    if let Message::Refresh = message {
+        *state = load(ctx);
     }
 }
 

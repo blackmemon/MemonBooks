@@ -125,6 +125,42 @@ fn trip_roundtrip_persists_flight_and_draft_status() {
     d.set("Budget limit", "-1");
     assert!(service.save(&d).is_err());
 }
+
+#[test]
+fn saved_documents_survive_database_close_and_reopen() {
+    let unique = format!(
+        "memonbooks-reopen-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    );
+    let path = std::env::temp_dir().join(unique).join("app.sqlite3");
+    let company_id;
+    let saved;
+    {
+        let db = Database::open(&path).unwrap();
+        db.run_migrations(&memonbooks::all_migrations()).unwrap();
+        company_id = OrganizationRepository::new(db.clone())
+            .create_company(&Company::new("Reopen test", "PKR"))
+            .unwrap()
+            .id
+            .unwrap();
+        let service = DocumentService::new(db);
+        let mut trip = Document::new(company_id, Kind::Trip);
+        trip.set("Name", "Persisted trip");
+        trip.set("Budget limit", "125.50");
+        saved = service.save(&trip).unwrap();
+    }
+    {
+        let db = Database::open(&path).unwrap();
+        db.run_migrations(&memonbooks::all_migrations()).unwrap();
+        let reopened = DocumentService::new(db)
+            .list(company_id, Kind::Trip)
+            .unwrap();
+        assert_eq!(reopened, vec![saved]);
+    }
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
 #[test]
 fn posted_invoice_and_stock_are_atomic_and_immutable() {
     let (db, s, c) = setup();

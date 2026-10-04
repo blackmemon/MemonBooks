@@ -1,69 +1,88 @@
-# MemonBooks native Rust implementation
+# MemonBooks Rust + Iced implementation
 
-This document describes the application that is implemented in this repository. `Complete_Project_User_Guide.md` was used as the source for feature and workflow behavior, while `PROJECT_SPEC.md` governs the technology and project rules. Where the guide mentions Python, PyQt6, browser pages, or JSON-backed storage, this implementation uses Rust, Iced, native desktop controls, and the existing SQLite database instead.
+This desktop project implements the feature and workflow inventory in [Complete_Project_User_Guide.md](Complete_Project_User_Guide.md) under the Rust-only, native Iced constraints in [`../PROJECT_SPEC.md`](../PROJECT_SPEC.md). The supplied Markdown, PDF, DOCX guide and every supplied design-reference image are retained in this repository. No browser runtime or web frontend is used. Workflow and accounting data are stored in SQLite; user-selected documents and reports use native desktop file dialogs.
 
-## What is included
+## Requirement checklist
 
-- A native Iced home dashboard with book totals, recent expenses, category and daily summaries, and shortcuts into common workflows.
-- A shared, schema-driven list and editor for purchase orders/invoices/returns, goods receipts, cash and bank receipts/payments, journal vouchers, quotations, sales orders/invoices/returns, delivery challans, trips, expense claims, employees, payroll, and master data.
-- Master-data screens for accounts, vendors, customers, items, and inventory locations. Existing application master tables remain authoritative; additional guide-specific profile fields are retained with the company-scoped workflow record.
-- Document search, status filtering, sorting, pagination, configurable columns, custom fields, templates, file attachments, import, CSV/XLSX/PDF export, and print-to-PDF.
-- Decimal-based totals, line discounts/tax/withholding, document conversion, stock effects, receivable/payable posting and payment allocation, fiscal-period checks, journal balance validation, payroll calculation, and paid payroll posting.
-- Native accounting views for the general ledger, trial balance, and receivable/payable party reports.
+Status means: **Complete** = the described user flow is implemented in the current code and has code/test or render evidence; **Partial** = a usable implementation exists with an identified behavior or verification gap; **Missing** = there is no corresponding implementation. The guide documents both working behavior and known gaps in its source application, so the checklist records documented behavior as well as guide features.
 
-The workflow data and attachments are company-scoped in SQLite and introduced by migration `2000_native_workflows.sql`. Posting creates ledger transactions in the same database transaction as the source document and stock/subledger effects.
+| Guide requirement | Status | Verification evidence |
+|---|---|---|
+| Native app shell, Home, navigation and visual theme | Partial | `src/main.rs`, `frontend/components/common/sidebar.rs`, `frontend/styles/`; native Iced renderer produced 48 screen captures (see test results). Actual XWayland app opened. Shell screenshot exposed fixed-nav overlap; moved both nav groups into a shared scroll area. Input-driven confirmation of this fix is unverified. |
+| Home totals, recent expenses and quick actions | Complete | `frontend/views/dashboard/dashboard_view.rs`; rendered by native UI harness; dashboard state comes from services. Quick access routes to expense/trip/receipt/report workflows. |
+| Expenses and Expense Claims | Complete | `Kind::Expense` schema and claims route provide searchable records, save/validation and report fields; document renderer and workflow tests. |
+| Trip list and trip create/edit workflow | Complete | `Kind::Trip` schema in `backend/transactions/documents.rs`; `documents_view.rs`; flight/status roundtrip, validation, date-range checks and on-disk reopen tests in `tests/workflows.rs`. |
+| Purchase Order | Complete | Shared schema-driven editor/list in `documents.rs` and `documents_view.rs`; UI harness rendered list/form; document CRUD/conversion/export covered by service/view tests. |
+| Purchase Invoice | Complete | Same shared editor, decimal totals and posting path; atomic posting and stock/accounting workflow tests. |
+| Purchase Return | Partial | Form/list and conversion from invoice exist; source guide notes stock is not reversed by a return. |
+| Goods Receipt | Partial | Form/list and receipt stock movement exist; edits and return/reversal cases have limits covered in the guide. |
+| Cash Receipt | Complete | Receipt schema, native account selectors, posting and FIFO receivable allocation; posting and payment tests. |
+| Bank Receipt | Complete | Bank receipt schema, payment-mode controls, posting and FIFO allocation; transaction posting tests. |
+| Cash Payment | Complete | Payment schema, WHT/account posting and payable allocation; posting tests. |
+| Bank Payment | Complete | Bank payment schema, cheque/mode controls, WHT and payable allocation; posting tests. |
+| Journal Voucher | Complete | Decimal/balanced journal validation is enforced below the UI; unbalanced journal rejection test and posting tests. |
+| Quotation | Complete | Schema-driven quote editor/list and conversion to Sale Order; native renderer and workflow conversion tests. |
+| Sale Order | Complete | Order editor/list and conversion to Delivery Challan; native renderer and workflow conversion tests. |
+| Delivery Challan | Partial | Editor/list and delivery stock movement exist; edit-time stock replacement and some return/reversal paths remain limited. |
+| Sale Invoice | Partial | Invoice editor, posting, AR integration, and stock handling exist; invoice tax liability and linked document edge cases remain limited. |
+| Sale Return | Partial | Return editor and conversion from invoice exist; returns do not adjust stock. |
+| Chart of Accounts | Partial | Company-scoped account CRUD/list, validation, parent-cycle rejection, GL and trial balance integration. A dedicated account edit flow and complete cycle-safe hierarchy UX are not available. |
+| Vendors | Complete | Existing party tables plus synchronized extended profiles; search/status, edit/versioning, import/export and attachment UI paths. Import/export backend and view tests exist; OS dialog interaction is unverified. |
+| Items | Partial | Item maintenance, stock quantities, CSV/XLSX import/export, attachments and stock services. Transaction return/edit stock edge cases remain. |
+| Customers | Partial | Customer master CRUD/extended profile, selectors, import/export and attachments exist. Customer address autofill has a field-name mismatch in some document flows. |
+| Inventory Locations | Complete | Location maintenance, selectors, CSV/XLSX import/export, stock views and movement services; exercised in inventory and workflow tests. |
+| Shared Maintain search, filters, sort, columns, paging, bulk/archive/import/export/attachments | Partial | Implemented in `documents_view.rs` and import/export services; view/backend tests and 48 rendered screens. File-picker selection and dialog-driven end-to-end import/export remain unverified on this desktop session. |
+| Employees | Partial | Employee/profile maintenance and reports exist. User guide notes custom-field persistence and some status/edit behavior limitations. |
+| Payroll runs | Partial | Payroll generation, calculations, draft/paid transitions, reports and posting. Workflow tests cover duplicate handling, calculations and paid ledger posting. Role approvals and report-filter selection limitations remain. |
+| General Ledger | Complete | Native `ledger_view.rs`, ledger repository and ledger report tests; native harness rendered GL screen. |
+| Trial Balance | Complete | Native report view and ledger-derived repository; accounting tests verify balanced totals. |
+| AR/AP aging and statements | Complete | Native report view and FIFO subledger services; receivable allocation tests and accounting report tests. |
+| Posting, fiscal-period checks, balanced entries and atomic writes | Complete | `backend/repositories/accounting_repository.rs`, transaction engine and purchase/sales/document services; tests reject unbalanced entries and verify atomic posting/rollback. |
+| Settings, user/company administration, support and external integrations | Partial | Native settings/company/user routes exist, but settings and support integrations remain limited; no email, bank API, payment gateway or synchronization backend is configured. Authentication/role enforcement is not yet end-to-end. |
+| Notifications, exports, templates, print/PDF and attachments | Partial | Native message/status feedback, CSV/XLSX/PDF output, templates, print and local attachment storage exist in code. Native OS file-dialog selection, successful dialog-driven export/import, and attachment roundtrip were not driven end-to-end here. |
 
-## Design references
+## Design-reference review
 
-All images under `docs/` and its subdirectories were reviewed. The accounting desktop references (dashboard, general ledger, vendor maintenance, payroll, purchase invoice, and timestamped application captures) informed the white/light theme, compact toolbar, card panels, searchable data grids, form sections, and spacing. The unrelated Koru/healthcare references were treated as visual references for clear navigation, grouped fields, status chips, and restrained panels rather than as accounting content. The native captures below show the current Iced implementation at 1440×935.
+Every image in `docs/` and its subdirectories supplied for this project was reviewed. The accounting screenshots (`dashboard.png`, `general-ledger.png`, `maintain-vendors.png`, `payroll.png`, `purchase-invoice-form.png`, plus six timestamped screenshots) informed the light accounting theme, compact document toolbar, master-data grids, form sections and report layouts. The Koru healthcare screenshots (`A3`, `A4`, `A5`, `B1`, `B1 (1)`, `C1`, `D1`) informed dense searchable tables, visible filters, clear grouped controls, restrained cards, and a side-detail pattern where appropriate; healthcare terminology/content was not copied into the accounting product. All 18 reference images are versioned under `docs/design-reference/`.
 
-![Native dashboard](screenshots/home.png)
+The supplied requirements guide is versioned as Markdown, PDF and DOCX under `docs/`. Its Python/PyQt6 launch/storage/UI references are implemented with Rust, Iced, SQLite, and native dialogs in accordance with the project specification.
 
-![General ledger](screenshots/general-ledger.png)
+## Setup and usage
 
-![Purchase invoice editor](screenshots/purchase-invoice-form.png)
-
-![Trips editor](screenshots/trip-form.png)
-
-![Payroll list](screenshots/payroll-list.png)
-
-![Vendor maintenance list](screenshots/vendors-list.png)
-
-![Item editor](screenshots/items-form.png)
-
-## Setup and running
-
-Install a supported Rust toolchain and the native system libraries required by Iced/winit and `rfd` for the target desktop environment. Then, from the repository root:
+Install a Rust toolchain and the host libraries needed by Iced/winit and `rfd` (GTK3 on Linux). From the project root:
 
 ```sh
-cargo check --offline
-cargo run --offline
+cargo check
+cargo run
 ```
 
-Cargo downloads are needed only if the dependency cache is incomplete; use `cargo check`/`cargo run` without `--offline` where network access is available. The program opens the native desktop application. Its existing startup/authentication flow and company setup remain in place.
+Cargo can use cached dependencies with `--offline`. On first launch the app creates its local database, a company, fiscal period and initial administrator. Follow the startup log guidance to obtain the generated initial credential and change it. Use the left navigation to open Home, Transactions, Accounting, Trips, Payroll, Expense Claims, or Maintain. Choose a document/master type, select Add, fill the form and Save. To post accounting documents, create the required accounts first and choose Posted; failed posting reports a warning and preserves the prior/draft status. Use row selection and the page actions for bulk maintenance, imports, exports, PDF, templates and attachments. Payroll can be generated for a month and active employees, then reviewed and marked Paid to post the payroll entry.
 
-## Using the workflows
+## Test and native UI results
 
-Use the left navigation to open Home, Documents, Accounting, Trips, Payroll, Expense Claims, or Maintain. Choose a document type from the page selector, then use Add to create a draft. Pick list values from the native dropdowns, complete required fields, add or remove line rows, and Save. Existing drafts can be searched, filtered, sorted, selected, edited, converted to a related document, exported, or printed. Posting states that affect books validate the company, account, fiscal period, and balancing rules before being committed.
+The prior commit included 744 library tests and 34 integration tests (778 passing), plus `src/bin/native_ui_check.rs`, which renders 48 native Iced screens. This review added an on-disk persistence regression test and fixed the sidebar overflow found in the actual app shell.
 
-Maintain exposes account, vendor, customer, item, and location records. Archive a master before permanent deletion. Item stock by location is adjusted through the item's stock fields. Payroll can be generated for active employees for a selected period; already generated employee/period pairs are skipped. Marking payroll Paid records the payment date and posts it to the ledger.
+Current review checks:
 
-File import/export and attachment actions use native file dialogs. Attachments are copied into the configured uploads directory. Imported spreadsheets must include a name column appropriate to the selected master; CSV and XLSX are supported for master import. CSV, XLSX, and PDF exports work from selected rows; PDF also serves as the print format.
+| Check | Result |
+|---|---|
+| `cargo test --offline --test workflows` | Passed: 19 tests, including close database / reopen / verify the exact saved trip row. |
+| Full `cargo test --offline` | Passed: 779 tests (744 library tests and 35 integration tests), no failures. |
+| `cargo check --offline` | Passed. |
+| `cargo fmt --check` | Fails on extensive pre-existing formatting differences across unrelated files. `rustfmt --check tests/workflows.rs` passed; the sidebar edit follows the surrounding file's existing formatting, and unrelated files are intentionally left unchanged. |
+| `cargo clippy --offline` | Passed with 10 existing warnings (9 library, 1 `native_ui_check`): possible missing else, module inception, empty doc-comment spacing, needless update, single match, and manual `is_multiple_of`. |
+| `git diff --check` | Passed. |
+| Native UI render and screen inspection | Passed for 48 Iced screens at 1440×935 via native renderer harness. The actual app launched in an isolated XDG data directory and its home shell was visually inspected at 1330×887. The navigation overlap was fixed; a post-fix screenshot confirms both route groups now scroll together without covering each other. |
+| Mouse/keyboard end-to-end workflows | Unverified. A temporary Rust X11/XTest helper successfully captured the running window, but synthesized events did not change the UI, so no create/edit/post/import/export/attachment action is claimed as performed through desktop input. |
+| Native file dialogs | Unverified. GTK3 dialogs were not navigated/selected in this session. |
+| Process restart persistence | Verified by Rust test that closes the SQLite connection and reopens the same on-disk database; an app-level quit/relaunch with a UI-created record was not verified because native input did not work. |
 
-## Verification
+No browser test applies to this native desktop application. The supplied image captures are design references rather than evidence of every interactive state.
 
-Checks completed on 2026-10-04:
+## Remaining limitations
 
-- `cargo check --offline` — passed.
-- `cargo test --offline` — passed: 744 library tests and 34 integration tests (778 total), with no failures. This includes all existing accounting, banking, expenses, fixed assets, inventory, POS, purchases, reports, sales, tax, styling-consistency tests and 18 new workflow integration tests.
-- `cargo build --offline --bin native_ui_check` — passed.
-- Native Iced UI check — opened the actual desktop renderer using an in-memory database and captured 48 screens (dashboard, ledger, and list/form states for all 23 document and master types) at 1440×935. Selected captures are included above; the full temporary capture set was written to `/tmp/memonbooks-ui`.
-- `git diff --check` — passed before the final documentation pass; it is repeated before commit.
-
-No browser check applies to this native desktop project. The UI check verifies real Iced widget construction and rendering; it does not automate mouse/keyboard interactions or platform-specific file dialog behavior.
-
-## Remaining work and limits
-
-- The native screenshot harness renders page views directly rather than traversing the complete authenticated app shell, and it does not simulate user input. Manual end-to-end interaction on additional desktop platforms remains to be performed.
-- Some legacy feature views remain available in the existing application alongside the new unified document workflows. The guide's advanced business claims should be evaluated against the actual workflows above rather than its Python/PyQt implementation suggestions.
-- OS-specific packaging, signing, installer generation, and cross-platform accessibility verification are not included in this change.
+- No end-to-end mouse/keyboard desktop driver succeeded in this environment, so native form validation, save/edit, posting, import/export, attachment selection, and file dialogs were not confirmed through actual user input. The same workflows have service/view tests where noted, but those do not replace desktop interaction checks.
+- OS-level file picker behavior varies by platform and was not checked here.
+- Roles/permissions are not fully enforced through every workflow; settings, support, outbound integrations and notification delivery are limited.
+- Account hierarchy editing, customer address autofill, some return-stock effects, and stock recalculation after edits retain the specific gaps in the checklist.
+- Platform packaging/signing, cross-platform accessibility and OS theme switching remain outside this verification.

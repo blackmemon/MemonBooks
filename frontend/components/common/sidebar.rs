@@ -95,18 +95,25 @@ pub fn view<'a, Message: Clone + 'a>(
         .on_press(on_toggle_theme)
         .width(Length::Fixed(36.0));
 
-    let bottom = column![
-        container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_iced_theme: &IcedTheme| container::Style {
+    let divider = container(Space::with_height(Length::Fixed(1.0))).width(Length::Fill).style(move |_iced_theme: &IcedTheme| container::Style {
             background: Some(Background::Color(theme.neutral_bg())),
             ..container::Style::default()
-        }),
+        });
+    // Keep both navigation groups in the same scroll area so short windows
+    // cannot overlap the secondary routes with the profile card.
+    let navigation = column![
+        container(primary).padding([0.0, spacing::SM]),
+        divider,
         container(secondary).padding([spacing::SM, spacing::SM]),
+    ]
+    .spacing(spacing::SM);
+    let bottom = column![
         container(row![profile_card, theme_toggle].spacing(spacing::XS).align_y(Alignment::Center))
             .padding(iced::Padding { top: 0.0, right: spacing::SM, bottom: spacing::SM, left: spacing::SM }),
     ]
     .spacing(spacing::SM);
 
-    let body = column![logo_row, scrollable(container(primary).padding([0.0, spacing::SM])).height(Length::Fill), bottom].width(Length::Fill).height(Length::Fill);
+    let body = column![logo_row, scrollable(navigation).height(Length::Fill), bottom].width(Length::Fill).height(Length::Fill);
 
     container(body)
         .width(Length::Fixed(if collapsed { COLLAPSED_WIDTH } else { EXPANDED_WIDTH }))

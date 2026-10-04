@@ -309,6 +309,10 @@ fn employee_custom_fields_status_leave_date_and_payroll_duplicates() {
         "2026-12-31"
     );
     assert_eq!(
+        s.list(c, Kind::Employee).unwrap()[0].get("Custom 1 value"),
+        "R-42"
+    );
+    assert_eq!(
         s.generate_payroll(c, "2026-10", &[e.id.unwrap()]).unwrap(),
         (1, 0)
     );

@@ -1023,7 +1023,7 @@ fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
             iced::widget::checkbox(*label, is_visible)
                 .style(crate::frontend::styles::checkbox::style(theme))
                 .on_toggle(move |_| Message::ExportColumnToggled(index))
-                .size(16)
+                .size(typography::checkbox_size())
                 .text_size(typography::label()),
         );
     }

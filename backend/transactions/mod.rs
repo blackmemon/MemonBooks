@@ -1,3 +1,4 @@
+pub mod documents;
 pub mod transaction;
 pub mod transaction_engine;
 pub mod transaction_lines;

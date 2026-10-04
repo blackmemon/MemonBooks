@@ -1,8 +1,10 @@
 pub mod accounting_repository;
 pub mod banking_repository;
+pub mod document_repository;
 pub mod expense_repository;
 pub mod fixed_asset_repository;
 pub mod inventory_repository;
+mod master_profiles;
 pub mod organization_repository;
 pub mod party_repository;
 pub mod purchase_repository;

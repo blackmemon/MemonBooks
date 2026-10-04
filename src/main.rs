@@ -26,6 +26,7 @@ use memonbooks::backend::organization::companies::Company;
 use memonbooks::backend::repositories::accounting_repository::AccountingRepository;
 use memonbooks::backend::repositories::organization_repository::OrganizationRepository;
 use memonbooks::backend::repositories::user_repository::UserRepository;
+use memonbooks::backend::transactions::documents::{Kind, MONEY, PURCHASE, SALE};
 use memonbooks::configs::app::AppConfig;
 use memonbooks::configs::{font_scale_preference, theme_preference};
 use memonbooks::database::database::Database;
@@ -33,9 +34,13 @@ use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
 use memonbooks::frontend::styles::button as button_style;
 use memonbooks::frontend::styles::colors::Theme;
 use memonbooks::frontend::styles::font_scale::{self, FontScale};
-use memonbooks::frontend::styles::{spacing, states, typography, dropdown};
+use memonbooks::frontend::styles::{dropdown, spacing, states, typography};
+use memonbooks::frontend::views::accounting::documents_view;
+use memonbooks::frontend::views::accounting::ledger_view;
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
-use memonbooks::frontend::views::accounting::{fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view};
+use memonbooks::frontend::views::accounting::{
+    fixed_assets_view, journal_entries_view, journal_entry_view, tax_rates_view, trial_balance_view,
+};
 use memonbooks::frontend::views::auth::{login_view, password_change_view, switch_user_view};
 use memonbooks::frontend::views::dashboard::dashboard_view;
 use memonbooks::frontend::views::hr::{employees_view, expenses_view};
@@ -68,7 +73,12 @@ fn ensure_default_company(db: &Database) -> i64 {
     let year_end = chrono::NaiveDate::from_ymd_opt(today.year(), 12, 31).unwrap_or(today);
     let accounting_repo = AccountingRepository::new(db.clone());
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, format!("FY{}", today.year()), year_start, year_end))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            format!("FY{}", today.year()),
+            year_start,
+            year_end,
+        ))
         .expect("failed to create default fiscal period");
 
     company_id
@@ -92,7 +102,9 @@ fn ensure_default_admin(db: &Database) {
         .iter()
         .map(|p| p.to_string())
         .collect();
-    let role = user_repo.create_role(&admin_role).expect("failed to create default administrator role");
+    let role = user_repo
+        .create_role(&admin_role)
+        .expect("failed to create default administrator role");
 
     let password: String = rand::thread_rng()
         .sample_iter(rand::distributions::Alphanumeric)
@@ -100,9 +112,16 @@ fn ensure_default_admin(db: &Database) {
         .map(char::from)
         .collect();
     let password_hash = hash_password(&password).expect("failed to hash default admin password");
-    let mut user = User::new("admin", "Administrator", password_hash, role.id.expect("persisted role must have an id"));
+    let mut user = User::new(
+        "admin",
+        "Administrator",
+        password_hash,
+        role.id.expect("persisted role must have an id"),
+    );
     user.must_change_password = true;
-    user_repo.create_user(&user).expect("failed to create default admin user");
+    user_repo
+        .create_user(&user)
+        .expect("failed to create default admin user");
 
     log::warn!("No users existed yet -- created a default administrator account.");
     log::warn!("Username: admin");
@@ -157,7 +176,9 @@ fn main() -> iced::Result {
     log::info!("database path: {}", config.database_path.display());
 
     let database = Database::open(&config.database_path).expect("failed to open database");
-    database.run_migrations(&memonbooks::all_migrations()).expect("failed to run database migrations");
+    database
+        .run_migrations(&memonbooks::all_migrations())
+        .expect("failed to run database migrations");
 
     let company_id = ensure_default_company(&database);
     ensure_default_admin(&database);
@@ -195,12 +216,29 @@ fn main() -> iced::Result {
             resizable: true,
             ..iced::window::Settings::default()
         })
-        .run_with(move || (MemonBooks::new(ctx, theme, theme_path, font_scale, font_scale_path, startup_user), Task::none()))
+        .run_with(move || {
+            (
+                MemonBooks::new(
+                    ctx,
+                    theme,
+                    theme_path,
+                    font_scale,
+                    font_scale_path,
+                    startup_user,
+                ),
+                Task::none(),
+            )
+        })
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
+    LegacyMaintain,
+    Accounting,
+    Documents,
+    Trips,
+    Payroll,
+    Claims,
     Dashboard,
     Maintain,
     JournalEntry,
@@ -221,14 +259,20 @@ enum Route {
 }
 
 const NAV_ITEMS: &[(Route, &str)] = &[
-    (Route::Dashboard, "Dashboard"),
+    (Route::Dashboard, "Home"),
+    (Route::Documents, "Transactions"),
+    (Route::Accounting, "Accounting"),
+    (Route::Trips, "Trips"),
+    (Route::Payroll, "Payroll"),
+    (Route::Claims, "Expense Claims"),
     (Route::Maintain, "Maintain"),
+    (Route::LegacyMaintain, "Advanced Masters"),
     (Route::JournalEntry, "New Journal Entry"),
     (Route::JournalEntries, "Journal Entries"),
     (Route::TrialBalance, "Trial Balance"),
     (Route::FixedAssets, "Fixed Assets"),
     (Route::TaxRates, "Tax Rates"),
-    (Route::Transactions, "Transactions"),
+    (Route::Transactions, "Ledger Invoices / Bills"),
     (Route::Products, "Products"),
     (Route::Employees, "Employees"),
     (Route::Expenses, "Expenses"),
@@ -296,10 +340,19 @@ impl std::fmt::Display for TransactionDocument {
 /// Routes rendered in the sidebar's secondary section (below the divider)
 /// instead of the primary nav list.
 fn is_secondary_route(route: Route) -> bool {
-    matches!(route, Route::Settings | Route::Companies | Route::SwitchUser | Route::Users)
+    matches!(
+        route,
+        Route::Settings | Route::Companies | Route::SwitchUser | Route::Users
+    )
 }
 
 struct MemonBooks {
+    masters: documents_view::State,
+    ledger: ledger_view::State,
+    documents: documents_view::State,
+    trips: documents_view::State,
+    payroll: documents_view::State,
+    claims: documents_view::State,
     ctx: Ctx,
     session: Option<User>,
     /// Cached at login/switch-user time (not recomputed in `view()`, to
@@ -353,6 +406,12 @@ struct MemonBooks {
 
 #[derive(Debug, Clone)]
 enum Message {
+    Masters(documents_view::Message),
+    Ledger(ledger_view::Message),
+    Documents(documents_view::Message),
+    Trips(documents_view::Message),
+    Payroll(documents_view::Message),
+    Claims(documents_view::Message),
     Navigate(Route),
     TransactionSideSelect(TransactionSide),
     TransactionDocumentSelect(TransactionDocument),
@@ -382,11 +441,25 @@ enum Message {
 }
 
 impl MemonBooks {
-    fn new(ctx: Ctx, theme: Theme, theme_path: PathBuf, font_scale: FontScale, font_scale_path: PathBuf, startup_user: User) -> Self {
-        let can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(ctx.db.clone())
-            .has_permission(&startup_user, "users.manage")
-            .unwrap_or(false);
+    fn new(
+        ctx: Ctx,
+        theme: Theme,
+        theme_path: PathBuf,
+        font_scale: FontScale,
+        font_scale_path: PathBuf,
+        startup_user: User,
+    ) -> Self {
+        let can_manage_users =
+            memonbooks::backend::services::auth_service::AuthService::new(ctx.db.clone())
+                .has_permission(&startup_user, "users.manage")
+                .unwrap_or(false);
         Self {
+            masters: documents_view::State::default(),
+            ledger: ledger_view::State::default(),
+            documents: documents_view::State::default(),
+            trips: documents_view::State::default(),
+            payroll: documents_view::State::default(),
+            claims: documents_view::State::default(),
             ctx,
             session: Some(startup_user),
             can_manage_users,
@@ -425,8 +498,16 @@ impl MemonBooks {
     /// navigation lands on it.
     fn load_route(&mut self, route: Route) {
         match route {
+            Route::Accounting => self.ledger = ledger_view::load(&self.ctx),
+            Route::Documents => {
+                self.documents = documents_view::load(&self.ctx, Kind::PurchaseOrder)
+            }
+            Route::Trips => self.trips = documents_view::load(&self.ctx, Kind::Trip),
+            Route::Payroll => self.payroll = documents_view::load(&self.ctx, Kind::Payroll),
+            Route::Claims => self.claims = documents_view::load(&self.ctx, Kind::Expense),
             Route::Dashboard => self.dashboard = dashboard_view::load(&self.ctx),
-            Route::Maintain => self.maintain = maintain_view::load(&self.ctx),
+            Route::Maintain => self.masters = documents_view::load(&self.ctx, Kind::Account),
+            Route::LegacyMaintain => self.maintain = maintain_view::load(&self.ctx),
             Route::JournalEntry => self.journal_entry = journal_entry_view::load(&self.ctx),
             Route::JournalEntries => self.journal_entries = journal_entries_view::load(&self.ctx),
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
@@ -458,6 +539,12 @@ impl MemonBooks {
 
     fn update(&mut self, message: Message) {
         match message {
+            Message::Masters(m) => documents_view::update(&mut self.masters, m, &self.ctx),
+            Message::Ledger(m) => ledger_view::update(&mut self.ledger, m, &self.ctx),
+            Message::Documents(m) => documents_view::update(&mut self.documents, m, &self.ctx),
+            Message::Trips(m) => documents_view::update(&mut self.trips, m, &self.ctx),
+            Message::Payroll(m) => documents_view::update(&mut self.payroll, m, &self.ctx),
+            Message::Claims(m) => documents_view::update(&mut self.claims, m, &self.ctx),
             Message::Navigate(route) => {
                 self.route = route;
                 self.load_route(route);
@@ -487,9 +574,14 @@ impl MemonBooks {
                 self.login = login_view::State::default();
             }
             Message::Login(inner) => {
-                if let login_view::Event::LoggedIn(user) = login_view::update(&mut self.login, inner, &self.ctx) {
+                if let login_view::Event::LoggedIn(user) =
+                    login_view::update(&mut self.login, inner, &self.ctx)
+                {
                     self.ctx.current_user_id = user.id;
-                    self.can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(self.ctx.db.clone())
+                    self.can_manage_users =
+                        memonbooks::backend::services::auth_service::AuthService::new(
+                            self.ctx.db.clone(),
+                        )
                         .has_permission(&user, "users.manage")
                         .unwrap_or(false);
                     self.session = Some(user);
@@ -499,55 +591,112 @@ impl MemonBooks {
                 }
             }
             Message::PasswordChange(inner) => {
-                let Some(user) = self.session.clone() else { return };
-                if let password_change_view::Event::Changed(updated_user) = password_change_view::update(&mut self.password_change, inner, &self.ctx, &user) {
+                let Some(user) = self.session.clone() else {
+                    return;
+                };
+                if let password_change_view::Event::Changed(updated_user) =
+                    password_change_view::update(&mut self.password_change, inner, &self.ctx, &user)
+                {
                     self.session = Some(updated_user);
                     self.password_change = password_change_view::State::default();
                     self.route = Route::Dashboard;
                     self.load_route(Route::Dashboard);
                 }
             }
-            Message::Dashboard(inner) => dashboard_view::update(&mut self.dashboard, inner, &self.ctx),
+            Message::Dashboard(inner) => match inner {
+                dashboard_view::Message::NewExpense | dashboard_view::Message::AddReceipt => {
+                    self.route = Route::Claims;
+                    self.load_route(Route::Claims);
+                    documents_view::update(
+                        &mut self.claims,
+                        documents_view::Message::Add,
+                        &self.ctx,
+                    );
+                    if matches!(inner, dashboard_view::Message::AddReceipt) {
+                        documents_view::update(
+                            &mut self.claims,
+                            documents_view::Message::Attach,
+                            &self.ctx,
+                        );
+                    }
+                }
+                dashboard_view::Message::NewTrip => {
+                    self.route = Route::Trips;
+                    self.load_route(Route::Trips);
+                    documents_view::update(
+                        &mut self.trips,
+                        documents_view::Message::Add,
+                        &self.ctx,
+                    );
+                }
+                dashboard_view::Message::CreateReport => {
+                    self.route = Route::Reports;
+                    self.load_route(Route::Reports);
+                }
+                _ => dashboard_view::update(&mut self.dashboard, inner, &self.ctx),
+            },
             Message::Maintain(inner) => maintain_view::update(&mut self.maintain, inner, &self.ctx),
-            Message::JournalEntry(inner) => journal_entry_view::update(&mut self.journal_entry, inner, &self.ctx),
-            Message::JournalEntries(inner) => journal_entries_view::update(&mut self.journal_entries, inner, &self.ctx),
-            Message::TrialBalance(inner) => trial_balance_view::update(&mut self.trial_balance, inner, &self.ctx),
-            Message::FixedAssets(inner) => fixed_assets_view::update(&mut self.fixed_assets, inner, &self.ctx),
-            Message::TaxRates(inner) => tax_rates_view::update(&mut self.tax_rates, inner, &self.ctx),
+            Message::JournalEntry(inner) => {
+                journal_entry_view::update(&mut self.journal_entry, inner, &self.ctx)
+            }
+            Message::JournalEntries(inner) => {
+                journal_entries_view::update(&mut self.journal_entries, inner, &self.ctx)
+            }
+            Message::TrialBalance(inner) => {
+                trial_balance_view::update(&mut self.trial_balance, inner, &self.ctx)
+            }
+            Message::FixedAssets(inner) => {
+                fixed_assets_view::update(&mut self.fixed_assets, inner, &self.ctx)
+            }
+            Message::TaxRates(inner) => {
+                tax_rates_view::update(&mut self.tax_rates, inner, &self.ctx)
+            }
             Message::Invoices(inner) => invoices_view::update(&mut self.invoices, inner, &self.ctx),
             Message::Products(inner) => products_view::update(&mut self.products, inner, &self.ctx),
             Message::Bills(inner) => bills_view::update(&mut self.bills, inner, &self.ctx),
-            Message::Employees(inner) => employees_view::update(&mut self.employees, inner, &self.ctx),
+            Message::Employees(inner) => {
+                employees_view::update(&mut self.employees, inner, &self.ctx)
+            }
             Message::Expenses(inner) => expenses_view::update(&mut self.expenses, inner, &self.ctx),
             Message::Pos(inner) => pos_view::update(&mut self.pos, inner, &self.ctx),
             Message::Reports(inner) => reports_view::update(&mut self.reports, inner, &self.ctx),
-            Message::Settings(inner) => match settings_view::update(&mut self.settings, inner, &self.ctx) {
-                settings_view::Event::ThemeChanged(theme) => {
-                    self.theme = theme;
-                    if let Err(err) = theme_preference::save(&self.theme_path, theme) {
-                        log::warn!("failed to persist theme preference: {err}");
+            Message::Settings(inner) => {
+                match settings_view::update(&mut self.settings, inner, &self.ctx) {
+                    settings_view::Event::ThemeChanged(theme) => {
+                        self.theme = theme;
+                        if let Err(err) = theme_preference::save(&self.theme_path, theme) {
+                            log::warn!("failed to persist theme preference: {err}");
+                        }
                     }
-                }
-                settings_view::Event::FontScaleChanged(scale) => {
-                    self.font_scale = scale;
-                    font_scale::set(scale);
-                    if let Err(err) = font_scale_preference::save(&self.font_scale_path, scale) {
-                        log::warn!("failed to persist font size preference: {err}");
+                    settings_view::Event::FontScaleChanged(scale) => {
+                        self.font_scale = scale;
+                        font_scale::set(scale);
+                        if let Err(err) = font_scale_preference::save(&self.font_scale_path, scale)
+                        {
+                            log::warn!("failed to persist font size preference: {err}");
+                        }
                     }
+                    settings_view::Event::None => {}
                 }
-                settings_view::Event::None => {}
-            },
+            }
             Message::Companies(inner) => {
-                if let companies_view::Event::Switched(company_id) = companies_view::update(&mut self.companies, inner, &self.ctx) {
+                if let companies_view::Event::Switched(company_id) =
+                    companies_view::update(&mut self.companies, inner, &self.ctx)
+                {
                     self.ctx.company_id = company_id;
                     self.route = Route::Dashboard;
                     self.load_route(Route::Dashboard);
                 }
             }
             Message::SwitchUser(inner) => {
-                if let switch_user_view::Event::SwitchedTo(user) = switch_user_view::update(&mut self.switch_user, inner, &self.ctx) {
+                if let switch_user_view::Event::SwitchedTo(user) =
+                    switch_user_view::update(&mut self.switch_user, inner, &self.ctx)
+                {
                     self.ctx.current_user_id = user.id;
-                    self.can_manage_users = memonbooks::backend::services::auth_service::AuthService::new(self.ctx.db.clone())
+                    self.can_manage_users =
+                        memonbooks::backend::services::auth_service::AuthService::new(
+                            self.ctx.db.clone(),
+                        )
                         .has_permission(&user, "users.manage")
                         .unwrap_or(false);
                     self.session = Some(user);
@@ -557,7 +706,9 @@ impl MemonBooks {
                 }
             }
             Message::Users(inner) => {
-                let Some(user) = self.session.clone() else { return };
+                let Some(user) = self.session.clone() else {
+                    return;
+                };
                 users_view::update(&mut self.users, inner, &self.ctx, &user);
             }
         }
@@ -571,21 +722,35 @@ impl MemonBooks {
         // No way around this screen while set -- not even by navigating
         // directly, since nothing below here renders until it's clear.
         if user.must_change_password {
-            return password_change_view::view(&self.password_change, self.theme).map(Message::PasswordChange);
+            return password_change_view::view(&self.password_change, self.theme)
+                .map(Message::PasswordChange);
         }
 
-        let primary_routes: Vec<(Route, &str)> = NAV_ITEMS.iter().copied().filter(|(route, _)| !is_secondary_route(*route)).collect();
+        let primary_routes: Vec<(Route, &str)> = NAV_ITEMS
+            .iter()
+            .copied()
+            .filter(|(route, _)| !is_secondary_route(*route))
+            .collect();
         let secondary_routes: Vec<(Route, &str)> = NAV_ITEMS
             .iter()
             .copied()
-            .filter(|(route, _)| is_secondary_route(*route) && (*route != Route::Users || self.can_manage_users))
+            .filter(|(route, _)| {
+                is_secondary_route(*route) && (*route != Route::Users || self.can_manage_users)
+            })
             .collect();
 
-        let primary_entries: Vec<NavEntry> = primary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
-        let secondary_entries: Vec<NavEntry> = secondary_routes.iter().map(|(route, label)| NavEntry::new(label, *route == self.route)).collect();
+        let primary_entries: Vec<NavEntry> = primary_routes
+            .iter()
+            .map(|(route, label)| NavEntry::new(label, *route == self.route))
+            .collect();
+        let secondary_entries: Vec<NavEntry> = secondary_routes
+            .iter()
+            .map(|(route, label)| NavEntry::new(label, *route == self.route))
+            .collect();
 
         let primary_targets: Vec<Route> = primary_routes.iter().map(|(route, _)| *route).collect();
-        let secondary_targets: Vec<Route> = secondary_routes.iter().map(|(route, _)| *route).collect();
+        let secondary_targets: Vec<Route> =
+            secondary_routes.iter().map(|(route, _)| *route).collect();
 
         let sidebar = sidebar::view(
             self.theme,
@@ -609,18 +774,29 @@ impl MemonBooks {
         // current width" with no manual subtraction needed, and stays
         // correct across resizes and sidebar collapse/expand alike.
         let content_area: Element<'_, Message> = iced::widget::responsive(move |size| {
-            let margin = iced::Padding { top: size.height * states::CONTENT_MARGIN_FRACTION, right: size.width * states::CONTENT_MARGIN_FRACTION, bottom: size.height * states::CONTENT_MARGIN_FRACTION, left: size.width * states::CONTENT_MARGIN_FRACTION };
-            container(self.screen()).width(Length::Fill).height(Length::Fill).padding(margin).into()
+            let margin = iced::Padding {
+                top: size.height * states::CONTENT_MARGIN_FRACTION,
+                right: size.width * states::CONTENT_MARGIN_FRACTION,
+                bottom: size.height * states::CONTENT_MARGIN_FRACTION,
+                left: size.width * states::CONTENT_MARGIN_FRACTION,
+            };
+            container(self.screen())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(margin)
+                .into()
         })
         .into();
 
         container(row![sidebar, content_area])
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(self.theme.page_bg())),
-                ..iced::widget::container::Style::default()
-            })
+            .style(
+                move |_iced_theme: &iced::Theme| iced::widget::container::Style {
+                    background: Some(iced::Background::Color(self.theme.page_bg())),
+                    ..iced::widget::container::Style::default()
+                },
+            )
             .into()
     }
 
@@ -631,22 +807,89 @@ impl MemonBooks {
     /// can only borrow `self`, not consume an already-built `Element`).
     fn screen(&self) -> Element<'_, Message> {
         match self.route {
-            Route::Dashboard => dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard),
-            Route::Maintain => maintain_view::view(&self.maintain, self.theme).map(Message::Maintain),
-            Route::JournalEntry => journal_entry_view::view(&self.journal_entry, self.theme).map(Message::JournalEntry),
-            Route::JournalEntries => journal_entries_view::view(&self.journal_entries, self.theme).map(Message::JournalEntries),
-            Route::TrialBalance => trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance),
-            Route::FixedAssets => fixed_assets_view::view(&self.fixed_assets, self.theme).map(Message::FixedAssets),
-            Route::TaxRates => tax_rates_view::view(&self.tax_rates, self.theme).map(Message::TaxRates),
+            Route::Accounting => ledger_view::view(&self.ledger, self.theme).map(Message::Ledger),
+            Route::Documents => {
+                let kinds = if SALE.contains(&self.documents.kind) {
+                    SALE
+                } else if MONEY.contains(&self.documents.kind) {
+                    MONEY
+                } else {
+                    PURCHASE
+                };
+                column![
+                    row![
+                        button("Purchase").on_press(Message::Documents(
+                            documents_view::Message::Kind(Kind::PurchaseOrder)
+                        )),
+                        button("Sale").on_press(Message::Documents(documents_view::Message::Kind(
+                            Kind::Quotation
+                        ))),
+                        button("Transaction").on_press(Message::Documents(
+                            documents_view::Message::Kind(Kind::CashReceipt)
+                        ))
+                    ]
+                    .spacing(8)
+                    .padding([12, 20]),
+                    documents_view::view(&self.documents, self.theme, kinds)
+                        .map(Message::Documents)
+                ]
+                .into()
+            }
+            Route::Trips => {
+                documents_view::view(&self.trips, self.theme, &[Kind::Trip]).map(Message::Trips)
+            }
+            Route::Payroll => {
+                documents_view::view(&self.payroll, self.theme, &[Kind::Payroll, Kind::Employee])
+                    .map(Message::Payroll)
+            }
+            Route::Claims => documents_view::view(&self.claims, self.theme, &[Kind::Expense])
+                .map(Message::Claims),
+            Route::Dashboard => {
+                dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard)
+            }
+            Route::Maintain => documents_view::view(
+                &self.masters,
+                self.theme,
+                memonbooks::backend::transactions::documents::MASTERS,
+            )
+            .map(Message::Masters),
+            Route::LegacyMaintain => {
+                maintain_view::view(&self.maintain, self.theme).map(Message::Maintain)
+            }
+            Route::JournalEntry => {
+                journal_entry_view::view(&self.journal_entry, self.theme).map(Message::JournalEntry)
+            }
+            Route::JournalEntries => journal_entries_view::view(&self.journal_entries, self.theme)
+                .map(Message::JournalEntries),
+            Route::TrialBalance => {
+                trial_balance_view::view(&self.trial_balance, self.theme).map(Message::TrialBalance)
+            }
+            Route::FixedAssets => {
+                fixed_assets_view::view(&self.fixed_assets, self.theme).map(Message::FixedAssets)
+            }
+            Route::TaxRates => {
+                tax_rates_view::view(&self.tax_rates, self.theme).map(Message::TaxRates)
+            }
             Route::Transactions => self.transactions_view(),
-            Route::Products => products_view::view(&self.products, self.theme).map(Message::Products),
-            Route::Employees => employees_view::view(&self.employees, self.theme).map(Message::Employees),
-            Route::Expenses => expenses_view::view(&self.expenses, self.theme).map(Message::Expenses),
+            Route::Products => {
+                products_view::view(&self.products, self.theme).map(Message::Products)
+            }
+            Route::Employees => {
+                employees_view::view(&self.employees, self.theme).map(Message::Employees)
+            }
+            Route::Expenses => {
+                expenses_view::view(&self.expenses, self.theme).map(Message::Expenses)
+            }
             Route::Pos => pos_view::view(&self.pos, self.theme).map(Message::Pos),
             Route::Reports => reports_view::view(&self.reports, self.theme).map(Message::Reports),
-            Route::Settings => settings_view::view(&self.settings, self.theme, self.font_scale).map(Message::Settings),
-            Route::Companies => companies_view::view(&self.companies, self.theme).map(Message::Companies),
-            Route::SwitchUser => switch_user_view::view(&self.switch_user, self.theme).map(Message::SwitchUser),
+            Route::Settings => settings_view::view(&self.settings, self.theme, self.font_scale)
+                .map(Message::Settings),
+            Route::Companies => {
+                companies_view::view(&self.companies, self.theme).map(Message::Companies)
+            }
+            Route::SwitchUser => {
+                switch_user_view::view(&self.switch_user, self.theme).map(Message::SwitchUser)
+            }
             Route::Users => users_view::view(&self.users, self.theme).map(Message::Users),
         }
     }
@@ -659,19 +902,45 @@ impl MemonBooks {
     /// since only Bills/Invoices ever use it.
     fn transactions_view(&self) -> Element<'_, Message> {
         let toggle = row![
-            transaction_side_button(self.theme, "Purchase", self.transaction_side == TransactionSide::Purchase, Message::TransactionSideSelect(TransactionSide::Purchase)),
-            transaction_side_button(self.theme, "Sale", self.transaction_side == TransactionSide::Sale, Message::TransactionSideSelect(TransactionSide::Sale)),
+            transaction_side_button(
+                self.theme,
+                "Purchase",
+                self.transaction_side == TransactionSide::Purchase,
+                Message::TransactionSideSelect(TransactionSide::Purchase)
+            ),
+            transaction_side_button(
+                self.theme,
+                "Sale",
+                self.transaction_side == TransactionSide::Sale,
+                Message::TransactionSideSelect(TransactionSide::Sale)
+            ),
         ]
         .spacing(spacing::SM);
 
         let documents = self.transaction_side.documents();
-        let picker = pick_list(documents, Some(self.transaction_document), Message::TransactionDocumentSelect).style(dropdown::style(self.theme)).padding(spacing::SM).width(Length::Fixed(180.0));
+        let picker = pick_list(
+            documents,
+            Some(self.transaction_document),
+            Message::TransactionDocumentSelect,
+        )
+        .style(dropdown::style(self.theme))
+        .padding(spacing::SM)
+        .width(Length::Fixed(180.0));
 
-        let controls = container(row![toggle, picker].spacing(spacing::SPACE_12).align_y(iced::Alignment::Center)).padding(spacing::HEADER_PADDING);
+        let controls = container(
+            row![toggle, picker]
+                .spacing(spacing::SPACE_12)
+                .align_y(iced::Alignment::Center),
+        )
+        .padding(spacing::HEADER_PADDING);
 
         let body: Element<'_, Message> = match self.transaction_document {
-            TransactionDocument::Bills => bills_view::view(&self.bills, self.theme).map(Message::Bills),
-            TransactionDocument::Invoices => invoices_view::view(&self.invoices, self.theme).map(Message::Invoices),
+            TransactionDocument::Bills => {
+                bills_view::view(&self.bills, self.theme).map(Message::Bills)
+            }
+            TransactionDocument::Invoices => {
+                invoices_view::view(&self.invoices, self.theme).map(Message::Invoices)
+            }
         };
 
         column![controls, body].into()
@@ -681,9 +950,20 @@ impl MemonBooks {
 /// One "Purchase" / "Sale" toggle button for `transactions_view` -- the
 /// active side is `button::primary`, the inactive one is
 /// `button::secondary`.
-fn transaction_side_button<'a, Message: Clone + 'a>(theme: Theme, label: &str, active: bool, on_press: Message) -> Element<'a, Message> {
+fn transaction_side_button<'a, Message: Clone + 'a>(
+    theme: Theme,
+    label: &str,
+    active: bool,
+    on_press: Message,
+) -> Element<'a, Message> {
     let label = label.to_string();
-    let btn = button(text(label).size(typography::label())).padding([spacing::SM, spacing::MD]).on_press(on_press);
-    if active { btn.style(button_style::primary(theme)) } else { btn.style(button_style::secondary(theme)) }.into()
+    let btn = button(text(label).size(typography::label()))
+        .padding([spacing::SM, spacing::MD])
+        .on_press(on_press);
+    if active {
+        btn.style(button_style::primary(theme))
+    } else {
+        btn.style(button_style::secondary(theme))
+    }
+    .into()
 }
-

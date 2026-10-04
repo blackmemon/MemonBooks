@@ -2232,7 +2232,9 @@ dependencies = [
  "hmac",
  "iced",
  "log",
+ "png",
  "printpdf",
+ "quick-xml",
  "rand 0.8.7",
  "rfd",
  "rusqlite",
@@ -2243,6 +2245,7 @@ dependencies = [
  "simplelog",
  "thiserror 2.0.20",
  "totp-rs",
+ "zip",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@
 //! this component always renders the bar itself.
 
 use iced::widget::{button, row, text, Space};
-use iced::{Alignment, Background, Color, Element, Length};
+use iced::{Alignment, Background, Element, Length};
 
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::typography;
@@ -28,11 +28,10 @@ pub fn view<'a, Message: Clone + 'a>(theme: Theme, selected_count: usize, on_del
 
     iced::widget::container(bar)
         .style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-            background: Some(Background::Color(Color { a: states::TINTED_PANEL_ALPHA, ..theme.primary() })),
+            background: Some(Background::Color(theme.primary_tint(states::TINTED_PANEL_ALPHA))),
             border: borders::card(theme, states::RADIUS_MD),
             ..iced::widget::container::Style::default()
         })
         .width(Length::Fill)
         .into()
 }
-

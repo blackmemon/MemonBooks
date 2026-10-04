@@ -470,7 +470,7 @@ impl AccountingRepository {
     /// The shared insert path: transaction header, every line, the
     /// reversal link on the original (if any), and the audit log entry --
     /// all within the caller's open `tx`. Returns the new transaction's id.
-    fn insert_transaction_and_lines(tx: &rusqlite::Transaction, transaction: &Transaction) -> AppResult<i64> {
+    pub(crate) fn insert_transaction_and_lines(tx: &rusqlite::Transaction, transaction: &Transaction) -> AppResult<i64> {
         tx.execute(
             "INSERT INTO transactions
              (company_id, transaction_type, transaction_date, description, status,

@@ -3,6 +3,7 @@ pub mod api;
 pub mod auth_service;
 pub mod banking_service;
 pub mod commands;
+pub mod document_service;
 pub mod expense_service;
 pub mod fixed_asset_service;
 pub mod inventory_service;

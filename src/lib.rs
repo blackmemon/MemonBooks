@@ -26,6 +26,7 @@ pub mod demo_data;
 /// module added later can't be forgotten in one of the three.
 pub fn all_migrations() -> Vec<database::database::Migration> {
     let mut migrations = Vec::new();
+    migrations.extend_from_slice(backend::repositories::document_repository::MIGRATIONS);
     migrations.extend_from_slice(backend::repositories::organization_repository::MIGRATIONS);
     migrations.extend_from_slice(backend::repositories::user_repository::MIGRATIONS);
     migrations.extend_from_slice(backend::repositories::party_repository::MIGRATIONS);

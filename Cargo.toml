@@ -21,6 +21,9 @@ totp-rs = { version = "5", features = ["gen_secret"] }
 rand = "0.8"
 rust_xlsxwriter = "0.79"
 printpdf = "0.7"
+png = "0.17"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+quick-xml = "0.41"
 hmac = "0.12"
 sha2 = "0.10"
 dark-light = "1"
@@ -31,3 +34,47 @@ dark-light = "1"
 # async-only (`AsyncFileDialog`) and would need `Task`-returning
 # `update` signatures threaded through every view to use.
 rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
+
+[[test]]
+name = "accounting"
+path = "tests/accounting/main.rs"
+
+[[test]]
+name = "banking"
+path = "tests/banking/main.rs"
+
+[[test]]
+name = "expenses"
+path = "tests/expenses/main.rs"
+
+[[test]]
+name = "fixed_assets"
+path = "tests/fixed_assets/main.rs"
+
+[[test]]
+name = "inventory"
+path = "tests/inventory/main.rs"
+
+[[test]]
+name = "pos"
+path = "tests/pos/main.rs"
+
+[[test]]
+name = "purchases"
+path = "tests/purchases/main.rs"
+
+[[test]]
+name = "reports"
+path = "tests/reports/main.rs"
+
+[[test]]
+name = "sales"
+path = "tests/sales/main.rs"
+
+[[test]]
+name = "tax"
+path = "tests/tax/main.rs"
+
+[[test]]
+name = "workflows"
+path = "tests/workflows.rs"

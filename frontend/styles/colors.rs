@@ -38,7 +38,7 @@ impl Theme {
 
     pub fn neutral_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(255, 255, 255),
+            Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
             Theme::Dark => rgb8(0x2A, 0x2C, 0x31),
         }
     }
@@ -74,9 +74,13 @@ impl Theme {
         /// Primary accent -- buttons, active nav item, links, focus rings.
     pub fn primary(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
+            Theme::Light => rgb8(0x51, 0xA2, 0xFF),
             Theme::Dark => rgb8(0x4B, 0x55, 0x63),
         }
+    }
+
+    pub fn primary_tint(&self, alpha: f32) -> Color {
+        Color { a: alpha, ..self.primary() }
     }
 
     /// Primary button hover/pressed color.
@@ -123,7 +127,7 @@ impl Theme {
     /// Success / positive background.
     pub fn positive_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0x22, 0xC5, 0x5E),
+            Theme::Light => rgb8(0xC6, 0xF1, 0xCE),
             Theme::Dark => rgb8(0x22, 0xC5, 0x5E),
         }
     }
@@ -147,7 +151,7 @@ impl Theme {
     /// Error / negative background.
     pub fn negative_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(0xEF, 0x44, 0x44),
+            Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
             Theme::Dark => rgb8(0xEF, 0x44, 0x44),
         }
     }
@@ -233,11 +237,10 @@ impl Theme {
 mod tests {
     use super::*;
 
-    // Regression-proofs the existing look: every `Light` value must stay
-    // byte-for-byte what the old `WHITE_*` constants were.
+    // The light palette stays aligned with the White Theme in PROJECT_SPEC.md.
     #[test]
     fn light_theme_matches_the_original_white_theme_values() {
-        assert_eq!(Theme::Light.primary(), rgb8(0x2C, 0x8F, 0xBD));
+        assert_eq!(Theme::Light.primary(), rgb8(0x51, 0xA2, 0xFF));
         assert_eq!(Theme::Light.positive_bg(), rgb8(0xC6, 0xF1, 0xCE));
         assert_eq!(Theme::Light.positive_front(), rgb8(0x00, 0x64, 0x00));
         assert_eq!(Theme::Light.negative_bg(), rgb8(0xFF, 0xC8, 0xCE));

@@ -38,7 +38,7 @@ pub fn primary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
         };
         Style {
             background: Some(Background::Color(background)),
-            text_color: theme.accent_front(),
+            text_color: if matches!(status, Status::Hovered | Status::Pressed) { theme.accent_front() } else { theme.positive_front() },
             border: Border {
                 width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),
@@ -59,7 +59,7 @@ pub fn secondary(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
 
         Style {
             background: Some(Background::Color(background)),
-            text_color: theme.accent_front(),
+            text_color: if matches!(status, Status::Hovered | Status::Pressed) { theme.accent_front() } else { theme.negative_front() },
             border: Border {
                 width: states::STYLES_BORDER_WIDTH_ALPHA,
                 radius: states::RADIUS_SM.into(),

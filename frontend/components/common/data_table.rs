@@ -410,7 +410,7 @@ pub fn columns_panel<'a, Message: Clone + 'a>(
         let option = checkbox(*label, is_visible)
             .style(checkbox_style::style(theme))
             .on_toggle(move |_| toggle_this(index))
-            .size(16)
+            .size(typography::checkbox_size())
             .text_size(typography::label());
         list = list.push(
             container(option)

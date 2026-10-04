@@ -26,20 +26,92 @@ pub struct ReportService {
 }
 
 impl ReportService {
+    pub fn general_ledger(
+        &self,
+        company: i64,
+        account: i64,
+        as_of: NaiveDate,
+    ) -> AppResult<Vec<crate::backend::accounting::general_ledger::GeneralLedgerEntry>> {
+        if self.repo.get_account(account)?.company_id != company {
+            return Err(crate::backend::core::errors::AppError::Validation(
+                "Account belongs to another company".into(),
+            ));
+        }
+        self.repo
+            .general_ledger_for_account(account, rust_decimal::Decimal::ZERO, as_of)
+    }
+
+    pub fn party_open_items(
+        &self,
+        company: i64,
+        party_type: &str,
+        party: i64,
+        as_of: NaiveDate,
+    ) -> AppResult<
+        Vec<(
+            NaiveDate,
+            String,
+            rust_decimal::Decimal,
+            rust_decimal::Decimal,
+        )>,
+    > {
+        if party_type == "Customer" {
+            Ok(self
+                .repo
+                .list_open_receivables_for_company(company)?
+                .into_iter()
+                .filter(|r| r.customer_id == party && r.due_date <= as_of)
+                .map(|r| {
+                    (
+                        r.due_date,
+                        r.reference.clone().unwrap_or_default(),
+                        r.amount,
+                        r.balance(),
+                    )
+                })
+                .collect())
+        } else {
+            Ok(self
+                .repo
+                .list_open_payables_for_company(company)?
+                .into_iter()
+                .filter(|r| r.vendor_id == party && r.due_date <= as_of)
+                .map(|r| {
+                    (
+                        r.due_date,
+                        r.reference.clone().unwrap_or_default(),
+                        r.amount,
+                        r.balance(),
+                    )
+                })
+                .collect())
+        }
+    }
     pub fn new(db: Database) -> Self {
-        Self { repo: AccountingRepository::new(db) }
+        Self {
+            repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn list_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.repo.list_accounts_for_company(company_id)
     }
 
-    pub fn trial_balance_as_of(&self, company_id: i64, as_of: NaiveDate) -> AppResult<TrialBalance> {
+    pub fn trial_balance_as_of(
+        &self,
+        company_id: i64,
+        as_of: NaiveDate,
+    ) -> AppResult<TrialBalance> {
         self.repo.trial_balance_as_of(company_id, as_of)
     }
 
-    pub fn revenue_and_expense_balances_as_of(&self, company_id: i64, as_of: NaiveDate) -> AppResult<Vec<ClosingBalance>> {
-        self.repo.revenue_and_expense_balances_as_of(company_id, as_of)
+    pub fn revenue_and_expense_balances_as_of(
+        &self,
+        company_id: i64,
+        as_of: NaiveDate,
+    ) -> AppResult<Vec<ClosingBalance>> {
+        self.repo
+            .revenue_and_expense_balances_as_of(company_id, as_of)
     }
 
     pub fn list_open_receivables(&self, company_id: i64) -> AppResult<Vec<Receivable>> {

@@ -41,16 +41,22 @@ impl Vendor {
 impl Validate for Vendor {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("vendor must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "vendor must reference a valid company".into(),
+            ));
         }
         require_non_empty("vendor name", &self.name)?;
         require_max_length("vendor name", &self.name, 200)?;
         if self.payment_terms_days < 0 {
-            return Err(AppError::Validation("payment terms (days) must not be negative".into()));
+            return Err(AppError::Validation(
+                "payment terms (days) must not be negative".into(),
+            ));
         }
         if let Some(email) = &self.email {
             if !email.contains('@') {
-                return Err(AppError::Validation("vendor email is not a valid email address".into()));
+                return Err(AppError::Validation(
+                    "vendor email is not a valid email address".into(),
+                ));
             }
         }
         Ok(())

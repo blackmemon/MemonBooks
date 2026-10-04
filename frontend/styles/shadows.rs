@@ -16,5 +16,12 @@ const CARD_SHADOW_ALPHA: f32 = 0.08;
 /// A contained shadow for cards floating slightly above the page
 /// background: soft, short throw, low opacity.
 pub fn card(theme: Theme) -> Shadow {
-    Shadow { color: Color { a: CARD_SHADOW_ALPHA, ..theme.neutral_front() }, offset: Vector::new(0.0, 1.0), blur_radius: 8.0 }
+    Shadow {
+        color: Color {
+            a: CARD_SHADOW_ALPHA,
+            ..theme.neutral_front()
+        },
+        offset: Vector::new(0.0, 1.0),
+        blur_radius: 8.0,
+    }
 }

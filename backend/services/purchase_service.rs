@@ -72,7 +72,11 @@ impl PurchaseService {
         self.purchase_repo.void_bill(bill_id)
     }
 
-    pub fn post_bill(&self, bill_id: i64, ap_account_id: i64) -> AppResult<(Bill, Transaction, Payable)> {
+    pub fn post_bill(
+        &self,
+        bill_id: i64,
+        ap_account_id: i64,
+    ) -> AppResult<(Bill, Transaction, Payable)> {
         self.purchase_repo.post_bill(bill_id, ap_account_id)
     }
 
@@ -95,25 +99,47 @@ impl PurchaseService {
         let payable = self.purchase_repo.open_payable_for_bill(bill_id)?;
         let mut debit_note = DebitNote::new(bill.company_id, bill.vendor_id, debit_note_date);
         debit_note.payable_id = payable.id;
-        debit_note.lines.push(DebitNoteLine::new(account_id, description, amount));
+        debit_note
+            .lines
+            .push(DebitNoteLine::new(account_id, description, amount));
         let created = self.purchase_repo.create_debit_note(&debit_note)?;
-        self.purchase_repo.post_debit_note(created.id.unwrap_or_default(), ap_account_id)
+        self.purchase_repo
+            .post_debit_note(created.id.unwrap_or_default(), ap_account_id)
     }
 
     /// Applies FIFO across the vendor's whole open balance, not a single
     /// bill -- see `PurchaseRepository::record_vendor_payment`. Not
     /// currently routed to from any view; kept for a possible future
     /// vendor-level "make a payment" action.
-    pub fn record_vendor_payment(&self, payment: &VendorPayment, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
-        self.purchase_repo.record_vendor_payment(payment, ap_account_id, cash_account_id)
+    pub fn record_vendor_payment(
+        &self,
+        payment: &VendorPayment,
+        ap_account_id: i64,
+        cash_account_id: i64,
+    ) -> AppResult<VendorPayment> {
+        self.purchase_repo
+            .record_vendor_payment(payment, ap_account_id, cash_account_id)
     }
 
     /// Applies only to the one bill's own payable, capped at its own
     /// remaining balance -- see `PurchaseRepository::
     /// record_payment_for_bill`. This is what Bills' row-level "Pay"
     /// actually calls.
-    pub fn record_payment_for_bill(&self, bill_id: i64, payment_date: chrono::NaiveDate, amount: rust_decimal::Decimal, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
-        self.purchase_repo.record_payment_for_bill(bill_id, payment_date, amount, ap_account_id, cash_account_id)
+    pub fn record_payment_for_bill(
+        &self,
+        bill_id: i64,
+        payment_date: chrono::NaiveDate,
+        amount: rust_decimal::Decimal,
+        ap_account_id: i64,
+        cash_account_id: i64,
+    ) -> AppResult<VendorPayment> {
+        self.purchase_repo.record_payment_for_bill(
+            bill_id,
+            payment_date,
+            amount,
+            ap_account_id,
+            cash_account_id,
+        )
     }
 
     /// The bill's own remaining balance -- for prefilling a payment form

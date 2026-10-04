@@ -61,7 +61,9 @@ impl AccountType {
     pub fn normal_balance(self) -> NormalBalance {
         match self {
             AccountType::Asset | AccountType::Expense => NormalBalance::Debit,
-            AccountType::Liability | AccountType::Equity | AccountType::Revenue => NormalBalance::Credit,
+            AccountType::Liability | AccountType::Equity | AccountType::Revenue => {
+                NormalBalance::Credit
+            }
         }
     }
 
@@ -105,7 +107,10 @@ mod tests {
 
     #[test]
     fn liabilities_equity_and_revenue_have_a_normal_credit_balance() {
-        assert_eq!(AccountType::Liability.normal_balance(), NormalBalance::Credit);
+        assert_eq!(
+            AccountType::Liability.normal_balance(),
+            NormalBalance::Credit
+        );
         assert_eq!(AccountType::Equity.normal_balance(), NormalBalance::Credit);
         assert_eq!(AccountType::Revenue.normal_balance(), NormalBalance::Credit);
     }
@@ -119,7 +124,10 @@ mod tests {
             AccountType::Revenue,
             AccountType::Expense,
         ] {
-            assert_eq!(AccountType::parse(account_type.as_str()), Some(account_type));
+            assert_eq!(
+                AccountType::parse(account_type.as_str()),
+                Some(account_type)
+            );
         }
     }
 
@@ -134,15 +142,33 @@ mod tests {
 
     #[test]
     fn not_yet_due_or_due_today_is_current() {
-        assert_eq!(aging_bucket_for(date(2026, 3, 1), date(2026, 2, 15)), AgingBucket::Current);
-        assert_eq!(aging_bucket_for(date(2026, 3, 1), date(2026, 3, 1)), AgingBucket::Current);
+        assert_eq!(
+            aging_bucket_for(date(2026, 3, 1), date(2026, 2, 15)),
+            AgingBucket::Current
+        );
+        assert_eq!(
+            aging_bucket_for(date(2026, 3, 1), date(2026, 3, 1)),
+            AgingBucket::Current
+        );
     }
 
     #[test]
     fn aging_bucket_boundaries_are_inclusive_of_their_upper_edge() {
-        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 1, 31)), AgingBucket::Days1To30);
-        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 2, 1)), AgingBucket::Days31To60);
-        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 3, 3)), AgingBucket::Days61To90);
-        assert_eq!(aging_bucket_for(date(2026, 1, 1), date(2026, 4, 2)), AgingBucket::Over90);
+        assert_eq!(
+            aging_bucket_for(date(2026, 1, 1), date(2026, 1, 31)),
+            AgingBucket::Days1To30
+        );
+        assert_eq!(
+            aging_bucket_for(date(2026, 1, 1), date(2026, 2, 1)),
+            AgingBucket::Days31To60
+        );
+        assert_eq!(
+            aging_bucket_for(date(2026, 1, 1), date(2026, 3, 3)),
+            AgingBucket::Days61To90
+        );
+        assert_eq!(
+            aging_bucket_for(date(2026, 1, 1), date(2026, 4, 2)),
+            AgingBucket::Over90
+        );
     }
 }

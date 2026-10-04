@@ -16,7 +16,11 @@ pub struct StockKey {
 /// Sums every movement's `quantity_delta` for the same (product,
 /// warehouse) pair -- the on-hand quantity as of whatever cutoff the
 /// caller already filtered `movements` to.
-pub fn on_hand_quantity(movements: &[StockMovement], product_id: i64, warehouse_id: i64) -> Decimal {
+pub fn on_hand_quantity(
+    movements: &[StockMovement],
+    product_id: i64,
+    warehouse_id: i64,
+) -> Decimal {
     movements
         .iter()
         .filter(|m| m.product_id == product_id && m.warehouse_id == warehouse_id)
@@ -26,7 +30,11 @@ pub fn on_hand_quantity(movements: &[StockMovement], product_id: i64, warehouse_
 
 /// On-hand quantity for a product across every warehouse it's held in.
 pub fn total_on_hand_quantity(movements: &[StockMovement], product_id: i64) -> Decimal {
-    movements.iter().filter(|m| m.product_id == product_id).map(|m| m.quantity_delta).sum()
+    movements
+        .iter()
+        .filter(|m| m.product_id == product_id)
+        .map(|m| m.quantity_delta)
+        .sum()
 }
 
 #[cfg(test)]
@@ -40,8 +48,20 @@ mod tests {
         NaiveDate::from_ymd_opt(y, m, d).unwrap()
     }
 
-    fn movement(product_id: i64, warehouse_id: i64, movement_type: MovementType, delta: Decimal) -> StockMovement {
-        StockMovement::new(1, product_id, warehouse_id, date(2026, 1, 1), movement_type, delta)
+    fn movement(
+        product_id: i64,
+        warehouse_id: i64,
+        movement_type: MovementType,
+        delta: Decimal,
+    ) -> StockMovement {
+        StockMovement::new(
+            1,
+            product_id,
+            warehouse_id,
+            date(2026, 1, 1),
+            movement_type,
+            delta,
+        )
     }
 
     #[test]

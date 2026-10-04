@@ -54,7 +54,13 @@ pub struct TaxRate {
 }
 
 impl TaxRate {
-    pub fn new(company_id: i64, name: impl Into<String>, rate_percent: Decimal, direction: TaxDirection, gl_account_id: i64) -> Self {
+    pub fn new(
+        company_id: i64,
+        name: impl Into<String>,
+        rate_percent: Decimal,
+        direction: TaxDirection,
+        gl_account_id: i64,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -71,12 +77,16 @@ impl TaxRate {
 impl Validate for TaxRate {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("tax rate must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "tax rate must reference a valid company".into(),
+            ));
         }
         require_non_empty("tax rate name", &self.name)?;
         require_non_negative("tax rate percent", self.rate_percent)?;
         if self.gl_account_id <= 0 {
-            return Err(AppError::Validation("tax rate must reference a valid GL account".into()));
+            return Err(AppError::Validation(
+                "tax rate must reference a valid GL account".into(),
+            ));
         }
         Ok(())
     }

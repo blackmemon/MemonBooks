@@ -28,9 +28,16 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_invoice() {
-        let mut invoice = Invoice::new(1, 1, NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), NaiveDate::from_ymd_opt(2026, 2, 4).unwrap());
+        let mut invoice = Invoice::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 2, 4).unwrap(),
+        );
         invoice.id = Some(7);
-        invoice.lines.push(InvoiceLine::new(10, "Consulting", dec!(1), dec!(500)));
+        invoice
+            .lines
+            .push(InvoiceLine::new(10, "Consulting", dec!(1), dec!(500)));
 
         let (headers, rows) = to_rows(&[invoice]);
         assert_eq!(headers.len(), 5);

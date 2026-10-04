@@ -1,13 +1,13 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
 use iced::{Alignment, Element, Font, Length};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::fonts;
-use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};
 use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::dropdown;
+use crate::frontend::styles::fonts;
 use crate::frontend::styles::inputs;
+use crate::frontend::styles::typography;
+use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};
 
 #[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
@@ -26,10 +26,27 @@ pub fn view<'a, Message: Clone + 'a>(
     let mut tab_row = row![].spacing(spacing::LG).align_y(Alignment::Center);
     for (index, label) in tab_labels.iter().enumerate() {
         let active = index == active_tab;
-        let font = if active { Font { weight: iced::font::Weight::Bold, ..Font::DEFAULT } } else { Font::DEFAULT };
+        let font = if active {
+            Font {
+                weight: iced::font::Weight::Bold,
+                ..Font::DEFAULT
+            }
+        } else {
+            Font::DEFAULT
+        };
         let tab = column![
-            button(text(*label).size(typography::label()).color(tabs::text_color(theme, active)).font(font)).style(tabs::tab_button(theme)).padding([spacing::SPACE_6, 0.0]).on_press(on_tab_select(index)),
-            container(Space::with_height(Length::Fixed(2.0))).width(Length::Fill).style(tabs::underline(theme, active)),
+            button(
+                text(*label)
+                    .size(typography::label())
+                    .color(tabs::text_color(theme, active))
+                    .font(font)
+            )
+            .style(tabs::tab_button(theme))
+            .padding([spacing::SPACE_6, 0.0])
+            .on_press(on_tab_select(index)),
+            container(Space::with_height(Length::Fixed(2.0)))
+                .width(Length::Fill)
+                .style(tabs::underline(theme, active)),
         ]
         .spacing(spacing::SPACE_6)
         .width(Length::Shrink);
@@ -53,9 +70,14 @@ pub fn view<'a, Message: Clone + 'a>(
         .style(button_style::secondary(theme))
         .on_press(on_sort_click);
 
-    let controls = row![search, filters_button, sort_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT));
+    let controls = row![search, filters_button, sort_button]
+        .spacing(spacing::SM)
+        .align_y(Alignment::Center)
+        .height(Length::Fixed(toolbar_style::CONTROL_HEIGHT));
 
-    row![tab_row, Space::with_width(Length::Fill), controls].align_y(Alignment::Center).into()
+    row![tab_row, Space::with_width(Length::Fill), controls]
+        .align_y(Alignment::Center)
+        .into()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -66,7 +88,11 @@ pub enum StatusFilter {
     Inactive,
 }
 
-pub const STATUS_FILTERS: [StatusFilter; 3] = [StatusFilter::All, StatusFilter::Active, StatusFilter::Inactive];
+pub const STATUS_FILTERS: [StatusFilter; 3] = [
+    StatusFilter::All,
+    StatusFilter::Active,
+    StatusFilter::Inactive,
+];
 
 impl StatusFilter {
     /// Whether a record with this `is_active` flag passes the filter.
@@ -103,12 +129,49 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     delete_enabled: bool,
     on_delete: Message,
 ) -> Element<'a, Message> {
-    let search = text_input(search_placeholder, search_value).style(inputs::text(theme)).on_input(on_search_change).padding([spacing::SM, spacing::SPACE_12]).size(typography::label()).width(Length::Fill);
-    let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select).padding([spacing::SM, spacing::SPACE_12]).text_size(typography::label()).style(dropdown::style(theme)).menu_style(dropdown::dropdown_menu(theme));
-    let reset_button = button(text("Reset All").size(typography::label()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_reset_all);
-    let columns_button = button(text("Columns").size(typography::label()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_toggle_columns);
-    let export_button = button(text("Export").size(typography::label()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(on_export);
-    let delete_button = button(text("Delete").size(typography::label())).padding([spacing::SM, spacing::SPACE_14]).style(button_style::negative(theme)).on_press_maybe(delete_enabled.then_some(on_delete));
+    let search = text_input(search_placeholder, search_value)
+        .style(inputs::text(theme))
+        .on_input(on_search_change)
+        .padding([spacing::SM, spacing::SPACE_12])
+        .size(typography::label())
+        .width(Length::Fill);
+    let status = pick_list(STATUS_FILTERS, Some(status_selected), on_status_select)
+        .padding([spacing::SM, spacing::SPACE_12])
+        .text_size(typography::label())
+        .style(dropdown::style(theme))
+        .menu_style(dropdown::dropdown_menu(theme));
+    let reset_button = button(
+        text("Reset All")
+            .size(typography::label())
+            .font(fonts::BOLD),
+    )
+    .padding([spacing::SM, spacing::SPACE_14])
+    .style(button_style::neutral(theme))
+    .on_press(on_reset_all);
+    let columns_button = button(text("Columns").size(typography::label()).font(fonts::BOLD))
+        .padding([spacing::SM, spacing::SPACE_14])
+        .style(button_style::neutral(theme))
+        .on_press(on_toggle_columns);
+    let export_button = button(text("Export").size(typography::label()).font(fonts::BOLD))
+        .padding([spacing::SM, spacing::SPACE_14])
+        .style(button_style::neutral(theme))
+        .on_press(on_export);
+    let delete_button = button(text("Delete").size(typography::label()))
+        .padding([spacing::SM, spacing::SPACE_14])
+        .style(button_style::negative(theme))
+        .on_press_maybe(delete_enabled.then_some(on_delete));
 
-    row![search, status, reset_button, columns_button, export_button, delete_button].spacing(spacing::SM).align_y(Alignment::Center).height(Length::Fixed(toolbar_style::CONTROL_HEIGHT)).width(Length::Fill).into()
+    row![
+        search,
+        status,
+        reset_button,
+        columns_button,
+        export_button,
+        delete_button
+    ]
+    .spacing(spacing::SM)
+    .align_y(Alignment::Center)
+    .height(Length::Fixed(toolbar_style::CONTROL_HEIGHT))
+    .width(Length::Fill)
+    .into()
 }

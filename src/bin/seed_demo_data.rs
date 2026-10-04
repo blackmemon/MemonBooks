@@ -37,6 +37,7 @@ use rust_decimal_macros::dec;
 use memonbooks::backend::accounting::accounting_rules::AccountType;
 use memonbooks::backend::accounting::chart_of_accounts::Account;
 use memonbooks::backend::accounting::fiscal_periods::FiscalPeriod;
+use memonbooks::backend::banking::bank_accounts::BankAccount;
 use memonbooks::backend::core::auth::passwords::hash_password;
 use memonbooks::backend::core::errors::AppResult;
 use memonbooks::backend::core::roles::Role;
@@ -67,10 +68,11 @@ use memonbooks::backend::services::purchase_service::PurchaseService;
 use memonbooks::backend::services::sales_service::SalesService;
 use memonbooks::backend::services::tax_service::TaxService;
 use memonbooks::backend::tax::tax_rates::TaxDirection;
-use memonbooks::backend::banking::bank_accounts::BankAccount;
 use memonbooks::configs::app::AppConfig;
 use memonbooks::database::database::Database;
-use memonbooks::demo_data::{self, DEMO_CASHIER_DISPLAY_NAME, DEMO_CASHIER_USERNAME, DEMO_COMPANY_NAME, DEMO_ROLE_NAME};
+use memonbooks::demo_data::{
+    self, DEMO_CASHIER_DISPLAY_NAME, DEMO_CASHIER_USERNAME, DEMO_COMPANY_NAME, DEMO_ROLE_NAME,
+};
 
 // -- counts -----------------------------------------------------------
 // See the run summary printed at the end (and the commit message) for
@@ -93,35 +95,109 @@ const PAYROLL_RUN_COUNT: usize = 3;
 // -- name pools (obviously-fake but realistic-looking) -----------------
 
 const FIRST_NAMES: &[&str] = &[
-    "James", "Maria", "Ahmed", "Wei", "Fatima", "Carlos", "Aisha", "Liam", "Sofia", "Kenji", "Priya", "Omar", "Elena",
-    "David", "Noor", "Lucas", "Amara", "Ravi", "Grace", "Hassan", "Mei", "Daniel", "Zara", "Samuel", "Layla", "Ethan",
-    "Nadia", "Miguel", "Chloe", "Yusuf",
+    "James", "Maria", "Ahmed", "Wei", "Fatima", "Carlos", "Aisha", "Liam", "Sofia", "Kenji",
+    "Priya", "Omar", "Elena", "David", "Noor", "Lucas", "Amara", "Ravi", "Grace", "Hassan", "Mei",
+    "Daniel", "Zara", "Samuel", "Layla", "Ethan", "Nadia", "Miguel", "Chloe", "Yusuf",
 ];
 const LAST_NAMES: &[&str] = &[
-    "Khan", "Garcia", "Chen", "Smith", "Ali", "Muller", "Silva", "Nguyen", "Kowalski", "Haddad", "Patel", "Rossi",
-    "Ibrahim", "Anderson", "Tanaka", "Osei", "Costa", "Bakr", "Novak", "Reyes", "Lindqvist", "Abbas", "Fischer",
-    "Cohen", "Diallo", "Park", "Moreau", "Santos", "Weber", "Farooq",
+    "Khan",
+    "Garcia",
+    "Chen",
+    "Smith",
+    "Ali",
+    "Muller",
+    "Silva",
+    "Nguyen",
+    "Kowalski",
+    "Haddad",
+    "Patel",
+    "Rossi",
+    "Ibrahim",
+    "Anderson",
+    "Tanaka",
+    "Osei",
+    "Costa",
+    "Bakr",
+    "Novak",
+    "Reyes",
+    "Lindqvist",
+    "Abbas",
+    "Fischer",
+    "Cohen",
+    "Diallo",
+    "Park",
+    "Moreau",
+    "Santos",
+    "Weber",
+    "Farooq",
 ];
 
 const PRODUCT_MATERIALS: &[&str] = &[
-    "Steel", "Aluminum", "Cotton", "Plastic", "Ceramic", "Wooden", "Glass", "Leather", "Rubber", "Bamboo", "Copper",
-    "Canvas", "Nylon", "Stainless", "Recycled", "Brass", "Wool", "Carbon Fiber", "Porcelain", "Woven",
+    "Steel",
+    "Aluminum",
+    "Cotton",
+    "Plastic",
+    "Ceramic",
+    "Wooden",
+    "Glass",
+    "Leather",
+    "Rubber",
+    "Bamboo",
+    "Copper",
+    "Canvas",
+    "Nylon",
+    "Stainless",
+    "Recycled",
+    "Brass",
+    "Wool",
+    "Carbon Fiber",
+    "Porcelain",
+    "Woven",
 ];
 const PRODUCT_ITEMS: &[&str] = &[
-    "Widget", "Bracket", "Container", "Fastener", "Panel", "Bottle", "Tray", "Hinge", "Cable", "Adapter", "Frame",
-    "Mug", "Chair", "Table", "Lamp", "Shelf", "Box", "Bag", "Tool Kit", "Gadget",
+    "Widget",
+    "Bracket",
+    "Container",
+    "Fastener",
+    "Panel",
+    "Bottle",
+    "Tray",
+    "Hinge",
+    "Cable",
+    "Adapter",
+    "Frame",
+    "Mug",
+    "Chair",
+    "Table",
+    "Lamp",
+    "Shelf",
+    "Box",
+    "Bag",
+    "Tool Kit",
+    "Gadget",
 ];
 
 fn full_name(rng: &mut impl Rng) -> String {
-    format!("{} {}", FIRST_NAMES.choose(rng).unwrap(), LAST_NAMES.choose(rng).unwrap())
+    format!(
+        "{} {}",
+        FIRST_NAMES.choose(rng).unwrap(),
+        LAST_NAMES.choose(rng).unwrap()
+    )
 }
 
 fn product_name(rng: &mut impl Rng) -> String {
-    format!("{} {}", PRODUCT_MATERIALS.choose(rng).unwrap(), PRODUCT_ITEMS.choose(rng).unwrap())
+    format!(
+        "{} {}",
+        PRODUCT_MATERIALS.choose(rng).unwrap(),
+        PRODUCT_ITEMS.choose(rng).unwrap()
+    )
 }
 
 fn slugify_for_email(name: &str) -> String {
-    name.to_ascii_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '.' }).collect::<String>()
+    name.to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '.' })
+        .collect::<String>()
 }
 
 fn random_date_between(rng: &mut impl Rng, start: NaiveDate, end: NaiveDate) -> NaiveDate {
@@ -136,39 +212,142 @@ fn random_date_between(rng: &mut impl Rng, start: NaiveDate, end: NaiveDate) -> 
 // have.
 
 const PK_NAME_PREFIXES: &[&str] = &[
-    "Al-Habib", "Al-Noor", "Al-Rehman", "Al-Fateh", "Al-Madina", "Al-Karam", "Crescent", "Indus", "Ravi", "Chenab",
-    "Sindh", "Punjab", "National", "United", "Metro", "Continental", "Superior", "Pearl", "Diamond", "Silk Route",
-    "Zam Zam", "Khan", "Malik", "Sheikh", "Chaudhry", "Qureshi", "Ansari", "Butt", "Rajput", "Siddiqui",
+    "Al-Habib",
+    "Al-Noor",
+    "Al-Rehman",
+    "Al-Fateh",
+    "Al-Madina",
+    "Al-Karam",
+    "Crescent",
+    "Indus",
+    "Ravi",
+    "Chenab",
+    "Sindh",
+    "Punjab",
+    "National",
+    "United",
+    "Metro",
+    "Continental",
+    "Superior",
+    "Pearl",
+    "Diamond",
+    "Silk Route",
+    "Zam Zam",
+    "Khan",
+    "Malik",
+    "Sheikh",
+    "Chaudhry",
+    "Qureshi",
+    "Ansari",
+    "Butt",
+    "Rajput",
+    "Siddiqui",
 ];
 const PK_VENDOR_NOUNS: &[&str] = &[
-    "Traders", "Suppliers", "Distributors", "Trading Co", "Impex", "Mills", "Textiles", "Industries", "Exports",
-    "Enterprises", "Agencies", "Corporation", "International", "Trading Company", "Group", "Associates",
-    "Manufacturing Co", "Wholesalers", "Trading House", "Brothers",
+    "Traders",
+    "Suppliers",
+    "Distributors",
+    "Trading Co",
+    "Impex",
+    "Mills",
+    "Textiles",
+    "Industries",
+    "Exports",
+    "Enterprises",
+    "Agencies",
+    "Corporation",
+    "International",
+    "Trading Company",
+    "Group",
+    "Associates",
+    "Manufacturing Co",
+    "Wholesalers",
+    "Trading House",
+    "Brothers",
 ];
 const PK_CUSTOMER_NOUNS: &[&str] = &[
-    "Retail Store", "Departmental Store", "General Store", "Super Store", "Mart", "Cash & Carry", "Enterprises",
-    "Traders", "Retailers", "Wholesale Mart", "Shopping Center", "Emporium", "Plaza", "Outlets", "Trading Co",
-    "& Sons", "Garments House", "Electronics Store", "Hardware Store", "Grocers",
+    "Retail Store",
+    "Departmental Store",
+    "General Store",
+    "Super Store",
+    "Mart",
+    "Cash & Carry",
+    "Enterprises",
+    "Traders",
+    "Retailers",
+    "Wholesale Mart",
+    "Shopping Center",
+    "Emporium",
+    "Plaza",
+    "Outlets",
+    "Trading Co",
+    "& Sons",
+    "Garments House",
+    "Electronics Store",
+    "Hardware Store",
+    "Grocers",
 ];
 const PK_MOBILE_PREFIXES: &[&str] = &[
-    "0300", "0301", "0302", "0303", "0304", "0305", "0306", "0307", "0308", "0309", "0311", "0312", "0313", "0314",
-    "0315", "0316", "0317", "0318", "0319", "0320", "0321", "0322", "0323", "0324", "0325", "0330", "0331", "0332",
-    "0333", "0334", "0335", "0336", "0337", "0340", "0341", "0342", "0343", "0344", "0345", "0346", "0347", "0348",
-    "0349",
+    "0300", "0301", "0302", "0303", "0304", "0305", "0306", "0307", "0308", "0309", "0311", "0312",
+    "0313", "0314", "0315", "0316", "0317", "0318", "0319", "0320", "0321", "0322", "0323", "0324",
+    "0325", "0330", "0331", "0332", "0333", "0334", "0335", "0336", "0337", "0340", "0341", "0342",
+    "0343", "0344", "0345", "0346", "0347", "0348", "0349",
 ];
 const PK_CITIES: &[&str] = &[
-    "Karachi", "Lahore", "Faisalabad", "Islamabad", "Rawalpindi", "Multan", "Peshawar", "Quetta", "Sialkot",
-    "Gujranwala", "Hyderabad", "Sukkur", "Bahawalpur", "Sargodha", "Sheikhupura", "Mardan", "Gujrat", "Kasur",
-    "Rahim Yar Khan", "Sahiwal", "Okara", "Wah Cantt", "Dera Ghazi Khan", "Mingora", "Nawabshah", "Jhelum",
-    "Sadiqabad", "Abbottabad", "Mirpur Khas", "Chiniot",
+    "Karachi",
+    "Lahore",
+    "Faisalabad",
+    "Islamabad",
+    "Rawalpindi",
+    "Multan",
+    "Peshawar",
+    "Quetta",
+    "Sialkot",
+    "Gujranwala",
+    "Hyderabad",
+    "Sukkur",
+    "Bahawalpur",
+    "Sargodha",
+    "Sheikhupura",
+    "Mardan",
+    "Gujrat",
+    "Kasur",
+    "Rahim Yar Khan",
+    "Sahiwal",
+    "Okara",
+    "Wah Cantt",
+    "Dera Ghazi Khan",
+    "Mingora",
+    "Nawabshah",
+    "Jhelum",
+    "Sadiqabad",
+    "Abbottabad",
+    "Mirpur Khas",
+    "Chiniot",
 ];
 const WAREHOUSE_TYPES: &[&str] = &[
-    "Main Warehouse", "Distribution Center", "Storage Facility", "Central Depot", "Cold Storage Unit",
-    "Regional Warehouse", "Logistics Hub", "Fulfillment Center", "Bonded Warehouse", "Stockyard",
+    "Main Warehouse",
+    "Distribution Center",
+    "Storage Facility",
+    "Central Depot",
+    "Cold Storage Unit",
+    "Regional Warehouse",
+    "Logistics Hub",
+    "Fulfillment Center",
+    "Bonded Warehouse",
+    "Stockyard",
 ];
 const PK_INDUSTRIAL_AREAS: &[&str] = &[
-    "Industrial Estate", "Industrial Area", "Trade Centre", "Export Processing Zone", "Free Trade Zone",
-    "Commercial Area", "Logistics Park", "Cargo Village", "Business Park", "Trading Estate",
+    "Industrial Estate",
+    "Industrial Area",
+    "Trade Centre",
+    "Export Processing Zone",
+    "Free Trade Zone",
+    "Commercial Area",
+    "Logistics Park",
+    "Cargo Village",
+    "Business Park",
+    "Trading Estate",
 ];
 
 /// Pool the 100 demo bank accounts cycle through: (display bank name, the
@@ -191,7 +370,12 @@ const PK_BANKS: &[(&str, &str, &str, &str)] = &[
     ("Faysal Bank Limited", "bank_faysal", "FAYS", "PKR"),
     ("Askari Bank Limited", "bank_askari", "ASCM", "PKR"),
     ("Bank Al Habib Limited", "bank_alhabib", "BAHL", "PKR"),
-    ("Standard Chartered Bank (Pakistan) Limited", "bank_scb", "SCBL", "PKR"),
+    (
+        "Standard Chartered Bank (Pakistan) Limited",
+        "bank_scb",
+        "SCBL",
+        "PKR",
+    ),
     ("JS Bank Limited", "bank_js", "JSBL", "PKR"),
     ("Soneri Bank Limited", "bank_soneri", "SONE", "PKR"),
     ("Habib Bank Limited", "bank_fcy_usd", "HABB", "USD"),
@@ -204,8 +388,10 @@ const PK_BANKS: &[(&str, &str, &str, &str)] = &[
 /// draws from a few hundred combos) to violate the "unique name per
 /// record" expectation vendors/customers carry here.
 fn unique_business_names(rng: &mut impl Rng, count: usize, nouns: &[&str]) -> Vec<String> {
-    let mut combos: Vec<String> =
-        PK_NAME_PREFIXES.iter().flat_map(|prefix| nouns.iter().map(move |noun| format!("{prefix} {noun}"))).collect();
+    let mut combos: Vec<String> = PK_NAME_PREFIXES
+        .iter()
+        .flat_map(|prefix| nouns.iter().map(move |noun| format!("{prefix} {noun}")))
+        .collect();
     combos.shuffle(rng);
     combos.truncate(count);
     combos
@@ -297,9 +483,18 @@ fn run() -> AppResult<()> {
     let data_range_end = today;
 
     // -- 1. company + fiscal periods -----------------------------------
-    let company = services.organization.create_company(DEMO_COMPANY_NAME, "USD")?;
+    let company = services
+        .organization
+        .create_company(DEMO_COMPANY_NAME, "USD")?;
     let company_id = company.id.expect("just-created company must have an id");
-    services.accounting.create_fiscal_period(&FiscalPeriod::new(company_id, "DEMO- FY prior year", prior_year_start, prior_year_end))?;
+    services
+        .accounting
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "DEMO- FY prior year",
+            prior_year_start,
+            prior_year_end,
+        ))?;
     // create_company already made the current-year period.
     println!("Company: {DEMO_COMPANY_NAME} (id {company_id}), 2 fiscal periods (prior year + current year)");
 
@@ -309,7 +504,12 @@ fn run() -> AppResult<()> {
     // concern, not something demo data needs to model.
     let user_repo = UserRepository::new(db.clone());
     let role = user_repo.create_role(&Role::new(DEMO_ROLE_NAME))?;
-    let cashier = user_repo.create_user(&User::new(DEMO_CASHIER_USERNAME, DEMO_CASHIER_DISPLAY_NAME, hash_password("Demo-Cashier-Password-1")?, role.id.unwrap()))?;
+    let cashier = user_repo.create_user(&User::new(
+        DEMO_CASHIER_USERNAME,
+        DEMO_CASHIER_DISPLAY_NAME,
+        hash_password("Demo-Cashier-Password-1")?,
+        role.id.unwrap(),
+    ))?;
     println!("Demo system user: {DEMO_CASHIER_USERNAME} (for POS sessions only)");
 
     // -- 3. chart of accounts --------------------------------------------
@@ -327,8 +527,18 @@ fn run() -> AppResult<()> {
             memonbooks::backend::transactions::transaction_types::TransactionType::OpeningBalance,
             prior_year_start,
         )
-        .with_line(memonbooks::backend::transactions::transaction_lines::TransactionLine::debit(accounts["cash"], dec!(50000)))
-        .with_line(memonbooks::backend::transactions::transaction_lines::TransactionLine::credit(accounts["owners_capital"], dec!(50000))),
+        .with_line(
+            memonbooks::backend::transactions::transaction_lines::TransactionLine::debit(
+                accounts["cash"],
+                dec!(50000),
+            ),
+        )
+        .with_line(
+            memonbooks::backend::transactions::transaction_lines::TransactionLine::credit(
+                accounts["owners_capital"],
+                dec!(50000),
+            ),
+        ),
     )?;
     println!("Opening balance posted: 50,000 cash against owner's capital");
 
@@ -345,10 +555,19 @@ fn run() -> AppResult<()> {
     let warehouse_ids = create_warehouses(&services.inventory, &mut rng, company_id)?;
     println!("Warehouses: {}", warehouse_ids.len());
 
-    let employee_ids = create_employees_with_salaries(&services.organization, &mut rng, company_id, data_range_start)?;
-    println!("Employees: {} (each with a salary structure)", employee_ids.len());
+    let employee_ids = create_employees_with_salaries(
+        &services.organization,
+        &mut rng,
+        company_id,
+        data_range_start,
+    )?;
+    println!(
+        "Employees: {} (each with a salary structure)",
+        employee_ids.len()
+    );
 
-    let bank_account_ids = create_bank_accounts(&services.banking, &mut rng, company_id, &accounts)?;
+    let bank_account_ids =
+        create_bank_accounts(&services.banking, &mut rng, company_id, &accounts)?;
     println!("Bank accounts: {}", bank_account_ids.len());
 
     let terminal_ids = create_terminals(&services.sales, company_id, &warehouse_ids)?;
@@ -357,10 +576,26 @@ fn run() -> AppResult<()> {
     let expense_category_ids = create_expense_categories(&services.expense, company_id, &accounts)?;
 
     // -- 7. transactional records -------------------------------------
-    let invoices_posted = create_invoices(&services.sales, &mut rng, company_id, &customer_ids, &accounts, data_range_start, data_range_end)?;
+    let invoices_posted = create_invoices(
+        &services.sales,
+        &mut rng,
+        company_id,
+        &customer_ids,
+        &accounts,
+        data_range_start,
+        data_range_end,
+    )?;
     println!("Invoices: {invoices_posted} (created and posted)");
 
-    let bills_posted = create_bills(&services.purchase, &mut rng, company_id, &vendor_ids, &accounts, data_range_start, data_range_end)?;
+    let bills_posted = create_bills(
+        &services.purchase,
+        &mut rng,
+        company_id,
+        &vendor_ids,
+        &accounts,
+        data_range_start,
+        data_range_end,
+    )?;
     println!("Purchase bills: {bills_posted} (created and posted)");
 
     let pos_sales_posted = create_pos_sales(
@@ -376,13 +611,34 @@ fn run() -> AppResult<()> {
     )?;
     println!("POS sales: {pos_sales_posted} (across {POS_SESSION_COUNT} sessions)");
 
-    let journal_entries_posted = create_journal_entries(&services.accounting, &mut rng, company_id, &accounts, data_range_start, data_range_end)?;
+    let journal_entries_posted = create_journal_entries(
+        &services.accounting,
+        &mut rng,
+        company_id,
+        &accounts,
+        data_range_start,
+        data_range_end,
+    )?;
     println!("Journal entries: {journal_entries_posted}");
 
-    let claims_created = create_expense_claims(&services.expense, &mut rng, company_id, &accounts, &expense_category_ids, data_range_start, data_range_end)?;
+    let claims_created = create_expense_claims(
+        &services.expense,
+        &mut rng,
+        company_id,
+        &accounts,
+        &expense_category_ids,
+        data_range_start,
+        data_range_end,
+    )?;
     println!("Expense claims: {claims_created} (mixed submitted/approved/rejected/reimbursed)");
 
-    let payroll_runs_posted = create_payroll_runs(&services.organization, company_id, &employee_ids, &accounts, current_year_start)?;
+    let payroll_runs_posted = create_payroll_runs(
+        &services.organization,
+        company_id,
+        &employee_ids,
+        &accounts,
+        current_year_start,
+    )?;
     println!("Payroll runs: {payroll_runs_posted}");
 
     println!("\nDone. Log in with the bootstrap admin account and switch to \"{DEMO_COMPANY_NAME}\" via the Companies screen to browse the demo data.");
@@ -511,7 +767,10 @@ const CHART_OF_ACCOUNTS_SPECS: &[(&str, &str, &str, AccountType, Option<&str>)] 
     ("warehouse_rent_expense", "6280", "Warehouse Rent", AccountType::Expense, None),
 ];
 
-fn create_chart_of_accounts(accounting: &AccountingService, company_id: i64) -> AppResult<HashMap<&'static str, i64>> {
+fn create_chart_of_accounts(
+    accounting: &AccountingService,
+    company_id: i64,
+) -> AppResult<HashMap<&'static str, i64>> {
     let mut accounts = HashMap::new();
     for (key, code, name, account_type, parent_key) in CHART_OF_ACCOUNTS_SPECS {
         let mut account = Account::new(company_id, *code, *name, *account_type);
@@ -524,28 +783,66 @@ fn create_chart_of_accounts(accounting: &AccountingService, company_id: i64) -> 
     Ok(accounts)
 }
 
-fn create_tax_rates(tax: &TaxService, company_id: i64, accounts: &HashMap<&str, i64>) -> AppResult<usize> {
+fn create_tax_rates(
+    tax: &TaxService,
+    company_id: i64,
+    accounts: &HashMap<&str, i64>,
+) -> AppResult<usize> {
     let specs: &[(&str, &str, Decimal, TaxDirection)] = &[
-        ("DEMO- Standard VAT (Output)", "tax_payable", dec!(15), TaxDirection::Output),
-        ("DEMO- Reduced VAT (Output)", "tax_payable", dec!(5), TaxDirection::Output),
-        ("DEMO- Zero-Rated (Output)", "tax_payable", dec!(0), TaxDirection::Output),
-        ("DEMO- Standard VAT (Input)", "tax_payable", dec!(15), TaxDirection::Input),
+        (
+            "DEMO- Standard VAT (Output)",
+            "tax_payable",
+            dec!(15),
+            TaxDirection::Output,
+        ),
+        (
+            "DEMO- Reduced VAT (Output)",
+            "tax_payable",
+            dec!(5),
+            TaxDirection::Output,
+        ),
+        (
+            "DEMO- Zero-Rated (Output)",
+            "tax_payable",
+            dec!(0),
+            TaxDirection::Output,
+        ),
+        (
+            "DEMO- Standard VAT (Input)",
+            "tax_payable",
+            dec!(15),
+            TaxDirection::Input,
+        ),
     ];
     for (name, gl_key, rate, direction) in specs {
-        tax.create_tax_rate(&memonbooks::backend::tax::tax_rates::TaxRate::new(company_id, *name, *rate, *direction, accounts[gl_key]))?;
+        tax.create_tax_rate(&memonbooks::backend::tax::tax_rates::TaxRate::new(
+            company_id,
+            *name,
+            *rate,
+            *direction,
+            accounts[gl_key],
+        ))?;
     }
     Ok(specs.len())
 }
 
 // -- master data ----------------------------------------------------------
 
-fn create_customers(party: &PartyService, rng: &mut impl Rng, company_id: i64) -> AppResult<Vec<i64>> {
+fn create_customers(
+    party: &PartyService,
+    rng: &mut impl Rng,
+    company_id: i64,
+) -> AppResult<Vec<i64>> {
     let names = unique_business_names(rng, CUSTOMER_COUNT, PK_CUSTOMER_NOUNS);
     let mut ids = Vec::with_capacity(CUSTOMER_COUNT);
     for (i, base_name) in names.into_iter().enumerate() {
         let name = format!("DEMO- {base_name}");
         let mut customer = Customer::new(company_id, &name);
-        customer.email = Some(format!("ap+{}{}@example-demo.test", slugify_for_email(&name), i));
+        customer.email = Some(format!(
+            "ap+{}{}@example-demo.test",
+            slugify_for_email(&name),
+            i
+        ));
         customer.phone = Some(pk_phone_number(rng));
         customer.tax_id = Some(pk_ntn(2_000_000 + i as u32));
         // PKR 50,000 - 2,000,000 credit limit, stored in cents.
@@ -558,13 +855,21 @@ fn create_customers(party: &PartyService, rng: &mut impl Rng, company_id: i64) -
     Ok(ids)
 }
 
-fn create_vendors(party: &PartyService, rng: &mut impl Rng, company_id: i64) -> AppResult<Vec<i64>> {
+fn create_vendors(
+    party: &PartyService,
+    rng: &mut impl Rng,
+    company_id: i64,
+) -> AppResult<Vec<i64>> {
     let names = unique_business_names(rng, VENDOR_COUNT, PK_VENDOR_NOUNS);
     let mut ids = Vec::with_capacity(VENDOR_COUNT);
     for (i, base_name) in names.into_iter().enumerate() {
         let name = format!("DEMO- {base_name}");
         let mut vendor = Vendor::new(company_id, &name);
-        vendor.email = Some(format!("ar+{}{}@example-demo.test", slugify_for_email(&name), i));
+        vendor.email = Some(format!(
+            "ar+{}{}@example-demo.test",
+            slugify_for_email(&name),
+            i
+        ));
         vendor.phone = Some(pk_phone_number(rng));
         vendor.tax_id = Some(pk_ntn(1_000_000 + i as u32));
         vendor.payment_terms_days = *[15, 30, 45, 60].choose(rng).unwrap();
@@ -575,11 +880,19 @@ fn create_vendors(party: &PartyService, rng: &mut impl Rng, company_id: i64) -> 
     Ok(ids)
 }
 
-fn create_products(inventory: &InventoryService, rng: &mut impl Rng, company_id: i64) -> AppResult<Vec<i64>> {
+fn create_products(
+    inventory: &InventoryService,
+    rng: &mut impl Rng,
+    company_id: i64,
+) -> AppResult<Vec<i64>> {
     let mut ids = Vec::with_capacity(PRODUCT_COUNT);
     for i in 0..PRODUCT_COUNT {
         let name = product_name(rng);
-        let mut product = Product::new(company_id, format!("DEMO-SKU-{i:04}"), format!("DEMO- {name}"));
+        let mut product = Product::new(
+            company_id,
+            format!("DEMO-SKU-{i:04}"),
+            format!("DEMO- {name}"),
+        );
         product.cost_price = Decimal::new(rng.gen_range(500..15000), 2); // $5.00 - $150.00
         product.sale_price = product.cost_price * dec!(1.6); // simple markup, still realistic-looking
         let created = inventory.create_product(&product)?;
@@ -588,12 +901,18 @@ fn create_products(inventory: &InventoryService, rng: &mut impl Rng, company_id:
     Ok(ids)
 }
 
-fn create_warehouses(inventory: &InventoryService, rng: &mut impl Rng, company_id: i64) -> AppResult<Vec<i64>> {
+fn create_warehouses(
+    inventory: &InventoryService,
+    rng: &mut impl Rng,
+    company_id: i64,
+) -> AppResult<Vec<i64>> {
     // City x warehouse-type cartesian product, shuffled and truncated --
     // same "guaranteed-unique combos" approach as unique_business_names,
     // so 100 warehouses never collide on name.
-    let mut combos: Vec<(&str, &str)> =
-        PK_CITIES.iter().flat_map(|city| WAREHOUSE_TYPES.iter().map(move |kind| (*city, *kind))).collect();
+    let mut combos: Vec<(&str, &str)> = PK_CITIES
+        .iter()
+        .flat_map(|city| WAREHOUSE_TYPES.iter().map(move |kind| (*city, *kind)))
+        .collect();
     combos.shuffle(rng);
     combos.truncate(WAREHOUSE_COUNT);
 
@@ -612,21 +931,43 @@ fn create_warehouses(inventory: &InventoryService, rng: &mut impl Rng, company_i
     Ok(ids)
 }
 
-fn create_employees_with_salaries(organization: &OrganizationService, rng: &mut impl Rng, company_id: i64, hire_after: NaiveDate) -> AppResult<Vec<i64>> {
+fn create_employees_with_salaries(
+    organization: &OrganizationService,
+    rng: &mut impl Rng,
+    company_id: i64,
+    hire_after: NaiveDate,
+) -> AppResult<Vec<i64>> {
     let mut ids = Vec::with_capacity(EMPLOYEE_COUNT);
     for i in 0..EMPLOYEE_COUNT {
         let name = full_name(rng);
         let hire_date = random_date_between(rng, hire_after, hire_after + chrono::Days::new(180));
-        let mut employee = Employee::new(company_id, format!("DEMO-EMP-{i:04}"), format!("DEMO- {name}"), hire_date);
-        employee.email = Some(format!("hr+{}{}@example-demo.test", slugify_for_email(&name), i));
+        let mut employee = Employee::new(
+            company_id,
+            format!("DEMO-EMP-{i:04}"),
+            format!("DEMO- {name}"),
+            hire_date,
+        );
+        employee.email = Some(format!(
+            "hr+{}{}@example-demo.test",
+            slugify_for_email(&name),
+            i
+        ));
         let created = organization.create_employee(&employee)?;
         let employee_id = created.id.unwrap();
 
         let base = Decimal::new(rng.gen_range(300000..800000), 2); // $3,000 - $8,000/month base
         let mut structure = SalaryStructure::new(employee_id, hire_date);
-        structure.components.push(SalaryComponent::addition("Base Salary", base));
-        structure.components.push(SalaryComponent::addition("Housing Allowance", base * dec!(0.15)));
-        structure.components.push(SalaryComponent::deduction("Income Tax Withholding", base * dec!(0.12)));
+        structure
+            .components
+            .push(SalaryComponent::addition("Base Salary", base));
+        structure.components.push(SalaryComponent::addition(
+            "Housing Allowance",
+            base * dec!(0.15),
+        ));
+        structure.components.push(SalaryComponent::deduction(
+            "Income Tax Withholding",
+            base * dec!(0.12),
+        ));
         organization.create_salary_structure(&structure)?;
 
         ids.push(employee_id);
@@ -634,12 +975,23 @@ fn create_employees_with_salaries(organization: &OrganizationService, rng: &mut 
     Ok(ids)
 }
 
-fn create_bank_accounts(banking: &BankingService, rng: &mut impl Rng, company_id: i64, accounts: &HashMap<&str, i64>) -> AppResult<Vec<i64>> {
+fn create_bank_accounts(
+    banking: &BankingService,
+    rng: &mut impl Rng,
+    company_id: i64,
+    accounts: &HashMap<&str, i64>,
+) -> AppResult<Vec<i64>> {
     let mut ids = Vec::with_capacity(BANK_ACCOUNT_COUNT);
     for i in 0..BANK_ACCOUNT_COUNT {
         let (display_name, gl_key, iban_bank_code, currency) = PK_BANKS[i % PK_BANKS.len()];
         let account_number = pk_iban(iban_bank_code, i);
-        let mut bank_account = BankAccount::new(company_id, accounts[gl_key], format!("DEMO- {display_name}"), account_number, currency);
+        let mut bank_account = BankAccount::new(
+            company_id,
+            accounts[gl_key],
+            format!("DEMO- {display_name}"),
+            account_number,
+            currency,
+        );
         bank_account.is_active = rng.gen_bool(0.92);
         let created = banking.create_bank_account(&bank_account)?;
         ids.push(created.id.unwrap());
@@ -647,20 +999,37 @@ fn create_bank_accounts(banking: &BankingService, rng: &mut impl Rng, company_id
     Ok(ids)
 }
 
-fn create_terminals(sales: &SalesService, company_id: i64, warehouse_ids: &[i64]) -> AppResult<Vec<i64>> {
+fn create_terminals(
+    sales: &SalesService,
+    company_id: i64,
+    warehouse_ids: &[i64],
+) -> AppResult<Vec<i64>> {
     let mut ids = Vec::with_capacity(TERMINAL_COUNT);
     for (i, warehouse_id) in warehouse_ids.iter().take(TERMINAL_COUNT).enumerate() {
-        let created = sales.create_terminal(&Terminal::new(company_id, *warehouse_id, format!("DEMO- Register {}", i + 1)))?;
+        let created = sales.create_terminal(&Terminal::new(
+            company_id,
+            *warehouse_id,
+            format!("DEMO- Register {}", i + 1),
+        ))?;
         ids.push(created.id.unwrap());
     }
     Ok(ids)
 }
 
-fn create_expense_categories(expense: &ExpenseService, company_id: i64, accounts: &HashMap<&str, i64>) -> AppResult<Vec<i64>> {
-    let specs = [("DEMO- Travel", "travel_expense"), ("DEMO- Office Supplies", "office_supplies_expense"), ("DEMO- Client Entertainment", "misc_expense")];
+fn create_expense_categories(
+    expense: &ExpenseService,
+    company_id: i64,
+    accounts: &HashMap<&str, i64>,
+) -> AppResult<Vec<i64>> {
+    let specs = [
+        ("DEMO- Travel", "travel_expense"),
+        ("DEMO- Office Supplies", "office_supplies_expense"),
+        ("DEMO- Client Entertainment", "misc_expense"),
+    ];
     let mut ids = Vec::with_capacity(specs.len());
     for (name, gl_key) in specs {
-        let created = expense.create_category(&ExpenseCategory::new(company_id, name, accounts[gl_key]))?;
+        let created =
+            expense.create_category(&ExpenseCategory::new(company_id, name, accounts[gl_key]))?;
         ids.push(created.id.unwrap());
     }
     Ok(ids)
@@ -678,8 +1047,14 @@ fn create_invoices(
     range_end: NaiveDate,
 ) -> AppResult<usize> {
     let revenue_keys = [
-        "sales_revenue", "service_revenue", "wholesale_revenue", "export_sales_revenue", "other_income",
-        "interest_income", "rental_income", "commission_income",
+        "sales_revenue",
+        "service_revenue",
+        "wholesale_revenue",
+        "export_sales_revenue",
+        "other_income",
+        "interest_income",
+        "rental_income",
+        "commission_income",
     ];
     let mut posted = 0;
     for _ in 0..INVOICE_COUNT {
@@ -692,7 +1067,12 @@ fn create_invoices(
             let revenue_key = revenue_keys.choose(rng).unwrap();
             let quantity = Decimal::from(rng.gen_range(1..=10));
             let unit_price = Decimal::new(rng.gen_range(1000..50000), 2); // $10.00 - $500.00
-            invoice.lines.push(InvoiceLine::new(accounts[*revenue_key], product_name(rng), quantity, unit_price));
+            invoice.lines.push(InvoiceLine::new(
+                accounts[*revenue_key],
+                product_name(rng),
+                quantity,
+                unit_price,
+            ));
         }
 
         let created = sales.create_invoice(&invoice)?;
@@ -712,9 +1092,19 @@ fn create_bills(
     range_end: NaiveDate,
 ) -> AppResult<usize> {
     let expense_keys = [
-        "cogs", "office_supplies_expense", "utilities_expense", "rent_expense", "marketing_expense",
-        "repairs_maintenance_expense", "fuel_expense", "vehicle_maintenance_expense", "printing_stationery_expense",
-        "it_software_expense", "legal_professional_expense", "warehouse_rent_expense", "freight_inward",
+        "cogs",
+        "office_supplies_expense",
+        "utilities_expense",
+        "rent_expense",
+        "marketing_expense",
+        "repairs_maintenance_expense",
+        "fuel_expense",
+        "vehicle_maintenance_expense",
+        "printing_stationery_expense",
+        "it_software_expense",
+        "legal_professional_expense",
+        "warehouse_rent_expense",
+        "freight_inward",
     ];
     let mut posted = 0;
     for _ in 0..BILL_COUNT {
@@ -727,7 +1117,12 @@ fn create_bills(
             let expense_key = expense_keys.choose(rng).unwrap();
             let quantity = Decimal::from(rng.gen_range(1..=20));
             let unit_price = Decimal::new(rng.gen_range(500..30000), 2); // $5.00 - $300.00
-            bill.lines.push(BillLine::new(accounts[*expense_key], product_name(rng), quantity, unit_price));
+            bill.lines.push(BillLine::new(
+                accounts[*expense_key],
+                product_name(rng),
+                quantity,
+                unit_price,
+            ));
         }
 
         let created = purchase.create_bill(&bill)?;
@@ -753,7 +1148,10 @@ fn create_pos_sales(
     for session_index in 0..POS_SESSION_COUNT {
         let terminal_id = terminal_ids[session_index % terminal_ids.len()];
         let opening_cash = dec!(200);
-        let opened_at = random_date_between(rng, range_start, range_end).and_hms_opt(9, 0, 0).unwrap().and_utc();
+        let opened_at = random_date_between(rng, range_start, range_end)
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .and_utc();
         let session = memonbooks::backend::pos::sessions::PosSession {
             opened_at,
             ..PosSession::open(terminal_id, cashier_user_id, opening_cash)
@@ -768,20 +1166,33 @@ fn create_pos_sales(
             let amount = quantity * unit_price;
 
             let mut sale = PosSale::new(company_id, terminal_id, session.id.unwrap(), sale_date);
-            sale.lines.push(PosSaleLine::new(product_id, accounts["sales_revenue"], product_name(rng), quantity, unit_price));
+            sale.lines.push(PosSaleLine::new(
+                product_id,
+                accounts["sales_revenue"],
+                product_name(rng),
+                quantity,
+                unit_price,
+            ));
 
             // Mostly single-tender, some split cash/card for realism.
             let payment_accounts: Vec<(PaymentMethod, i64)> = if rng.gen_bool(0.2) {
                 let cash_part = (amount * dec!(0.5)).round_dp(2);
                 let card_part = amount - cash_part;
-                sale.payments.push(PosPayment::new(PaymentMethod::Cash, cash_part));
-                sale.payments.push(PosPayment::new(PaymentMethod::Card, card_part));
-                vec![(PaymentMethod::Cash, accounts["cash"]), (PaymentMethod::Card, accounts["bank_operating"])]
+                sale.payments
+                    .push(PosPayment::new(PaymentMethod::Cash, cash_part));
+                sale.payments
+                    .push(PosPayment::new(PaymentMethod::Card, card_part));
+                vec![
+                    (PaymentMethod::Cash, accounts["cash"]),
+                    (PaymentMethod::Card, accounts["bank_operating"]),
+                ]
             } else if rng.gen_bool(0.5) {
-                sale.payments.push(PosPayment::new(PaymentMethod::Cash, amount));
+                sale.payments
+                    .push(PosPayment::new(PaymentMethod::Cash, amount));
                 vec![(PaymentMethod::Cash, accounts["cash"])]
             } else {
-                sale.payments.push(PosPayment::new(PaymentMethod::Card, amount));
+                sale.payments
+                    .push(PosPayment::new(PaymentMethod::Card, amount));
                 vec![(PaymentMethod::Card, accounts["bank_operating"])]
             };
 
@@ -802,94 +1213,523 @@ fn create_journal_entries(
 ) -> AppResult<usize> {
     // (debit account, credit account, description, min cents, max cents)
     let templates: &[(&str, &str, &str, i64, i64)] = &[
-        ("rent_expense", "cash", "DEMO- Monthly rent payment", 80000, 250000),
-        ("utilities_expense", "cash", "DEMO- Utility bill payment", 5000, 40000),
-        ("office_supplies_expense", "cash", "DEMO- Office supplies purchase", 2000, 30000),
-        ("marketing_expense", "bank_operating", "DEMO- Marketing campaign spend", 10000, 500000),
-        ("travel_expense", "bank_operating", "DEMO- Business travel", 5000, 200000),
-        ("insurance_expense", "bank_operating", "DEMO- Insurance premium", 20000, 150000),
-        ("bank_fees_expense", "bank_operating", "DEMO- Bank service charge", 500, 5000),
-        ("telecom_expense", "cash", "DEMO- Phone and internet bill", 3000, 25000),
-        ("misc_expense", "cash", "DEMO- Miscellaneous adjustment", 1000, 20000),
-        ("cash", "sales_revenue", "DEMO- Cash sale adjustment", 5000, 100000),
-        ("bank_operating", "owners_capital", "DEMO- Additional owner investment", 500000, 2000000),
-        ("cogs", "inventory", "DEMO- Inventory usage adjustment", 5000, 80000),
+        (
+            "rent_expense",
+            "cash",
+            "DEMO- Monthly rent payment",
+            80000,
+            250000,
+        ),
+        (
+            "utilities_expense",
+            "cash",
+            "DEMO- Utility bill payment",
+            5000,
+            40000,
+        ),
+        (
+            "office_supplies_expense",
+            "cash",
+            "DEMO- Office supplies purchase",
+            2000,
+            30000,
+        ),
+        (
+            "marketing_expense",
+            "bank_operating",
+            "DEMO- Marketing campaign spend",
+            10000,
+            500000,
+        ),
+        (
+            "travel_expense",
+            "bank_operating",
+            "DEMO- Business travel",
+            5000,
+            200000,
+        ),
+        (
+            "insurance_expense",
+            "bank_operating",
+            "DEMO- Insurance premium",
+            20000,
+            150000,
+        ),
+        (
+            "bank_fees_expense",
+            "bank_operating",
+            "DEMO- Bank service charge",
+            500,
+            5000,
+        ),
+        (
+            "telecom_expense",
+            "cash",
+            "DEMO- Phone and internet bill",
+            3000,
+            25000,
+        ),
+        (
+            "misc_expense",
+            "cash",
+            "DEMO- Miscellaneous adjustment",
+            1000,
+            20000,
+        ),
+        (
+            "cash",
+            "sales_revenue",
+            "DEMO- Cash sale adjustment",
+            5000,
+            100000,
+        ),
+        (
+            "bank_operating",
+            "owners_capital",
+            "DEMO- Additional owner investment",
+            500000,
+            2000000,
+        ),
+        (
+            "cogs",
+            "inventory",
+            "DEMO- Inventory usage adjustment",
+            5000,
+            80000,
+        ),
         // -- Coverage for the rest of the 100-account chart: gives every
         // account a plausible, non-zero balance rather than leaving new
         // leaf accounts permanently at 0.00.
-        ("petty_cash", "cash", "DEMO- Petty cash fund top-up", 5000, 20000),
-        ("cash_in_transit", "cash", "DEMO- Cash deposit in transit to bank", 10000, 100000),
-        ("bank_hbl", "owners_capital", "DEMO- Opening deposit - Habib Bank Limited", 200000, 1500000),
-        ("bank_ubl", "owners_capital", "DEMO- Opening deposit - United Bank Limited", 200000, 1500000),
-        ("bank_mcb", "owners_capital", "DEMO- Opening deposit - MCB Bank Limited", 200000, 1500000),
-        ("bank_meezan", "owners_capital", "DEMO- Opening deposit - Meezan Bank Limited", 200000, 1500000),
-        ("bank_alfalah", "owners_capital", "DEMO- Opening deposit - Bank Alfalah Limited", 200000, 1500000),
-        ("bank_abl", "owners_capital", "DEMO- Opening deposit - Allied Bank Limited", 200000, 1500000),
-        ("bank_nbp", "owners_capital", "DEMO- Opening deposit - National Bank of Pakistan", 200000, 1500000),
-        ("bank_faysal", "owners_capital", "DEMO- Opening deposit - Faysal Bank Limited", 200000, 1500000),
-        ("bank_askari", "owners_capital", "DEMO- Opening deposit - Askari Bank Limited", 200000, 1500000),
-        ("bank_alhabib", "owners_capital", "DEMO- Opening deposit - Bank Al Habib Limited", 200000, 1500000),
-        ("bank_scb", "owners_capital", "DEMO- Opening deposit - Standard Chartered Bank", 200000, 1500000),
-        ("bank_js", "owners_capital", "DEMO- Opening deposit - JS Bank Limited", 200000, 1500000),
-        ("bank_soneri", "owners_capital", "DEMO- Opening deposit - Soneri Bank Limited", 200000, 1500000),
-        ("bank_fcy_usd", "owners_capital", "DEMO- Opening deposit - foreign currency account", 50000, 300000),
-        ("prepaid_expenses", "bank_operating", "DEMO- Prepaid insurance premium", 20000, 150000),
-        ("advances_to_suppliers", "bank_operating", "DEMO- Advance paid to supplier", 30000, 300000),
-        ("advances_to_employees", "cash", "DEMO- Salary advance to employee", 10000, 50000),
-        ("security_deposits", "bank_operating", "DEMO- Security deposit paid", 50000, 300000),
-        ("sales_tax_recoverable", "ap", "DEMO- Input sales tax on purchases", 5000, 60000),
-        ("wht_recoverable", "ar", "DEMO- Withholding tax deducted by customer", 2000, 30000),
-        ("inventory_raw_material", "ap", "DEMO- Raw material purchase", 50000, 400000),
-        ("inventory_finished_goods", "inventory_raw_material", "DEMO- Raw material converted to finished goods", 30000, 300000),
-        ("inventory_wip", "ap", "DEMO- Work-in-progress inventory build-up", 20000, 150000),
-        ("land", "bank_operating", "DEMO- Land purchase", 5000000, 20000000),
-        ("building", "bank_operating", "DEMO- Building construction cost capitalized", 3000000, 15000000),
-        ("plant_machinery", "bank_operating", "DEMO- Plant & machinery purchase", 1000000, 8000000),
-        ("furniture_fixtures", "bank_operating", "DEMO- Furniture & fixtures purchase", 50000, 400000),
-        ("vehicles", "bank_operating", "DEMO- Company vehicle purchase", 800000, 4000000),
-        ("office_equipment", "bank_operating", "DEMO- Office equipment purchase", 30000, 300000),
-        ("computers", "bank_operating", "DEMO- Computers & IT equipment purchase", 50000, 500000),
-        ("depreciation_expense", "accum_dep_building", "DEMO- Depreciation - building", 10000, 80000),
-        ("depreciation_expense", "accum_dep_vehicles", "DEMO- Depreciation - vehicles", 15000, 100000),
-        ("depreciation_expense", "accum_dep_equipment", "DEMO- Depreciation - office equipment", 5000, 40000),
-        ("cash", "sales_tax_payable", "DEMO- Sales tax collected on sale", 3000, 40000),
-        ("misc_expense", "income_tax_payable", "DEMO- Income tax accrued", 10000, 80000),
-        ("misc_expense", "wht_payable", "DEMO- Withholding tax accrued on payments", 3000, 30000),
-        ("rent_expense", "accrued_expenses", "DEMO- Rent accrued, not yet paid", 20000, 100000),
-        ("salaries_expense", "salaries_payable", "DEMO- Salaries accrued at period end", 100000, 400000),
-        ("bank_operating", "unearned_revenue", "DEMO- Advance received from customer", 20000, 200000),
-        ("bank_operating", "short_term_loan", "DEMO- Short-term bank loan proceeds", 500000, 3000000),
-        ("bank_operating", "long_term_loan", "DEMO- Long-term loan proceeds", 1000000, 8000000),
-        ("bank_operating", "lease_liability", "DEMO- Lease financing proceeds", 300000, 2000000),
-        ("salaries_expense", "provision_gratuity", "DEMO- Provision for employee gratuity", 20000, 150000),
-        ("owners_drawings", "cash", "DEMO- Owner's personal drawings", 10000, 100000),
-        ("retained_earnings", "general_reserve", "DEMO- Transfer to general reserve", 50000, 500000),
-        ("entertainment_expense", "cash", "DEMO- Client entertainment expense", 5000, 40000),
-        ("donations_expense", "cash", "DEMO- Charitable donation", 5000, 50000),
-        ("electricity_expense", "cash", "DEMO- Electricity bill payment", 8000, 60000),
+        (
+            "petty_cash",
+            "cash",
+            "DEMO- Petty cash fund top-up",
+            5000,
+            20000,
+        ),
+        (
+            "cash_in_transit",
+            "cash",
+            "DEMO- Cash deposit in transit to bank",
+            10000,
+            100000,
+        ),
+        (
+            "bank_hbl",
+            "owners_capital",
+            "DEMO- Opening deposit - Habib Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_ubl",
+            "owners_capital",
+            "DEMO- Opening deposit - United Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_mcb",
+            "owners_capital",
+            "DEMO- Opening deposit - MCB Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_meezan",
+            "owners_capital",
+            "DEMO- Opening deposit - Meezan Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_alfalah",
+            "owners_capital",
+            "DEMO- Opening deposit - Bank Alfalah Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_abl",
+            "owners_capital",
+            "DEMO- Opening deposit - Allied Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_nbp",
+            "owners_capital",
+            "DEMO- Opening deposit - National Bank of Pakistan",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_faysal",
+            "owners_capital",
+            "DEMO- Opening deposit - Faysal Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_askari",
+            "owners_capital",
+            "DEMO- Opening deposit - Askari Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_alhabib",
+            "owners_capital",
+            "DEMO- Opening deposit - Bank Al Habib Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_scb",
+            "owners_capital",
+            "DEMO- Opening deposit - Standard Chartered Bank",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_js",
+            "owners_capital",
+            "DEMO- Opening deposit - JS Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_soneri",
+            "owners_capital",
+            "DEMO- Opening deposit - Soneri Bank Limited",
+            200000,
+            1500000,
+        ),
+        (
+            "bank_fcy_usd",
+            "owners_capital",
+            "DEMO- Opening deposit - foreign currency account",
+            50000,
+            300000,
+        ),
+        (
+            "prepaid_expenses",
+            "bank_operating",
+            "DEMO- Prepaid insurance premium",
+            20000,
+            150000,
+        ),
+        (
+            "advances_to_suppliers",
+            "bank_operating",
+            "DEMO- Advance paid to supplier",
+            30000,
+            300000,
+        ),
+        (
+            "advances_to_employees",
+            "cash",
+            "DEMO- Salary advance to employee",
+            10000,
+            50000,
+        ),
+        (
+            "security_deposits",
+            "bank_operating",
+            "DEMO- Security deposit paid",
+            50000,
+            300000,
+        ),
+        (
+            "sales_tax_recoverable",
+            "ap",
+            "DEMO- Input sales tax on purchases",
+            5000,
+            60000,
+        ),
+        (
+            "wht_recoverable",
+            "ar",
+            "DEMO- Withholding tax deducted by customer",
+            2000,
+            30000,
+        ),
+        (
+            "inventory_raw_material",
+            "ap",
+            "DEMO- Raw material purchase",
+            50000,
+            400000,
+        ),
+        (
+            "inventory_finished_goods",
+            "inventory_raw_material",
+            "DEMO- Raw material converted to finished goods",
+            30000,
+            300000,
+        ),
+        (
+            "inventory_wip",
+            "ap",
+            "DEMO- Work-in-progress inventory build-up",
+            20000,
+            150000,
+        ),
+        (
+            "land",
+            "bank_operating",
+            "DEMO- Land purchase",
+            5000000,
+            20000000,
+        ),
+        (
+            "building",
+            "bank_operating",
+            "DEMO- Building construction cost capitalized",
+            3000000,
+            15000000,
+        ),
+        (
+            "plant_machinery",
+            "bank_operating",
+            "DEMO- Plant & machinery purchase",
+            1000000,
+            8000000,
+        ),
+        (
+            "furniture_fixtures",
+            "bank_operating",
+            "DEMO- Furniture & fixtures purchase",
+            50000,
+            400000,
+        ),
+        (
+            "vehicles",
+            "bank_operating",
+            "DEMO- Company vehicle purchase",
+            800000,
+            4000000,
+        ),
+        (
+            "office_equipment",
+            "bank_operating",
+            "DEMO- Office equipment purchase",
+            30000,
+            300000,
+        ),
+        (
+            "computers",
+            "bank_operating",
+            "DEMO- Computers & IT equipment purchase",
+            50000,
+            500000,
+        ),
+        (
+            "depreciation_expense",
+            "accum_dep_building",
+            "DEMO- Depreciation - building",
+            10000,
+            80000,
+        ),
+        (
+            "depreciation_expense",
+            "accum_dep_vehicles",
+            "DEMO- Depreciation - vehicles",
+            15000,
+            100000,
+        ),
+        (
+            "depreciation_expense",
+            "accum_dep_equipment",
+            "DEMO- Depreciation - office equipment",
+            5000,
+            40000,
+        ),
+        (
+            "cash",
+            "sales_tax_payable",
+            "DEMO- Sales tax collected on sale",
+            3000,
+            40000,
+        ),
+        (
+            "misc_expense",
+            "income_tax_payable",
+            "DEMO- Income tax accrued",
+            10000,
+            80000,
+        ),
+        (
+            "misc_expense",
+            "wht_payable",
+            "DEMO- Withholding tax accrued on payments",
+            3000,
+            30000,
+        ),
+        (
+            "rent_expense",
+            "accrued_expenses",
+            "DEMO- Rent accrued, not yet paid",
+            20000,
+            100000,
+        ),
+        (
+            "salaries_expense",
+            "salaries_payable",
+            "DEMO- Salaries accrued at period end",
+            100000,
+            400000,
+        ),
+        (
+            "bank_operating",
+            "unearned_revenue",
+            "DEMO- Advance received from customer",
+            20000,
+            200000,
+        ),
+        (
+            "bank_operating",
+            "short_term_loan",
+            "DEMO- Short-term bank loan proceeds",
+            500000,
+            3000000,
+        ),
+        (
+            "bank_operating",
+            "long_term_loan",
+            "DEMO- Long-term loan proceeds",
+            1000000,
+            8000000,
+        ),
+        (
+            "bank_operating",
+            "lease_liability",
+            "DEMO- Lease financing proceeds",
+            300000,
+            2000000,
+        ),
+        (
+            "salaries_expense",
+            "provision_gratuity",
+            "DEMO- Provision for employee gratuity",
+            20000,
+            150000,
+        ),
+        (
+            "owners_drawings",
+            "cash",
+            "DEMO- Owner's personal drawings",
+            10000,
+            100000,
+        ),
+        (
+            "retained_earnings",
+            "general_reserve",
+            "DEMO- Transfer to general reserve",
+            50000,
+            500000,
+        ),
+        (
+            "entertainment_expense",
+            "cash",
+            "DEMO- Client entertainment expense",
+            5000,
+            40000,
+        ),
+        (
+            "donations_expense",
+            "cash",
+            "DEMO- Charitable donation",
+            5000,
+            50000,
+        ),
+        (
+            "electricity_expense",
+            "cash",
+            "DEMO- Electricity bill payment",
+            8000,
+            60000,
+        ),
         ("gas_expense", "cash", "DEMO- Gas bill payment", 3000, 30000),
-        ("water_expense", "cash", "DEMO- Water bill payment", 1000, 15000),
-        ("postage_courier_expense", "cash", "DEMO- Courier & postage charges", 1000, 15000),
-        ("audit_fee_expense", "bank_operating", "DEMO- Annual audit fee", 30000, 150000),
-        ("zakat_expense", "bank_operating", "DEMO- Zakat deduction", 10000, 100000),
-        ("medical_expense", "cash", "DEMO- Employee medical reimbursement", 5000, 40000),
-        ("bad_debts_expense", "ar", "DEMO- Provision for doubtful receivables", 10000, 100000),
-        ("commission_expense", "bank_operating", "DEMO- Sales commission paid", 10000, 120000),
-        ("purchase_discount", "ap", "DEMO- Purchase discount availed", 2000, 30000),
-        ("discount_received", "ap", "DEMO- Early payment discount received", 2000, 25000),
+        (
+            "water_expense",
+            "cash",
+            "DEMO- Water bill payment",
+            1000,
+            15000,
+        ),
+        (
+            "postage_courier_expense",
+            "cash",
+            "DEMO- Courier & postage charges",
+            1000,
+            15000,
+        ),
+        (
+            "audit_fee_expense",
+            "bank_operating",
+            "DEMO- Annual audit fee",
+            30000,
+            150000,
+        ),
+        (
+            "zakat_expense",
+            "bank_operating",
+            "DEMO- Zakat deduction",
+            10000,
+            100000,
+        ),
+        (
+            "medical_expense",
+            "cash",
+            "DEMO- Employee medical reimbursement",
+            5000,
+            40000,
+        ),
+        (
+            "bad_debts_expense",
+            "ar",
+            "DEMO- Provision for doubtful receivables",
+            10000,
+            100000,
+        ),
+        (
+            "commission_expense",
+            "bank_operating",
+            "DEMO- Sales commission paid",
+            10000,
+            120000,
+        ),
+        (
+            "purchase_discount",
+            "ap",
+            "DEMO- Purchase discount availed",
+            2000,
+            30000,
+        ),
+        (
+            "discount_received",
+            "ap",
+            "DEMO- Early payment discount received",
+            2000,
+            25000,
+        ),
     ];
 
     let mut posted = 0;
     for i in 0..JOURNAL_ENTRY_COUNT {
-        let (debit_key, credit_key, description, min_cents, max_cents) = templates[i % templates.len()];
+        let (debit_key, credit_key, description, min_cents, max_cents) =
+            templates[i % templates.len()];
         let amount = Decimal::new(rng.gen_range(min_cents..max_cents), 2);
         let entry_date = random_date_between(rng, range_start, range_end);
 
-        let entry = memonbooks::backend::accounting::journal_entries::JournalEntry::new(company_id, entry_date)
-            .with_memo(description)
-            .debit(accounts[debit_key], amount)
-            .credit(accounts[credit_key], amount)
-            .into_transaction();
+        let entry = memonbooks::backend::accounting::journal_entries::JournalEntry::new(
+            company_id, entry_date,
+        )
+        .with_memo(description)
+        .debit(accounts[debit_key], amount)
+        .credit(accounts[credit_key], amount)
+        .into_transaction();
         accounting.post_transaction(&entry)?;
         posted += 1;
     }
@@ -905,7 +1745,9 @@ fn create_expense_claims(
     range_start: NaiveDate,
     range_end: NaiveDate,
 ) -> AppResult<usize> {
-    let claimant_names: Vec<String> = (0..6).map(|_| format!("DEMO- {}", full_name(rng))).collect();
+    let claimant_names: Vec<String> = (0..6)
+        .map(|_| format!("DEMO- {}", full_name(rng)))
+        .collect();
 
     let mut created_count = 0;
     for i in 0..EXPENSE_CLAIM_COUNT {
@@ -914,7 +1756,26 @@ fn create_expense_claims(
         let claim_date = random_date_between(rng, range_start, range_end);
         let amount = Decimal::new(rng.gen_range(2000..50000), 2); // $20 - $500
 
-        let claim = ExpenseClaim::new(company_id, claimant, category_id, claim_date, amount, format!("DEMO- {}", ["Client dinner", "Taxi fare", "Hotel stay", "Conference ticket", "Office supplies", "Courier fee"].choose(rng).unwrap()));
+        let claim = ExpenseClaim::new(
+            company_id,
+            claimant,
+            category_id,
+            claim_date,
+            amount,
+            format!(
+                "DEMO- {}",
+                [
+                    "Client dinner",
+                    "Taxi fare",
+                    "Hotel stay",
+                    "Conference ticket",
+                    "Office supplies",
+                    "Courier fee"
+                ]
+                .choose(rng)
+                .unwrap()
+            ),
+        );
         let created = expense.create_claim(&claim)?;
         let claim_id = created.id.unwrap();
         created_count += 1;
@@ -938,7 +1799,13 @@ fn create_expense_claims(
     Ok(created_count)
 }
 
-fn create_payroll_runs(organization: &OrganizationService, company_id: i64, employee_ids: &[i64], accounts: &HashMap<&str, i64>, current_year_start: NaiveDate) -> AppResult<usize> {
+fn create_payroll_runs(
+    organization: &OrganizationService,
+    company_id: i64,
+    employee_ids: &[i64],
+    accounts: &HashMap<&str, i64>,
+    current_year_start: NaiveDate,
+) -> AppResult<usize> {
     let mut posted = 0;
     for month_offset in 0..PAYROLL_RUN_COUNT {
         let period_start = current_year_start + chrono::Months::new(month_offset as u32);
@@ -947,7 +1814,9 @@ fn create_payroll_runs(organization: &OrganizationService, company_id: i64, empl
 
         let mut run = PayrollRun::new(company_id, period_start, period_end, payment_date);
         for employee_id in employee_ids {
-            if let Some(structure) = organization.current_salary_structure(*employee_id, period_end)? {
+            if let Some(structure) =
+                organization.current_salary_structure(*employee_id, period_end)?
+            {
                 run.entries.push(PayrollEntry::from(&structure));
             }
         }
@@ -955,7 +1824,12 @@ fn create_payroll_runs(organization: &OrganizationService, company_id: i64, empl
             continue;
         }
 
-        organization.post_payroll_run(&run, accounts["salaries_expense"], accounts["deductions_payable"], accounts["net_pay_payable"])?;
+        organization.post_payroll_run(
+            &run,
+            accounts["salaries_expense"],
+            accounts["deductions_payable"],
+            accounts["net_pay_payable"],
+        )?;
         posted += 1;
     }
     Ok(posted)

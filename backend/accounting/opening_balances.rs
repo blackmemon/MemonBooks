@@ -29,9 +29,13 @@ impl OpeningBalances {
     /// balance.
     pub fn with_balance(mut self, account_id: i64, balance: Decimal) -> Self {
         if balance > Decimal::ZERO {
-            self.transaction.lines.push(TransactionLine::debit(account_id, balance));
+            self.transaction
+                .lines
+                .push(TransactionLine::debit(account_id, balance));
         } else if balance < Decimal::ZERO {
-            self.transaction.lines.push(TransactionLine::credit(account_id, -balance));
+            self.transaction
+                .lines
+                .push(TransactionLine::credit(account_id, -balance));
         }
         self
     }
@@ -61,7 +65,10 @@ mod tests {
             .with_balance(2, dec!(-10000)) // Owner's Capital, credit balance
             .into_transaction();
 
-        assert_eq!(transaction.transaction_type, TransactionType::OpeningBalance);
+        assert_eq!(
+            transaction.transaction_type,
+            TransactionType::OpeningBalance
+        );
         assert!(transaction.validate().is_ok());
     }
 
@@ -77,7 +84,9 @@ mod tests {
 
     #[test]
     fn zero_balances_do_not_produce_lines() {
-        let transaction = OpeningBalances::new(1, date(2026, 1, 1)).with_balance(1, Decimal::ZERO).into_transaction();
+        let transaction = OpeningBalances::new(1, date(2026, 1, 1))
+            .with_balance(1, Decimal::ZERO)
+            .into_transaction();
         assert!(transaction.lines.is_empty());
     }
 }

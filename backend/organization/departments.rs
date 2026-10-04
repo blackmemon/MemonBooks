@@ -28,7 +28,9 @@ impl Department {
 impl Validate for Department {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("department must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "department must reference a valid company".into(),
+            ));
         }
         if matches!(self.branch_id, Some(id) if id <= 0) {
             return Err(AppError::Validation(

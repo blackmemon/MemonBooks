@@ -36,7 +36,10 @@ mod tests {
     use super::*;
 
     fn temp_path(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("memonbooks_font_scale_preference_test_{label}_{:?}", std::thread::current().id()))
+        std::env::temp_dir().join(format!(
+            "memonbooks_font_scale_preference_test_{label}_{:?}",
+            std::thread::current().id()
+        ))
     }
 
     #[test]
@@ -48,7 +51,12 @@ mod tests {
 
     #[test]
     fn save_then_load_round_trips_every_scale() {
-        for scale in [FontScale::Small, FontScale::Medium, FontScale::Large, FontScale::ExtraLarge] {
+        for scale in [
+            FontScale::Small,
+            FontScale::Medium,
+            FontScale::Large,
+            FontScale::ExtraLarge,
+        ] {
             let path = temp_path(&format!("{scale:?}"));
 
             save(&path, scale).unwrap();

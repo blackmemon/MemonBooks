@@ -25,7 +25,9 @@ pub const TRIAL_PERIOD_DAYS: i64 = 30;
 #[derive(Debug, Clone, PartialEq)]
 pub enum LicenseStatus {
     /// No license key entered yet; running on the trial clock.
-    Trial { days_remaining: i64 },
+    Trial {
+        days_remaining: i64,
+    },
     TrialExpired,
     Active(LicenseInfo),
     Expired(LicenseInfo),
@@ -93,7 +95,10 @@ mod tests {
             expires_at: None,
         };
         assert!(!license.is_expired(date(2099, 1, 1)));
-        assert!(matches!(licensed_status(license, date(2099, 1, 1)), LicenseStatus::Active(_)));
+        assert!(matches!(
+            licensed_status(license, date(2099, 1, 1)),
+            LicenseStatus::Active(_)
+        ));
     }
 
     #[test]

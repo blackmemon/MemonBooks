@@ -10,7 +10,9 @@ use crate::backend::core::validation::Validate;
 use crate::backend::purchases::bills::{Bill, BillLine, BillStatus};
 use crate::backend::purchases::debit_notes::{DebitNote, DebitNoteLine};
 use crate::backend::purchases::payments::VendorPayment;
-use crate::backend::purchases::purchase_orders::{PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus};
+use crate::backend::purchases::purchase_orders::{
+    PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus,
+};
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::transactions::transaction::Transaction;
 use crate::database::database::{Database, Migration};
@@ -188,10 +190,14 @@ impl PurchaseRepository {
     /// note instead. Mirrors `SalesRepository::update_invoice`.
     pub fn update_bill(&self, bill: &Bill) -> AppResult<()> {
         bill.validate()?;
-        let bill_id = bill.id.ok_or_else(|| AppError::Validation("cannot update a bill without an id".into()))?;
+        let bill_id = bill
+            .id
+            .ok_or_else(|| AppError::Validation("cannot update a bill without an id".into()))?;
         let existing = self.get_bill(bill_id)?;
         if existing.status != BillStatus::Draft {
-            return Err(AppError::Validation("only a draft bill can be edited".into()));
+            return Err(AppError::Validation(
+                "only a draft bill can be edited".into(),
+            ));
         }
 
         self.db.with_transaction(|tx| {
@@ -217,10 +223,15 @@ impl PurchaseRepository {
     pub fn delete_bill(&self, bill_id: i64) -> AppResult<()> {
         let bill = self.get_bill(bill_id)?;
         if bill.status != BillStatus::Draft {
-            return Err(AppError::Validation("only a draft bill can be deleted".into()));
+            return Err(AppError::Validation(
+                "only a draft bill can be deleted".into(),
+            ));
         }
         self.db.with_transaction(|tx| {
-            tx.execute("DELETE FROM bill_lines WHERE bill_id = ?1", params![bill_id])?;
+            tx.execute(
+                "DELETE FROM bill_lines WHERE bill_id = ?1",
+                params![bill_id],
+            )?;
             tx.execute("DELETE FROM bills WHERE id = ?1", params![bill_id])?;
             Ok(())
         })
@@ -231,13 +242,21 @@ impl PurchaseRepository {
     pub fn void_bill(&self, bill_id: i64) -> AppResult<Bill> {
         let bill = self.get_bill(bill_id)?;
         if bill.status != BillStatus::Draft {
-            return Err(AppError::Validation("only a draft bill can be voided".into()));
+            return Err(AppError::Validation(
+                "only a draft bill can be voided".into(),
+            ));
         }
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE bills SET status = ?1 WHERE id = ?2", params![BillStatus::Voided.as_str(), bill_id])?;
+            conn.execute(
+                "UPDATE bills SET status = ?1 WHERE id = ?2",
+                params![BillStatus::Voided.as_str(), bill_id],
+            )?;
             Ok(())
         })?;
-        Ok(Bill { status: BillStatus::Voided, ..bill })
+        Ok(Bill {
+            status: BillStatus::Voided,
+            ..bill
+        })
     }
 
     /// Headers only -- mirrors `SalesRepository::list_invoices_for_company`.
@@ -253,15 +272,23 @@ impl PurchaseRepository {
     }
 
     /// Mirrors `SalesRepository::post_invoice`.
-    pub fn post_bill(&self, bill_id: i64, ap_account_id: i64) -> AppResult<(Bill, Transaction, Payable)> {
+    pub fn post_bill(
+        &self,
+        bill_id: i64,
+        ap_account_id: i64,
+    ) -> AppResult<(Bill, Transaction, Payable)> {
         let bill = self.get_bill(bill_id)?;
         if bill.status != BillStatus::Draft {
-            return Err(AppError::Validation("only a draft bill can be posted".into()));
+            return Err(AppError::Validation(
+                "only a draft bill can be posted".into(),
+            ));
         }
 
         let transaction = bill.build_transaction(ap_account_id);
         let payable = bill.build_payable();
-        let (posted_transaction, posted_payable) = self.accounting.post_transaction_with_payable(&transaction, &payable)?;
+        let (posted_transaction, posted_payable) = self
+            .accounting
+            .post_transaction_with_payable(&transaction, &payable)?;
 
         self.db.with_connection(|conn| {
             conn.execute(
@@ -272,7 +299,11 @@ impl PurchaseRepository {
         })?;
 
         Ok((
-            Bill { status: BillStatus::Posted, transaction_id: posted_transaction.id, ..bill },
+            Bill {
+                status: BillStatus::Posted,
+                transaction_id: posted_transaction.id,
+                ..bill
+            },
             posted_transaction,
             posted_payable,
         ))
@@ -327,7 +358,11 @@ impl PurchaseRepository {
     /// to a specific payable, rejects it up front if its total exceeds
     /// that payable's remaining balance, for the same reconciliation
     /// reason.
-    pub fn post_debit_note(&self, debit_note_id: i64, ap_account_id: i64) -> AppResult<(DebitNote, Transaction)> {
+    pub fn post_debit_note(
+        &self,
+        debit_note_id: i64,
+        ap_account_id: i64,
+    ) -> AppResult<(DebitNote, Transaction)> {
         let debit_note = self.get_debit_note(debit_note_id)?;
         if debit_note.transaction_id.is_some() {
             return Err(AppError::Validation("debit note is already posted".into()));
@@ -348,15 +383,25 @@ impl PurchaseRepository {
         let posted = self.accounting.post_transaction(&transaction)?;
 
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE debit_notes SET transaction_id = ?1 WHERE id = ?2", params![posted.id, debit_note_id])?;
+            conn.execute(
+                "UPDATE debit_notes SET transaction_id = ?1 WHERE id = ?2",
+                params![posted.id, debit_note_id],
+            )?;
             Ok(())
         })?;
 
         if let Some(payable_id) = debit_note.payable_id {
-            self.accounting.apply_payable_payments(&[(payable_id, debit_note.total())])?;
+            self.accounting
+                .apply_payable_payments(&[(payable_id, debit_note.total())])?;
         }
 
-        Ok((DebitNote { transaction_id: posted.id, ..debit_note }, posted))
+        Ok((
+            DebitNote {
+                transaction_id: posted.id,
+                ..debit_note
+            },
+            posted,
+        ))
     }
 
     // -- vendor payments --------------------------------------------------
@@ -366,7 +411,12 @@ impl PurchaseRepository {
     /// `SalesRepository::record_customer_payment` for why: the GL
     /// transaction always moves the payment's full nominal amount, but
     /// subledger allocation caps at what's actually owed.
-    pub fn record_vendor_payment(&self, payment: &VendorPayment, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
+    pub fn record_vendor_payment(
+        &self,
+        payment: &VendorPayment,
+        ap_account_id: i64,
+        cash_account_id: i64,
+    ) -> AppResult<VendorPayment> {
         payment.validate()?;
 
         let open_payables: Vec<Payable> = self
@@ -395,7 +445,10 @@ impl PurchaseRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        let allocations = crate::backend::accounting::accounts_payable::payments::allocate_payment(&open_payables, payment.amount);
+        let allocations = crate::backend::accounting::accounts_payable::payments::allocate_payment(
+            &open_payables,
+            payment.amount,
+        );
         self.accounting.apply_payable_payments(&allocations)?;
 
         Ok(VendorPayment {
@@ -417,7 +470,14 @@ impl PurchaseRepository {
     /// voided) or if `amount` exceeds that payable's own remaining
     /// balance, same conservative reasoning as `record_vendor_payment`'s
     /// whole-balance check, just scoped to one document.
-    pub fn record_payment_for_bill(&self, bill_id: i64, payment_date: chrono::NaiveDate, amount: Decimal, ap_account_id: i64, cash_account_id: i64) -> AppResult<VendorPayment> {
+    pub fn record_payment_for_bill(
+        &self,
+        bill_id: i64,
+        payment_date: chrono::NaiveDate,
+        amount: Decimal,
+        ap_account_id: i64,
+        cash_account_id: i64,
+    ) -> AppResult<VendorPayment> {
         let bill = self.get_bill(bill_id)?;
         let payment = VendorPayment::new(bill.company_id, bill.vendor_id, payment_date, amount);
         payment.validate()?;
@@ -425,7 +485,10 @@ impl PurchaseRepository {
         let payable = self.open_payable_for_bill(bill_id)?;
 
         if amount > payable.balance() {
-            return Err(AppError::Validation(format!("payment amount {amount} exceeds bill {bill_id}'s remaining balance of {}", payable.balance())));
+            return Err(AppError::Validation(format!(
+                "payment amount {amount} exceeds bill {bill_id}'s remaining balance of {}",
+                payable.balance()
+            )));
         }
 
         let transaction = payment.build_transaction(ap_account_id, cash_account_id);
@@ -440,7 +503,8 @@ impl PurchaseRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        self.accounting.apply_payable_payments(&[(payable.id.unwrap_or_default(), amount)])?;
+        self.accounting
+            .apply_payable_payments(&[(payable.id.unwrap_or_default(), amount)])?;
 
         Ok(VendorPayment {
             id: Some(payment_id),
@@ -473,8 +537,13 @@ impl PurchaseRepository {
 
 fn map_purchase_order(row: &Row) -> rusqlite::Result<PurchaseOrder> {
     let status_text: String = row.get(5)?;
-    let status = PurchaseOrderStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid purchase order status".into()))?;
+    let status = PurchaseOrderStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid purchase order status".into(),
+        )
+    })?;
     Ok(PurchaseOrder {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
@@ -498,8 +567,13 @@ fn map_purchase_order_line(row: &Row) -> rusqlite::Result<PurchaseOrderLine> {
 
 fn map_bill(row: &Row) -> rusqlite::Result<Bill> {
     let status_text: String = row.get(5)?;
-    let status = BillStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid bill status".into()))?;
+    let status = BillStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid bill status".into(),
+        )
+    })?;
     Ok(Bill {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
@@ -547,15 +621,17 @@ fn map_debit_note_line(row: &Row) -> rusqlite::Result<DebitNoteLine> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
     use crate::backend::accounting::accounting_rules::AccountType;
     use crate::backend::accounting::chart_of_accounts::Account;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
     use crate::backend::organization::companies::Company;
     use crate::backend::parties::vendors::Vendor;
-    use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
+    use crate::backend::repositories::accounting_repository::{
+        self, AccountingRepository as AccRepo,
+    };
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
     use crate::backend::repositories::party_repository::{self, PartyRepository};
+    use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
     fn date(y: i32, m: u32, d: u32) -> NaiveDate {
@@ -573,26 +649,59 @@ mod tests {
 
     fn fixture() -> TestFixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(party_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
         let company_id = company.id.unwrap();
 
         let party_repo = PartyRepository::new(db.clone());
-        let vendor = party_repo.create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd")).unwrap();
+        let vendor = party_repo
+            .create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd"))
+            .unwrap();
 
         let acc_repo = AccRepo::new(db.clone());
         acc_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
-        let ap_account = acc_repo.create_account(&Account::new(company_id, "2000", "Accounts Payable", AccountType::Liability)).unwrap();
-        let expense_account = acc_repo.create_account(&Account::new(company_id, "5000", "Office Expense", AccountType::Expense)).unwrap();
-        let cash_account = acc_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let ap_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "2000",
+                "Accounts Payable",
+                AccountType::Liability,
+            ))
+            .unwrap();
+        let expense_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "5000",
+                "Office Expense",
+                AccountType::Expense,
+            ))
+            .unwrap();
+        let cash_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
         TestFixture {
             purchases: PurchaseRepository::new(db),
@@ -607,11 +716,24 @@ mod tests {
     #[test]
     fn posting_a_bill_creates_transaction_and_payable_and_marks_it_posted() {
         let f = fixture();
-        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
-        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(300)));
+        let mut bill = Bill::new(
+            f.company_id,
+            f.vendor_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        bill.lines.push(BillLine::new(
+            f.expense_account_id,
+            "Office supplies",
+            dec!(1),
+            dec!(300),
+        ));
         let bill = f.purchases.create_bill(&bill).unwrap();
 
-        let (posted_bill, transaction, payable) = f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+        let (posted_bill, transaction, payable) = f
+            .purchases
+            .post_bill(bill.id.unwrap(), f.ap_account_id)
+            .unwrap();
 
         assert_eq!(posted_bill.status, BillStatus::Posted);
         assert!(transaction.is_balanced());
@@ -624,33 +746,71 @@ mod tests {
     #[test]
     fn recording_a_vendor_payment_settles_the_payable() {
         let f = fixture();
-        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
-        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(300)));
+        let mut bill = Bill::new(
+            f.company_id,
+            f.vendor_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        bill.lines.push(BillLine::new(
+            f.expense_account_id,
+            "Office supplies",
+            dec!(1),
+            dec!(300),
+        ));
         let bill = f.purchases.create_bill(&bill).unwrap();
-        f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+        f.purchases
+            .post_bill(bill.id.unwrap(), f.ap_account_id)
+            .unwrap();
 
         let payment = VendorPayment::new(f.company_id, f.vendor_id, date(2026, 1, 20), dec!(300));
-        let recorded = f.purchases.record_vendor_payment(&payment, f.ap_account_id, f.cash_account_id).unwrap();
+        let recorded = f
+            .purchases
+            .record_vendor_payment(&payment, f.ap_account_id, f.cash_account_id)
+            .unwrap();
         assert!(recorded.transaction_id.is_some());
 
         let accounting = AccRepo::new(f.purchases.db.clone());
-        assert!(accounting.list_open_payables_for_company(f.company_id).unwrap().is_empty());
+        assert!(accounting
+            .list_open_payables_for_company(f.company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
     fn posting_a_debit_note_against_a_payable_reduces_its_balance() {
         let f = fixture();
-        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
-        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(300)));
+        let mut bill = Bill::new(
+            f.company_id,
+            f.vendor_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        bill.lines.push(BillLine::new(
+            f.expense_account_id,
+            "Office supplies",
+            dec!(1),
+            dec!(300),
+        ));
         let bill = f.purchases.create_bill(&bill).unwrap();
-        let (_, _, payable) = f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+        let (_, _, payable) = f
+            .purchases
+            .post_bill(bill.id.unwrap(), f.ap_account_id)
+            .unwrap();
 
         let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
         debit_note.payable_id = Some(payable.id.unwrap());
-        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "Damaged goods return", dec!(100)));
+        debit_note.lines.push(DebitNoteLine::new(
+            f.expense_account_id,
+            "Damaged goods return",
+            dec!(100),
+        ));
         let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
 
-        let (posted, transaction) = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id).unwrap();
+        let (posted, transaction) = f
+            .purchases
+            .post_debit_note(debit_note.id.unwrap(), f.ap_account_id)
+            .unwrap();
         assert!(posted.transaction_id.is_some());
         assert!(transaction.is_balanced());
 
@@ -662,17 +822,36 @@ mod tests {
     #[test]
     fn posting_a_debit_note_exceeding_the_linked_payables_balance_is_rejected() {
         let f = fixture();
-        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
-        bill.lines.push(BillLine::new(f.expense_account_id, "Office supplies", dec!(1), dec!(100)));
+        let mut bill = Bill::new(
+            f.company_id,
+            f.vendor_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        bill.lines.push(BillLine::new(
+            f.expense_account_id,
+            "Office supplies",
+            dec!(1),
+            dec!(100),
+        ));
         let bill = f.purchases.create_bill(&bill).unwrap();
-        let (_, _, payable) = f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+        let (_, _, payable) = f
+            .purchases
+            .post_bill(bill.id.unwrap(), f.ap_account_id)
+            .unwrap();
 
         let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
         debit_note.payable_id = Some(payable.id.unwrap());
-        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "Damaged goods return", dec!(250))); // more than the 100 owed
+        debit_note.lines.push(DebitNoteLine::new(
+            f.expense_account_id,
+            "Damaged goods return",
+            dec!(250),
+        )); // more than the 100 owed
         let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
 
-        let result = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
+        let result = f
+            .purchases
+            .post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
         assert!(result.is_err());
 
         let accounting = AccRepo::new(f.purchases.db.clone());
@@ -684,11 +863,19 @@ mod tests {
     fn posting_an_already_posted_debit_note_is_rejected() {
         let f = fixture();
         let mut debit_note = DebitNote::new(f.company_id, f.vendor_id, date(2026, 1, 15));
-        debit_note.lines.push(DebitNoteLine::new(f.expense_account_id, "General credit", dec!(50)));
+        debit_note.lines.push(DebitNoteLine::new(
+            f.expense_account_id,
+            "General credit",
+            dec!(50),
+        ));
         let debit_note = f.purchases.create_debit_note(&debit_note).unwrap();
-        f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id).unwrap();
+        f.purchases
+            .post_debit_note(debit_note.id.unwrap(), f.ap_account_id)
+            .unwrap();
 
-        let result = f.purchases.post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
+        let result = f
+            .purchases
+            .post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
         assert!(result.is_err());
     }
 }

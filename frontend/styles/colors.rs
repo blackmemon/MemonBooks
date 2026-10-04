@@ -24,7 +24,10 @@ impl Theme {
 
     pub fn transparent(&self) -> Color {
         match self {
-            Theme::Light | Theme::Dark => Color { a: 0.0, ..Color::BLACK },
+            Theme::Light | Theme::Dark => Color {
+                a: 0.0,
+                ..Color::BLACK
+            },
         }
     }
 
@@ -34,7 +37,6 @@ impl Theme {
             Theme::Dark => rgb8(34, 34, 38),
         }
     }
-
 
     pub fn neutral_bg(&self) -> Color {
         match self {
@@ -71,7 +73,7 @@ impl Theme {
         }
     }
 
-        /// Primary accent -- buttons, active nav item, links, focus rings.
+    /// Primary accent -- buttons, active nav item, links, focus rings.
     pub fn primary(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x51, 0xA2, 0xFF),
@@ -80,7 +82,10 @@ impl Theme {
     }
 
     pub fn primary_tint(&self, alpha: f32) -> Color {
-        Color { a: alpha, ..self.primary() }
+        Color {
+            a: alpha,
+            ..self.primary()
+        }
     }
 
     /// Primary button hover/pressed color.
@@ -123,7 +128,6 @@ impl Theme {
         }
     }
 
-
     /// Success / positive background.
     pub fn positive_bg(&self) -> Color {
         match self {
@@ -140,7 +144,7 @@ impl Theme {
         }
     }
 
-        /// Success / positive text & icon color.
+    /// Success / positive text & icon color.
     pub fn positive_front(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x00, 0x64, 0x00),

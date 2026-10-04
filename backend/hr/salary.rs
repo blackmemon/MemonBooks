@@ -16,11 +16,19 @@ pub struct SalaryComponent {
 
 impl SalaryComponent {
     pub fn addition(name: impl Into<String>, amount: Decimal) -> Self {
-        Self { name: name.into(), amount, is_deduction: false }
+        Self {
+            name: name.into(),
+            amount,
+            is_deduction: false,
+        }
     }
 
     pub fn deduction(name: impl Into<String>, amount: Decimal) -> Self {
-        Self { name: name.into(), amount, is_deduction: true }
+        Self {
+            name: name.into(),
+            amount,
+            is_deduction: true,
+        }
     }
 }
 
@@ -43,11 +51,19 @@ impl SalaryStructure {
     }
 
     pub fn gross_pay(&self) -> Decimal {
-        self.components.iter().filter(|c| !c.is_deduction).map(|c| c.amount).sum()
+        self.components
+            .iter()
+            .filter(|c| !c.is_deduction)
+            .map(|c| c.amount)
+            .sum()
     }
 
     pub fn total_deductions(&self) -> Decimal {
-        self.components.iter().filter(|c| c.is_deduction).map(|c| c.amount).sum()
+        self.components
+            .iter()
+            .filter(|c| c.is_deduction)
+            .map(|c| c.amount)
+            .sum()
     }
 
     pub fn net_pay(&self) -> Decimal {
@@ -58,17 +74,23 @@ impl SalaryStructure {
 impl Validate for SalaryStructure {
     fn validate(&self) -> AppResult<()> {
         if self.employee_id <= 0 {
-            return Err(AppError::Validation("salary structure must reference a valid employee".into()));
+            return Err(AppError::Validation(
+                "salary structure must reference a valid employee".into(),
+            ));
         }
         if self.components.is_empty() {
-            return Err(AppError::Validation("a salary structure must have at least one component".into()));
+            return Err(AppError::Validation(
+                "a salary structure must have at least one component".into(),
+            ));
         }
         for component in &self.components {
             require_non_empty("salary component name", &component.name)?;
             require_positive("salary component amount", component.amount)?;
         }
         if self.net_pay() < Decimal::ZERO {
-            return Err(AppError::Validation("salary structure deductions must not exceed gross pay".into()));
+            return Err(AppError::Validation(
+                "salary structure deductions must not exceed gross pay".into(),
+            ));
         }
         Ok(())
     }
@@ -81,9 +103,15 @@ mod tests {
 
     fn structure() -> SalaryStructure {
         let mut structure = SalaryStructure::new(1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
-        structure.components.push(SalaryComponent::addition("Base Salary", dec!(5000)));
-        structure.components.push(SalaryComponent::addition("Housing Allowance", dec!(1000)));
-        structure.components.push(SalaryComponent::deduction("Income Tax", dec!(800)));
+        structure
+            .components
+            .push(SalaryComponent::addition("Base Salary", dec!(5000)));
+        structure
+            .components
+            .push(SalaryComponent::addition("Housing Allowance", dec!(1000)));
+        structure
+            .components
+            .push(SalaryComponent::deduction("Income Tax", dec!(800)));
         structure
     }
 
@@ -98,8 +126,10 @@ mod tests {
     #[test]
     fn validate_rejects_deductions_exceeding_gross_pay() {
         let mut s = SalaryStructure::new(1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
-        s.components.push(SalaryComponent::addition("Base Salary", dec!(1000)));
-        s.components.push(SalaryComponent::deduction("Advance Recovery", dec!(1500)));
+        s.components
+            .push(SalaryComponent::addition("Base Salary", dec!(1000)));
+        s.components
+            .push(SalaryComponent::deduction("Advance Recovery", dec!(1500)));
         assert!(s.validate().is_err());
     }
 

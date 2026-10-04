@@ -49,7 +49,12 @@ pub struct InvoiceLine {
 }
 
 impl InvoiceLine {
-    pub fn new(revenue_account_id: i64, description: impl Into<String>, quantity: Decimal, unit_price: Decimal) -> Self {
+    pub fn new(
+        revenue_account_id: i64,
+        description: impl Into<String>,
+        quantity: Decimal,
+        unit_price: Decimal,
+    ) -> Self {
         Self {
             revenue_account_id,
             description: description.into(),
@@ -76,7 +81,12 @@ pub struct Invoice {
 }
 
 impl Invoice {
-    pub fn new(company_id: i64, customer_id: i64, invoice_date: NaiveDate, due_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        customer_id: i64,
+        invoice_date: NaiveDate,
+        due_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -98,9 +108,15 @@ impl Invoice {
     /// account. Doesn't post it -- that's `SalesRepository`'s job, since
     /// it also has to create the matching `Receivable` atomically.
     pub fn build_transaction(&self, ar_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::SalesInvoice, self.invoice_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::SalesInvoice,
+            self.invoice_date,
+        );
         transaction.description = Some(format!("Invoice for customer #{}", self.customer_id));
-        transaction.lines.push(TransactionLine::debit(ar_account_id, self.total()));
+        transaction
+            .lines
+            .push(TransactionLine::debit(ar_account_id, self.total()));
         for line in &self.lines {
             transaction.lines.push(TransactionLine {
                 description: Some(line.description.clone()),
@@ -111,7 +127,13 @@ impl Invoice {
     }
 
     pub fn build_receivable(&self) -> Receivable {
-        let mut receivable = Receivable::new(self.company_id, self.customer_id, self.invoice_date, self.due_date, self.total());
+        let mut receivable = Receivable::new(
+            self.company_id,
+            self.customer_id,
+            self.invoice_date,
+            self.due_date,
+            self.total(),
+        );
         receivable.reference = self.id.map(|id| format!("INV-{id}"));
         receivable
     }
@@ -120,16 +142,24 @@ impl Invoice {
 impl Validate for Invoice {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("invoice must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "invoice must reference a valid company".into(),
+            ));
         }
         if self.customer_id <= 0 {
-            return Err(AppError::Validation("invoice must reference a valid customer".into()));
+            return Err(AppError::Validation(
+                "invoice must reference a valid customer".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("an invoice must have at least one line".into()));
+            return Err(AppError::Validation(
+                "an invoice must have at least one line".into(),
+            ));
         }
         if self.due_date < self.invoice_date {
-            return Err(AppError::Validation("invoice due_date must not be before invoice_date".into()));
+            return Err(AppError::Validation(
+                "invoice due_date must not be before invoice_date".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("invoice line description", &line.description)?;
@@ -151,8 +181,12 @@ mod tests {
 
     fn invoice_with_two_lines() -> Invoice {
         let mut invoice = Invoice::new(1, 1, date(2026, 1, 1), date(2026, 1, 31));
-        invoice.lines.push(InvoiceLine::new(10, "Consulting", dec!(5), dec!(100)));
-        invoice.lines.push(InvoiceLine::new(11, "Widgets", dec!(2), dec!(25)));
+        invoice
+            .lines
+            .push(InvoiceLine::new(10, "Consulting", dec!(5), dec!(100)));
+        invoice
+            .lines
+            .push(InvoiceLine::new(11, "Widgets", dec!(2), dec!(25)));
         invoice
     }
 

@@ -78,7 +78,10 @@ mod tests {
     #[test]
     fn as_str_and_parse_round_trip_for_every_variant() {
         for transaction_type in ALL {
-            assert_eq!(TransactionType::parse(transaction_type.as_str()), Some(*transaction_type));
+            assert_eq!(
+                TransactionType::parse(transaction_type.as_str()),
+                Some(*transaction_type)
+            );
         }
     }
 

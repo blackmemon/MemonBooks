@@ -10,12 +10,12 @@ use iced::Element;
 use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::spacing;
+use crate::frontend::styles::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,13 +61,33 @@ pub fn load(ctx: &Ctx) -> State {
     let service = AuthService::new(ctx.db.clone());
     let available_users = service
         .list_other_active_users(current_user_id)
-        .map(|users| users.into_iter().map(|u| (Choice { id: u.id.unwrap_or_default(), label: u.display_name.clone() }, u.username)).collect())
+        .map(|users| {
+            users
+                .into_iter()
+                .map(|u| {
+                    (
+                        Choice {
+                            id: u.id.unwrap_or_default(),
+                            label: u.display_name.clone(),
+                        },
+                        u.username,
+                    )
+                })
+                .collect()
+        })
         .unwrap_or_default();
-    State { available_users, ..Default::default() }
+    State {
+        available_users,
+        ..Default::default()
+    }
 }
 
 fn username_for(state: &State, choice: &Choice) -> Option<String> {
-    state.available_users.iter().find(|(c, _)| c == choice).map(|(_, username)| username.clone())
+    state
+        .available_users
+        .iter()
+        .find(|(c, _)| c == choice)
+        .map(|(_, username)| username.clone())
 }
 
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
@@ -126,10 +146,16 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     if state.available_users.is_empty() {
-        return container(text("No other active users to switch to.").color(theme.primary())).padding(spacing::SPACE_20).into();
+        return container(text("No other active users to switch to.").color(theme.primary()))
+            .padding(spacing::SPACE_20)
+            .into();
     }
 
-    let choices: Vec<Choice> = state.available_users.iter().map(|(c, _)| c.clone()).collect();
+    let choices: Vec<Choice> = state
+        .available_users
+        .iter()
+        .map(|(c, _)| c.clone())
+        .collect();
 
     let form: Element<'_, Message> = if state.pending_user.is_some() {
         column![
@@ -138,26 +164,37 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
                 .style(inputs::text(theme))
                 .on_input(Message::TwoFactorCodeChanged)
                 .padding(spacing::SM),
-            button(text("Verify")).style(button_style::primary(theme)).on_press(Message::SubmitTwoFactorCode).padding(spacing::SM),
+            button(text("Verify"))
+                .style(button_style::primary(theme))
+                .on_press(Message::SubmitTwoFactorCode)
+                .padding(spacing::SM),
         ]
         .spacing(spacing::SPACE_12)
         .into()
     } else {
         column![
             text("Switch to"),
-            pick_list(choices, state.selected_user.clone(), Message::UserSelected).style(dropdown::style(theme)).placeholder("Choose a user"),
+            pick_list(choices, state.selected_user.clone(), Message::UserSelected)
+                .style(dropdown::style(theme))
+                .placeholder("Choose a user"),
             text_input("Their password", &state.password)
                 .style(inputs::text(theme))
                 .on_input(Message::PasswordChanged)
                 .secure(true)
                 .padding(spacing::SM),
-            button(text("Switch user")).style(button_style::primary(theme)).on_press(Message::SubmitCredentials).padding(spacing::SM),
+            button(text("Switch user"))
+                .style(button_style::primary(theme))
+                .on_press(Message::SubmitCredentials)
+                .padding(spacing::SM),
         ]
         .spacing(spacing::SPACE_12)
         .into()
     };
 
-    let mut content = column![text("Switch User").size(typography::title()), form].spacing(spacing::MD).padding(spacing::SPACE_20).max_width(360);
+    let mut content = column![text("Switch User").size(typography::title()), form]
+        .spacing(spacing::MD)
+        .padding(spacing::SPACE_20)
+        .max_width(360);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));
@@ -182,10 +219,29 @@ mod tests {
 
         let repo = UserRepository::new(db.clone());
         let role = repo.create_role(&Role::new("Staff")).unwrap();
-        let alice = repo.create_user(&User::new("alice", "Alice Smith", hash_password("correct horse battery staple").unwrap(), role.id.unwrap())).unwrap();
-        repo.create_user(&User::new("bob", "Bob Jones", hash_password("another good password").unwrap(), role.id.unwrap())).unwrap();
+        let alice = repo
+            .create_user(&User::new(
+                "alice",
+                "Alice Smith",
+                hash_password("correct horse battery staple").unwrap(),
+                role.id.unwrap(),
+            ))
+            .unwrap();
+        repo.create_user(&User::new(
+            "bob",
+            "Bob Jones",
+            hash_password("another good password").unwrap(),
+            role.id.unwrap(),
+        ))
+        .unwrap();
 
-        Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
+        Ctx {
+            db,
+            company_id: 1,
+            current_user_id: alice.id,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        }
     }
 
     #[test]
@@ -242,15 +298,33 @@ mod tests {
         db.run_migrations(user_repository::MIGRATIONS).unwrap();
         let repo = UserRepository::new(db.clone());
         let role = repo.create_role(&Role::new("Staff")).unwrap();
-        let alice = repo.create_user(&User::new("alice", "Alice Smith", hash_password("correct horse battery staple").unwrap(), role.id.unwrap())).unwrap();
+        let alice = repo
+            .create_user(&User::new(
+                "alice",
+                "Alice Smith",
+                hash_password("correct horse battery staple").unwrap(),
+                role.id.unwrap(),
+            ))
+            .unwrap();
 
         let secret = generate_secret();
-        let mut bob = User::new("bob", "Bob Jones", hash_password("another good password").unwrap(), role.id.unwrap());
+        let mut bob = User::new(
+            "bob",
+            "Bob Jones",
+            hash_password("another good password").unwrap(),
+            role.id.unwrap(),
+        );
         bob.two_factor_enabled = true;
         bob.two_factor_secret = Some(secret.clone());
         repo.create_user(&bob).unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: alice.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
+        let ctx = Ctx {
+            db,
+            company_id: 1,
+            current_user_id: alice.id,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
         let mut state = load(&ctx);
         let bob_choice = state.available_users[0].0.clone();
 
@@ -260,10 +334,16 @@ mod tests {
         assert!(matches!(event, Event::None));
         assert!(state.pending_user.is_some());
 
-        let code = totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, totp_rs::Secret::Encoded(secret).to_bytes().unwrap())
-            .unwrap()
-            .generate_current()
-            .unwrap();
+        let code = totp_rs::TOTP::new(
+            totp_rs::Algorithm::SHA1,
+            6,
+            1,
+            30,
+            totp_rs::Secret::Encoded(secret).to_bytes().unwrap(),
+        )
+        .unwrap()
+        .generate_current()
+        .unwrap();
         state.two_factor_code = code;
         let event = update(&mut state, Message::SubmitTwoFactorCode, &ctx);
         assert!(matches!(event, Event::SwitchedTo(user) if user.username == "bob"));

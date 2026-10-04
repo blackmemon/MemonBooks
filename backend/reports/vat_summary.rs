@@ -6,9 +6,18 @@ use crate::backend::tax::tax_reports::TaxSummary;
 
 pub fn to_rows(summary: &TaxSummary) -> (Vec<&'static str>, Vec<Vec<String>>) {
     let rows = vec![
-        vec!["Output tax (collected)".into(), summary.total_output_tax.to_string()],
-        vec!["Input tax (paid)".into(), summary.total_input_tax.to_string()],
-        vec!["Net tax payable".into(), summary.net_tax_payable().to_string()],
+        vec![
+            "Output tax (collected)".into(),
+            summary.total_output_tax.to_string(),
+        ],
+        vec![
+            "Input tax (paid)".into(),
+            summary.total_input_tax.to_string(),
+        ],
+        vec![
+            "Net tax payable".into(),
+            summary.net_tax_payable().to_string(),
+        ],
     ];
     (vec!["Line", "Amount"], rows)
 }

@@ -17,7 +17,13 @@ pub struct BankAccount {
 }
 
 impl BankAccount {
-    pub fn new(company_id: i64, gl_account_id: i64, bank_name: impl Into<String>, account_number: impl Into<String>, currency_code: impl Into<String>) -> Self {
+    pub fn new(
+        company_id: i64,
+        gl_account_id: i64,
+        bank_name: impl Into<String>,
+        account_number: impl Into<String>,
+        currency_code: impl Into<String>,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -33,10 +39,14 @@ impl BankAccount {
 impl Validate for BankAccount {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("bank account must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "bank account must reference a valid company".into(),
+            ));
         }
         if self.gl_account_id <= 0 {
-            return Err(AppError::Validation("bank account must reference a valid GL account".into()));
+            return Err(AppError::Validation(
+                "bank account must reference a valid GL account".into(),
+            ));
         }
         require_non_empty("bank name", &self.bank_name)?;
         require_max_length("bank name", &self.bank_name, 200)?;

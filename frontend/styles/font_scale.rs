@@ -27,7 +27,12 @@ pub enum FontScale {
 }
 
 /// In picker order, smallest to largest.
-pub const ALL: [FontScale; 4] = [FontScale::Small, FontScale::Medium, FontScale::Large, FontScale::ExtraLarge];
+pub const ALL: [FontScale; 4] = [
+    FontScale::Small,
+    FontScale::Medium,
+    FontScale::Large,
+    FontScale::ExtraLarge,
+];
 
 impl FontScale {
     fn multiplier(self) -> f32 {

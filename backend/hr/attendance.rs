@@ -57,7 +57,9 @@ impl AttendanceRecord {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.employee_id <= 0 {
-            return Err(AppError::Validation("attendance record must reference a valid employee".into()));
+            return Err(AppError::Validation(
+                "attendance record must reference a valid employee".into(),
+            ));
         }
         if let Some(hours) = self.hours_worked {
             require_non_negative("hours worked", hours)?;
@@ -72,14 +74,23 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_status() {
-        for status in [AttendanceStatus::Present, AttendanceStatus::Absent, AttendanceStatus::OnLeave, AttendanceStatus::Holiday] {
+        for status in [
+            AttendanceStatus::Present,
+            AttendanceStatus::Absent,
+            AttendanceStatus::OnLeave,
+            AttendanceStatus::Holiday,
+        ] {
             assert_eq!(AttendanceStatus::parse(status.as_str()), Some(status));
         }
     }
 
     #[test]
     fn validate_rejects_negative_hours_worked() {
-        let mut record = AttendanceRecord::new(1, NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), AttendanceStatus::Present);
+        let mut record = AttendanceRecord::new(
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            AttendanceStatus::Present,
+        );
         record.hours_worked = Some(rust_decimal_macros::dec!(-1));
         assert!(record.validate().is_err());
     }

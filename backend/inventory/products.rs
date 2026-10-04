@@ -4,7 +4,9 @@
 use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
-use crate::backend::core::validation::{require_max_length, require_non_empty, require_non_negative, Validate};
+use crate::backend::core::validation::{
+    require_max_length, require_non_empty, require_non_negative, Validate,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Product {
@@ -44,7 +46,9 @@ impl Product {
 impl Validate for Product {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("product must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "product must reference a valid company".into(),
+            ));
         }
         require_non_empty("product SKU", &self.sku)?;
         require_max_length("product SKU", &self.sku, 50)?;
@@ -54,7 +58,9 @@ impl Validate for Product {
         require_non_negative("cost price", self.cost_price)?;
         require_non_negative("sale price", self.sale_price)?;
         if matches!(self.category_id, Some(id) if id <= 0) {
-            return Err(AppError::Validation("product's category_id, when set, must be a valid category".into()));
+            return Err(AppError::Validation(
+                "product's category_id, when set, must be a valid category".into(),
+            ));
         }
         Ok(())
     }

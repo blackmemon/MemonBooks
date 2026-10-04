@@ -13,8 +13,12 @@ pub fn generate_code(prefix: &str) -> String {
     let now = Utc::now();
     let timestamp = now.format("%Y%m%d%H%M%S%3f");
 
-    let mut counters = counters().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let slot = counters.entry((prefix.to_string(), now.timestamp_millis())).or_insert(0);
+    let mut counters = counters()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let slot = counters
+        .entry((prefix.to_string(), now.timestamp_millis()))
+        .or_insert(0);
     let counter = *slot;
     *slot += 1;
     drop(counters);
@@ -64,7 +68,9 @@ mod tests {
     fn concurrent_generation_from_multiple_threads_is_still_collision_free() {
         use std::thread;
 
-        let handles: Vec<_> = (0..8).map(|_| thread::spawn(|| (0..2_000).map(|_| generate_code("MT")).collect::<Vec<_>>())).collect();
+        let handles: Vec<_> = (0..8)
+            .map(|_| thread::spawn(|| (0..2_000).map(|_| generate_code("MT")).collect::<Vec<_>>()))
+            .collect();
 
         let mut all = HashSet::new();
         for handle in handles {

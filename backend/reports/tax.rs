@@ -17,7 +17,16 @@ pub fn to_rows(transactions: &[TaxTransaction]) -> (Vec<&'static str>, Vec<Vec<S
             ]
         })
         .collect();
-    (vec!["Date", "Reference", "Direction", "Taxable Amount", "Tax Amount"], rows)
+    (
+        vec![
+            "Date",
+            "Reference",
+            "Direction",
+            "Taxable Amount",
+            "Tax Amount",
+        ],
+        rows,
+    )
 }
 
 #[cfg(test)]
@@ -29,7 +38,14 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_tax_transaction() {
-        let tax = TaxTransaction::new(1, 1, NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), dec!(1000), dec!(150), TaxDirection::Output);
+        let tax = TaxTransaction::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            dec!(1000),
+            dec!(150),
+            TaxDirection::Output,
+        );
         let (headers, rows) = to_rows(&[tax]);
         assert_eq!(headers.len(), 5);
         assert_eq!(rows[0][2], "output");

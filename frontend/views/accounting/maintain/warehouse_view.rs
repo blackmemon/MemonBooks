@@ -14,11 +14,11 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 const COLUMN_LABELS: [&str; 3] = ["Warehouse", "Code", "Status"];
@@ -67,8 +67,14 @@ pub enum Message {
 pub fn load(ctx: &Ctx) -> State {
     let service = InventoryService::new(ctx.db.clone());
     match service.list_warehouses(ctx.company_id) {
-        Ok(warehouses) => State { warehouses, ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(warehouses) => State {
+            warehouses,
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -81,12 +87,17 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.error = None;
 
             if let Some(id) = state.editing_id {
-                let Some(existing) = state.warehouses.iter().find(|w| w.id == Some(id)).cloned() else {
+                let Some(existing) = state.warehouses.iter().find(|w| w.id == Some(id)).cloned()
+                else {
                     state.error = Some("that warehouse no longer exists".into());
                     state.editing_id = None;
                     return;
                 };
-                let warehouse = Warehouse { name: state.name_input.clone(), code: state.code_input.clone(), ..existing };
+                let warehouse = Warehouse {
+                    name: state.name_input.clone(),
+                    code: state.code_input.clone(),
+                    ..existing
+                };
                 if let Err(err) = warehouse.validate() {
                     state.error = Some(err.to_string());
                     return;
@@ -107,7 +118,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 return;
             }
 
-            let warehouse = Warehouse::new(ctx.company_id, state.name_input.clone(), state.code_input.clone());
+            let warehouse = Warehouse::new(
+                ctx.company_id,
+                state.name_input.clone(),
+                state.code_input.clone(),
+            );
             if let Err(err) = warehouse.validate() {
                 state.error = Some(err.to_string());
                 return;
@@ -171,7 +186,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 }
             }
             if !failures.is_empty() {
-                state.error = Some(format!("Deleted {deleted}; {} could not be deleted -- {}", failures.len(), failures.join("; ")));
+                state.error = Some(format!(
+                    "Deleted {deleted}; {} could not be deleted -- {}",
+                    failures.len(),
+                    failures.join("; ")
+                ));
             } else if deleted > 0 {
                 state.message = Some(format!("Deleted {deleted} warehouse(s)."));
             }
@@ -181,16 +200,42 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.error = None;
             let query = state.search.trim().to_lowercase();
             let selected: Vec<&Warehouse> = if state.selected.is_empty() {
-                state.warehouses.iter().filter(|w| matches_filters(w, &query, state.status_filter)).collect()
+                state
+                    .warehouses
+                    .iter()
+                    .filter(|w| matches_filters(w, &query, state.status_filter))
+                    .collect()
             } else {
-                state.warehouses.iter().filter(|w| state.selected.contains(&w.id.unwrap_or_default())).collect()
+                state
+                    .warehouses
+                    .iter()
+                    .filter(|w| state.selected.contains(&w.id.unwrap_or_default()))
+                    .collect()
             };
             let headers = ["Name", "Code", "Status"];
-            let rows: Vec<Vec<String>> =
-                selected.iter().map(|w| vec![w.name.clone(), w.code.clone(), if w.is_active { "Active".to_string() } else { "Inactive".to_string() }]).collect();
+            let rows: Vec<Vec<String>> = selected
+                .iter()
+                .map(|w| {
+                    vec![
+                        w.name.clone(),
+                        w.code.clone(),
+                        if w.is_active {
+                            "Active".to_string()
+                        } else {
+                            "Inactive".to_string()
+                        },
+                    ]
+                })
+                .collect();
             let path = ctx.export_path("warehouses_export.csv");
             match std::fs::write(&path, csv::export_csv(&headers, &rows)) {
-                Ok(()) => state.message = Some(format!("Exported {} warehouse(s) to {}", selected.len(), path.display())),
+                Ok(()) => {
+                    state.message = Some(format!(
+                        "Exported {} warehouse(s) to {}",
+                        selected.len(),
+                        path.display()
+                    ))
+                }
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
@@ -218,17 +263,33 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 /// `BulkExportCsv`'s "no selection -> export everything currently
 /// visible" fallback, so the two can never disagree.
 fn matches_filters(warehouse: &Warehouse, query: &str, status: StatusFilter) -> bool {
-    status.matches(warehouse.is_active) && (query.is_empty() || warehouse.name.to_lowercase().contains(query) || warehouse.code.to_lowercase().contains(query))
+    status.matches(warehouse.is_active)
+        && (query.is_empty()
+            || warehouse.name.to_lowercase().contains(query)
+            || warehouse.code.to_lowercase().contains(query))
 }
 
 const TITLE: &str = "Warehouses";
 const DESCRIPTION: &str = "Every stock location on this company's books.";
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add warehouse" };
-    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, Message::Create)).padding(spacing::HEADER_PADDING);
+    let header_label = if state.editing_id.is_some() {
+        "Save changes"
+    } else {
+        "Add warehouse"
+    };
+    let header = container(page_header::view(
+        theme,
+        TITLE,
+        DESCRIPTION,
+        header_label,
+        Message::Create,
+    ))
+    .padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme)].spacing(spacing::SPACE_20).into()
+    column![header, body(state, theme)]
+        .spacing(spacing::SPACE_20)
+        .into()
 }
 
 /// Same as [`view`], except the title sits inline with `switcher` (a
@@ -237,12 +298,30 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 /// own `Message` into whatever the caller's `switcher` produces, so the
 /// two can share one `Element` tree despite having different message
 /// types.
-pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
-    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add warehouse" };
-    let header =
-        container(page_header::page_header_view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    switcher: Element<'a, ParentMessage>,
+    wrap: impl Fn(Message) -> ParentMessage + 'a,
+) -> Element<'a, ParentMessage> {
+    let header_label = if state.editing_id.is_some() {
+        "Save changes"
+    } else {
+        "Add warehouse"
+    };
+    let header = container(page_header::page_header_view_with_switcher(
+        theme,
+        TITLE,
+        DESCRIPTION,
+        switcher,
+        header_label,
+        wrap(Message::Create),
+    ))
+    .padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
+    column![header, body(state, theme).map(wrap)]
+        .spacing(spacing::SPACE_20)
+        .into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -260,10 +339,18 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::BulkDelete,
     );
 
-    let heading = section_heading::view(theme, "Warehouse list", "Every warehouse on this company's books.");
+    let heading = section_heading::view(
+        theme,
+        "Warehouse list",
+        "Every warehouse on this company's books.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Warehouse> = state.warehouses.iter().filter(|warehouse| matches_filters(warehouse, &query, state.status_filter)).collect();
+    let filtered: Vec<&Warehouse> = state
+        .warehouses
+        .iter()
+        .filter(|warehouse| matches_filters(warehouse, &query, state.status_filter))
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Warehouse", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -277,14 +364,21 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
             Row::new(vec![
                 Cell::text(warehouse.name.clone()),
                 Cell::text(warehouse.code.clone()),
-                if warehouse.is_active { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+                if warehouse.is_active {
+                    Cell::status("Active", BadgeTone::Positive)
+                } else {
+                    Cell::status("Inactive", BadgeTone::Neutral)
+                },
             ])
         })
         .collect();
 
     let row_ids: Vec<i64> = filtered.iter().map(|w| w.id.unwrap_or_default()).collect();
     let select_ids = row_ids.clone();
-    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let selected_flags: Vec<bool> = row_ids
+        .iter()
+        .map(|id| state.selected.contains(id))
+        .collect();
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
 
@@ -300,27 +394,53 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let form_heading = if state.editing_id.is_some() { "Edit warehouse" } else { "Add a warehouse" };
+    let form_heading = if state.editing_id.is_some() {
+        "Edit warehouse"
+    } else {
+        "Add a warehouse"
+    };
     let mut form = column![
         text(form_heading).size(typography::label()),
-        text_input("Code", &state.code_input).style(inputs::text(theme)).on_input(Message::CodeChanged).width(Length::Fill).padding(spacing::SM),
-        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Code", &state.code_input)
+            .style(inputs::text(theme))
+            .on_input(Message::CodeChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        text_input("Name", &state.name_input)
+            .style(inputs::text(theme))
+            .on_input(Message::NameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+                button(text("Save changes"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::Create)
+                    .padding(spacing::SM),
+                button(text("Cancel"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::CancelEdit)
+                    .padding(spacing::SM),
             ]
             .spacing(spacing::SM),
         );
     } else {
-        form = form.push(button(text("Add warehouse")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));
+        form = form.push(
+            button(text("Add warehouse"))
+                .style(button_style::primary(theme))
+                .on_press(Message::Create)
+                .padding(spacing::SM),
+        );
     }
 
-    let mut content = column![toolbar].spacing(spacing::SPACE_20).padding(spacing::CONTENT_PADDING).width(Length::Fill);
+    let mut content = column![toolbar]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::CONTENT_PADDING)
+        .width(Length::Fill);
 
     content = content.push(heading).push(table).push(form);
 
@@ -331,10 +451,20 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
+    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into();
 
     let panel = if state.columns_open {
-        Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled, Message::SelectAllColumns, Message::DeselectAllColumns, Message::ResetColumns))
+        Some(data_table::columns_panel(
+            theme,
+            &COLUMN_LABELS,
+            &state.column_visible,
+            Message::ColumnToggled,
+            Message::SelectAllColumns,
+            Message::DeselectAllColumns,
+            Message::ResetColumns,
+        ))
     } else {
         None
     };
@@ -353,18 +483,35 @@ mod tests {
 
     fn ctx_with_company() -> Ctx {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(inventory_repository::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
+        Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        }
     }
 
     fn ctx_with_temp_export_dir() -> Ctx {
         let ctx = ctx_with_company();
-        Ctx { export_dir: std::env::temp_dir().join(format!("memonbooks_warehouses_view_test_{:?}", std::thread::current().id())), ..ctx }
+        Ctx {
+            export_dir: std::env::temp_dir().join(format!(
+                "memonbooks_warehouses_view_test_{:?}",
+                std::thread::current().id()
+            )),
+            ..ctx
+        }
     }
 
     #[test]
@@ -372,7 +519,11 @@ mod tests {
         let ctx = ctx_with_company();
         let mut state = State::default();
 
-        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Main Warehouse".into()),
+            &ctx,
+        );
         update(&mut state, Message::CodeChanged("MAIN".into()), &ctx);
 
         assert_eq!(state.name_input, "Main Warehouse");
@@ -382,7 +533,11 @@ mod tests {
     #[test]
     fn creating_with_a_blank_name_is_rejected_before_reaching_the_service() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "".into(), code_input: "MAIN".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "".into(),
+            code_input: "MAIN".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
@@ -393,7 +548,11 @@ mod tests {
     #[test]
     fn creating_a_valid_warehouse_adds_it_to_the_list_and_clears_the_form() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Main Warehouse".into(), code_input: "MAIN".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Main Warehouse".into(),
+            code_input: "MAIN".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
@@ -417,7 +576,11 @@ mod tests {
     #[test]
     fn edit_row_prefills_the_form_from_the_existing_warehouse() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Main Warehouse".into(), code_input: "MAIN".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Main Warehouse".into(),
+            code_input: "MAIN".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.warehouses[0].id.unwrap();
 
@@ -431,7 +594,11 @@ mod tests {
     #[test]
     fn saving_an_edit_updates_the_existing_warehouse_in_place_and_clears_editing_state() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Main Warehouse".into(), code_input: "MAIN".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Main Warehouse".into(),
+            code_input: "MAIN".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.warehouses[0].id.unwrap();
 
@@ -452,7 +619,11 @@ mod tests {
     #[test]
     fn cancel_edit_clears_editing_state_without_touching_the_stored_warehouse() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Main Warehouse".into(), code_input: "MAIN".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Main Warehouse".into(),
+            code_input: "MAIN".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.warehouses[0].id.unwrap();
 
@@ -483,17 +654,28 @@ mod tests {
         let ctx = ctx_with_company();
         let mut state = State::default();
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], true), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], true),
+            &ctx,
+        );
         assert_eq!(state.selected, HashSet::from([1, 2, 3]));
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], false), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], false),
+            &ctx,
+        );
         assert!(state.selected.is_empty());
     }
 
     #[test]
     fn clear_selection_empties_it_regardless_of_what_was_selected() {
         let ctx = ctx_with_company();
-        let mut state = State { selected: HashSet::from([1, 2, 3]), ..Default::default() };
+        let mut state = State {
+            selected: HashSet::from([1, 2, 3]),
+            ..Default::default()
+        };
 
         update(&mut state, Message::ClearSelection, &ctx);
 
@@ -504,7 +686,11 @@ mod tests {
     fn bulk_delete_removes_every_selected_unreferenced_warehouse() {
         let ctx = ctx_with_company();
         let mut state = State::default();
-        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Main Warehouse".into()),
+            &ctx,
+        );
         state.code_input = "MAIN".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Overflow Warehouse".into();
@@ -518,7 +704,11 @@ mod tests {
         assert!(state.error.is_none());
         assert!(state.warehouses.is_empty());
         assert!(state.selected.is_empty());
-        assert!(state.message.as_deref().unwrap_or_default().contains("Deleted 2"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Deleted 2"));
     }
 
     /// A selection that includes a warehouse still referenced by a stock
@@ -533,20 +723,47 @@ mod tests {
 
         let ctx = ctx_with_company();
         let mut state = State::default();
-        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Main Warehouse".into()),
+            &ctx,
+        );
         state.code_input = "MAIN".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Overflow Warehouse".into();
         state.code_input = "OVERFLOW".into();
         update(&mut state, Message::Create, &ctx);
-        let referenced_id = state.warehouses.iter().find(|w| w.code == "MAIN").unwrap().id.unwrap();
-        let free_id = state.warehouses.iter().find(|w| w.code == "OVERFLOW").unwrap().id.unwrap();
+        let referenced_id = state
+            .warehouses
+            .iter()
+            .find(|w| w.code == "MAIN")
+            .unwrap()
+            .id
+            .unwrap();
+        let free_id = state
+            .warehouses
+            .iter()
+            .find(|w| w.code == "OVERFLOW")
+            .unwrap()
+            .id
+            .unwrap();
 
-        ctx.db.run_migrations(crate::backend::repositories::accounting_repository::MIGRATIONS).unwrap();
+        ctx.db
+            .run_migrations(crate::backend::repositories::accounting_repository::MIGRATIONS)
+            .unwrap();
         let inventory = InventoryRepository::new(ctx.db.clone());
-        let product = inventory.create_product(&Product::new(ctx.company_id, "WIDGET-1", "Widget")).unwrap();
+        let product = inventory
+            .create_product(&Product::new(ctx.company_id, "WIDGET-1", "Widget"))
+            .unwrap();
         inventory
-            .record_movement(&StockMovement::new(ctx.company_id, product.id.unwrap(), referenced_id, chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), MovementType::Purchase, rust_decimal_macros::dec!(100)))
+            .record_movement(&StockMovement::new(
+                ctx.company_id,
+                product.id.unwrap(),
+                referenced_id,
+                chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+                MovementType::Purchase,
+                rust_decimal_macros::dec!(100),
+            ))
             .unwrap();
 
         state.selected = HashSet::from([referenced_id, free_id]);
@@ -564,13 +781,23 @@ mod tests {
     fn bulk_export_csv_writes_only_the_selected_warehouses() {
         let ctx = ctx_with_temp_export_dir();
         let mut state = State::default();
-        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Main Warehouse".into()),
+            &ctx,
+        );
         state.code_input = "MAIN".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Overflow Warehouse".into();
         state.code_input = "OVERFLOW".into();
         update(&mut state, Message::Create, &ctx);
-        let export_id = state.warehouses.iter().find(|w| w.code == "MAIN").unwrap().id.unwrap();
+        let export_id = state
+            .warehouses
+            .iter()
+            .find(|w| w.code == "MAIN")
+            .unwrap()
+            .id
+            .unwrap();
         state.selected = HashSet::from([export_id]);
 
         update(&mut state, Message::BulkExportCsv, &ctx);
@@ -586,7 +813,11 @@ mod tests {
     fn bulk_export_csv_with_no_selection_exports_every_currently_filtered_warehouse() {
         let ctx = ctx_with_temp_export_dir();
         let mut state = State::default();
-        update(&mut state, Message::NameChanged("Main Warehouse".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Main Warehouse".into()),
+            &ctx,
+        );
         state.code_input = "MAIN".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Main Annex".into();
@@ -610,7 +841,11 @@ mod tests {
     #[test]
     fn reset_all_clears_search_and_status_filter() {
         let ctx = ctx_with_company();
-        let mut state = State { search: "main".into(), status_filter: StatusFilter::Inactive, ..Default::default() };
+        let mut state = State {
+            search: "main".into(),
+            status_filter: StatusFilter::Inactive,
+            ..Default::default()
+        };
 
         update(&mut state, Message::ResetAll, &ctx);
 

@@ -25,10 +25,15 @@ fn looks_like_a_memonbooks_backup(backup_path: &Path) -> AppResult<bool> {
 
 pub fn restore_from_backup(backup_path: &Path, target_db_path: &Path) -> AppResult<()> {
     if !backup_path.is_file() {
-        return Err(AppError::Validation(format!("backup file {} does not exist", backup_path.display())));
+        return Err(AppError::Validation(format!(
+            "backup file {} does not exist",
+            backup_path.display()
+        )));
     }
     if !looks_like_a_memonbooks_backup(backup_path)? {
-        return Err(AppError::Validation("this file does not look like a MemonBooks database backup".into()));
+        return Err(AppError::Validation(
+            "this file does not look like a MemonBooks database backup".into(),
+        ));
     }
 
     if let Some(parent) = target_db_path.parent() {
@@ -53,7 +58,10 @@ mod tests {
     use crate::database::database::{Database, Migration};
 
     fn temp_dir(label: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("memonbooks-restore-test-{label}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "memonbooks-restore-test-{label}-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -63,7 +71,12 @@ mod tests {
         let dir = temp_dir("valid");
         let backup_path = dir.join("backup.sqlite3");
         let db = Database::open(&backup_path).unwrap();
-        db.run_migrations(&[Migration { version: 1, name: "noop", sql: "CREATE TABLE t (id INTEGER PRIMARY KEY);" }]).unwrap();
+        db.run_migrations(&[Migration {
+            version: 1,
+            name: "noop",
+            sql: "CREATE TABLE t (id INTEGER PRIMARY KEY);",
+        }])
+        .unwrap();
         drop(db);
 
         let target_path = dir.join("restored.sqlite3");
@@ -77,7 +90,10 @@ mod tests {
     fn restoring_a_file_without_our_schema_is_rejected() {
         let dir = temp_dir("invalid");
         let not_a_backup = dir.join("not-a-backup.sqlite3");
-        Connection::open(&not_a_backup).unwrap().execute("CREATE TABLE unrelated (id INTEGER);", []).unwrap();
+        Connection::open(&not_a_backup)
+            .unwrap()
+            .execute("CREATE TABLE unrelated (id INTEGER);", [])
+            .unwrap();
 
         let target_path = dir.join("restored.sqlite3");
         let result = restore_from_backup(&not_a_backup, &target_path);
@@ -90,7 +106,10 @@ mod tests {
     #[test]
     fn restoring_a_missing_file_is_rejected() {
         let dir = temp_dir("missing");
-        let result = restore_from_backup(&dir.join("does-not-exist.sqlite3"), &dir.join("restored.sqlite3"));
+        let result = restore_from_backup(
+            &dir.join("does-not-exist.sqlite3"),
+            &dir.join("restored.sqlite3"),
+        );
         assert!(result.is_err());
         std::fs::remove_dir_all(&dir).ok();
     }

@@ -39,7 +39,11 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_variant() {
-        for status in [TransactionStatus::Draft, TransactionStatus::Posted, TransactionStatus::Reversed] {
+        for status in [
+            TransactionStatus::Draft,
+            TransactionStatus::Posted,
+            TransactionStatus::Reversed,
+        ] {
             assert_eq!(TransactionStatus::parse(status.as_str()), Some(status));
         }
     }

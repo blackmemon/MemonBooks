@@ -29,10 +29,11 @@ use crate::backend::sales::quotations::{Quotation, QuotationLine, QuotationStatu
 use crate::backend::transactions::transaction::Transaction;
 use crate::database::database::{Database, Migration};
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1000,
-    name: "sales_schema",
-    sql: "
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1000,
+        name: "sales_schema",
+        sql: "
         CREATE TABLE quotations (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id      INTEGER NOT NULL REFERENCES companies(id),
@@ -95,10 +96,11 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             transaction_id  INTEGER REFERENCES transactions(id)
         );
     ",
-}, Migration {
-    version: 1601,
-    name: "pos_schema",
-    sql: "
+    },
+    Migration {
+        version: 1601,
+        name: "pos_schema",
+        sql: "
         CREATE TABLE pos_terminals (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id      INTEGER NOT NULL REFERENCES companies(id),
@@ -155,7 +157,8 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             amount          TEXT NOT NULL
         );
     ",
-}];
+    },
+];
 
 #[derive(Clone)]
 pub struct SalesRepository {
@@ -263,10 +266,14 @@ impl SalesRepository {
     /// `create_and_post_credit_note_for_invoice`).
     pub fn update_invoice(&self, invoice: &Invoice) -> AppResult<()> {
         invoice.validate()?;
-        let invoice_id = invoice.id.ok_or_else(|| AppError::Validation("cannot update an invoice without an id".into()))?;
+        let invoice_id = invoice
+            .id
+            .ok_or_else(|| AppError::Validation("cannot update an invoice without an id".into()))?;
         let existing = self.get_invoice(invoice_id)?;
         if existing.status != InvoiceStatus::Draft {
-            return Err(AppError::Validation("only a draft invoice can be edited".into()));
+            return Err(AppError::Validation(
+                "only a draft invoice can be edited".into(),
+            ));
         }
 
         self.db.with_transaction(|tx| {
@@ -293,10 +300,15 @@ impl SalesRepository {
     pub fn delete_invoice(&self, invoice_id: i64) -> AppResult<()> {
         let invoice = self.get_invoice(invoice_id)?;
         if invoice.status != InvoiceStatus::Draft {
-            return Err(AppError::Validation("only a draft invoice can be deleted".into()));
+            return Err(AppError::Validation(
+                "only a draft invoice can be deleted".into(),
+            ));
         }
         self.db.with_transaction(|tx| {
-            tx.execute("DELETE FROM invoice_lines WHERE invoice_id = ?1", params![invoice_id])?;
+            tx.execute(
+                "DELETE FROM invoice_lines WHERE invoice_id = ?1",
+                params![invoice_id],
+            )?;
             tx.execute("DELETE FROM invoices WHERE id = ?1", params![invoice_id])?;
             Ok(())
         })
@@ -318,26 +330,42 @@ impl SalesRepository {
     /// Builds the GL transaction and receivable from a draft invoice,
     /// posts both atomically (`AccountingRepository::post_transaction_with_receivable`),
     /// and marks the invoice Posted with the resulting transaction id.
-    pub fn post_invoice(&self, invoice_id: i64, ar_account_id: i64) -> AppResult<(Invoice, Transaction, Receivable)> {
+    pub fn post_invoice(
+        &self,
+        invoice_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<(Invoice, Transaction, Receivable)> {
         let invoice = self.get_invoice(invoice_id)?;
         if invoice.status != InvoiceStatus::Draft {
-            return Err(AppError::Validation("only a draft invoice can be posted".into()));
+            return Err(AppError::Validation(
+                "only a draft invoice can be posted".into(),
+            ));
         }
 
         let transaction = invoice.build_transaction(ar_account_id);
         let receivable = invoice.build_receivable();
-        let (posted_transaction, posted_receivable) = self.accounting.post_transaction_with_receivable(&transaction, &receivable)?;
+        let (posted_transaction, posted_receivable) = self
+            .accounting
+            .post_transaction_with_receivable(&transaction, &receivable)?;
 
         self.db.with_connection(|conn| {
             conn.execute(
                 "UPDATE invoices SET status = ?1, transaction_id = ?2 WHERE id = ?3",
-                params![InvoiceStatus::Posted.as_str(), posted_transaction.id, invoice_id],
+                params![
+                    InvoiceStatus::Posted.as_str(),
+                    posted_transaction.id,
+                    invoice_id
+                ],
             )?;
             Ok(())
         })?;
 
         Ok((
-            Invoice { status: InvoiceStatus::Posted, transaction_id: posted_transaction.id, ..invoice },
+            Invoice {
+                status: InvoiceStatus::Posted,
+                transaction_id: posted_transaction.id,
+                ..invoice
+            },
             posted_transaction,
             posted_receivable,
         ))
@@ -394,7 +422,11 @@ impl SalesRepository {
     /// reasoning as `record_customer_payment`'s cap: crediting more than
     /// what's actually still owed would leave the AR control account
     /// and the receivables subledger out of agreement.
-    pub fn post_credit_note(&self, credit_note_id: i64, ar_account_id: i64) -> AppResult<(CreditNote, Transaction)> {
+    pub fn post_credit_note(
+        &self,
+        credit_note_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<(CreditNote, Transaction)> {
         let credit_note = self.get_credit_note(credit_note_id)?;
         if credit_note.transaction_id.is_some() {
             return Err(AppError::Validation("credit note is already posted".into()));
@@ -415,15 +447,25 @@ impl SalesRepository {
         let posted = self.accounting.post_transaction(&transaction)?;
 
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE credit_notes SET transaction_id = ?1 WHERE id = ?2", params![posted.id, credit_note_id])?;
+            conn.execute(
+                "UPDATE credit_notes SET transaction_id = ?1 WHERE id = ?2",
+                params![posted.id, credit_note_id],
+            )?;
             Ok(())
         })?;
 
         if let Some(receivable_id) = credit_note.receivable_id {
-            self.accounting.apply_receivable_payments(&[(receivable_id, credit_note.total())])?;
+            self.accounting
+                .apply_receivable_payments(&[(receivable_id, credit_note.total())])?;
         }
 
-        Ok((CreditNote { transaction_id: posted.id, ..credit_note }, posted))
+        Ok((
+            CreditNote {
+                transaction_id: posted.id,
+                ..credit_note
+            },
+            posted,
+        ))
     }
 
     // -- customer payments --------------------------------------------
@@ -439,7 +481,12 @@ impl SalesRepository {
     /// overpayment would leave the AR control account and the
     /// receivables subledger permanently out of agreement with no
     /// record of where the excess went.
-    pub fn record_customer_payment(&self, payment: &CustomerPayment, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
+    pub fn record_customer_payment(
+        &self,
+        payment: &CustomerPayment,
+        cash_account_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<CustomerPayment> {
         payment.validate()?;
 
         let open_receivables: Vec<Receivable> = self
@@ -468,7 +515,11 @@ impl SalesRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        let allocations = crate::backend::accounting::accounts_receivable::collections::allocate_collection(&open_receivables, payment.amount);
+        let allocations =
+            crate::backend::accounting::accounts_receivable::collections::allocate_collection(
+                &open_receivables,
+                payment.amount,
+            );
         self.accounting.apply_receivable_payments(&allocations)?;
 
         Ok(CustomerPayment {
@@ -491,9 +542,21 @@ impl SalesRepository {
     /// remaining balance, same conservative reasoning as
     /// `record_customer_payment`'s whole-balance check, just scoped to
     /// one document.
-    pub fn record_payment_for_invoice(&self, invoice_id: i64, payment_date: chrono::NaiveDate, amount: Decimal, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
+    pub fn record_payment_for_invoice(
+        &self,
+        invoice_id: i64,
+        payment_date: chrono::NaiveDate,
+        amount: Decimal,
+        cash_account_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<CustomerPayment> {
         let invoice = self.get_invoice(invoice_id)?;
-        let payment = CustomerPayment::new(invoice.company_id, invoice.customer_id, payment_date, amount);
+        let payment = CustomerPayment::new(
+            invoice.company_id,
+            invoice.customer_id,
+            payment_date,
+            amount,
+        );
         payment.validate()?;
 
         let receivable = self.open_receivable_for_invoice(invoice_id)?;
@@ -517,7 +580,8 @@ impl SalesRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        self.accounting.apply_receivable_payments(&[(receivable.id.unwrap_or_default(), amount)])?;
+        self.accounting
+            .apply_receivable_payments(&[(receivable.id.unwrap_or_default(), amount)])?;
 
         Ok(CustomerPayment {
             id: Some(payment_id),
@@ -538,7 +602,9 @@ impl SalesRepository {
             .list_open_receivables_for_company(invoice.company_id)?
             .into_iter()
             .find(|r| r.reference.as_deref() == Some(reference.as_str()))
-            .ok_or_else(|| AppError::Validation(format!("invoice {invoice_id} has no open receivable")))
+            .ok_or_else(|| {
+                AppError::Validation(format!("invoice {invoice_id} has no open receivable"))
+            })
     }
 
     /// The invoice's own remaining balance -- for prefilling a payment
@@ -555,13 +621,21 @@ impl SalesRepository {
     pub fn void_invoice(&self, invoice_id: i64) -> AppResult<Invoice> {
         let invoice = self.get_invoice(invoice_id)?;
         if invoice.status != InvoiceStatus::Draft {
-            return Err(AppError::Validation("only a draft invoice can be voided".into()));
+            return Err(AppError::Validation(
+                "only a draft invoice can be voided".into(),
+            ));
         }
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE invoices SET status = ?1 WHERE id = ?2", params![InvoiceStatus::Voided.as_str(), invoice_id])?;
+            conn.execute(
+                "UPDATE invoices SET status = ?1 WHERE id = ?2",
+                params![InvoiceStatus::Voided.as_str(), invoice_id],
+            )?;
             Ok(())
         })?;
-        Ok(Invoice { status: InvoiceStatus::Voided, ..invoice })
+        Ok(Invoice {
+            status: InvoiceStatus::Voided,
+            ..invoice
+        })
     }
 
     // -- POS: terminals -------------------------------------------------
@@ -645,10 +719,17 @@ impl SalesRepository {
     /// Closes the session with the counted amount. Does not itself judge
     /// over/short -- pair with `cash_drawer::expected_closing_cash` using
     /// `list_cash_drawer_events` first, if that comparison is needed.
-    pub fn close_session(&self, session_id: i64, closing_cash: rust_decimal::Decimal, closed_at: DateTime<Utc>) -> AppResult<PosSession> {
+    pub fn close_session(
+        &self,
+        session_id: i64,
+        closing_cash: rust_decimal::Decimal,
+        closed_at: DateTime<Utc>,
+    ) -> AppResult<PosSession> {
         let session = self.get_session(session_id)?;
         if session.status != PosSessionStatus::Open {
-            return Err(AppError::Validation("only an open POS session can be closed".into()));
+            return Err(AppError::Validation(
+                "only an open POS session can be closed".into(),
+            ));
         }
         self.db.with_connection(|conn| {
             conn.execute(
@@ -670,7 +751,11 @@ impl SalesRepository {
     /// Validates and posts the sale's GL transaction, then stores the
     /// sale (header, lines, payments) linked to it -- atomically, same
     /// pattern as `post_invoice`.
-    pub fn post_pos_sale(&self, sale: &PosSale, payment_accounts: &[(PaymentMethod, i64)]) -> AppResult<(PosSale, Transaction)> {
+    pub fn post_pos_sale(
+        &self,
+        sale: &PosSale,
+        payment_accounts: &[(PaymentMethod, i64)],
+    ) -> AppResult<(PosSale, Transaction)> {
         sale.validate()?;
         let transaction = sale.build_transaction(payment_accounts)?;
         let posted = self.accounting.post_transaction(&transaction)?;
@@ -699,7 +784,14 @@ impl SalesRepository {
             Ok(sale_id)
         })?;
 
-        Ok((PosSale { id: Some(sale_id), transaction_id: posted.id, ..sale.clone() }, posted))
+        Ok((
+            PosSale {
+                id: Some(sale_id),
+                transaction_id: posted.id,
+                ..sale.clone()
+            },
+            posted,
+        ))
     }
 }
 
@@ -718,8 +810,13 @@ fn map_session(row: &Row) -> rusqlite::Result<PosSession> {
     let opening_text: String = row.get(5)?;
     let closing_text: Option<String> = row.get(6)?;
     let status_text: String = row.get(7)?;
-    let status = PosSessionStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, "invalid POS session status".into()))?;
+    let status = PosSessionStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            "invalid POS session status".into(),
+        )
+    })?;
     Ok(PosSession {
         id: Some(row.get(0)?),
         terminal_id: row.get(1)?,
@@ -735,8 +832,13 @@ fn map_session(row: &Row) -> rusqlite::Result<PosSession> {
 fn map_cash_drawer_event(row: &Row) -> rusqlite::Result<CashDrawerEvent> {
     let amount_text: String = row.get(3)?;
     let event_type_text: String = row.get(2)?;
-    let event_type = CashDrawerEventType::parse(&event_type_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, "invalid cash drawer event type".into()))?;
+    let event_type = CashDrawerEventType::parse(&event_type_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            "invalid cash drawer event type".into(),
+        )
+    })?;
     Ok(CashDrawerEvent {
         id: Some(row.get(0)?),
         session_id: row.get(1)?,
@@ -749,8 +851,13 @@ fn map_cash_drawer_event(row: &Row) -> rusqlite::Result<CashDrawerEvent> {
 
 fn map_quotation(row: &Row) -> rusqlite::Result<Quotation> {
     let status_text: String = row.get(5)?;
-    let status = QuotationStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid quotation status".into()))?;
+    let status = QuotationStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid quotation status".into(),
+        )
+    })?;
     Ok(Quotation {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
@@ -774,8 +881,13 @@ fn map_quotation_line(row: &Row) -> rusqlite::Result<QuotationLine> {
 
 fn map_invoice(row: &Row) -> rusqlite::Result<Invoice> {
     let status_text: String = row.get(5)?;
-    let status = InvoiceStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid invoice status".into()))?;
+    let status = InvoiceStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid invoice status".into(),
+        )
+    })?;
     Ok(Invoice {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
@@ -823,16 +935,18 @@ fn map_credit_note_line(row: &Row) -> rusqlite::Result<CreditNoteLine> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
-    use crate::backend::organization::companies::Company;
-    use crate::backend::pos::payments::PosPayment;
-    use crate::backend::parties::customers::Customer;
-    use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
-    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
-    use crate::backend::repositories::party_repository::{self, PartyRepository};
     use crate::backend::accounting::accounting_rules::AccountType;
     use crate::backend::accounting::chart_of_accounts::Account;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::parties::customers::Customer;
+    use crate::backend::pos::payments::PosPayment;
+    use crate::backend::repositories::accounting_repository::{
+        self, AccountingRepository as AccRepo,
+    };
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::backend::repositories::party_repository::{self, PartyRepository};
+    use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
     fn date(y: i32, m: u32, d: u32) -> NaiveDate {
@@ -853,40 +967,94 @@ mod tests {
 
     fn fixture() -> TestFixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(party_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::repositories::inventory_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::repositories::inventory_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
         let company_id = company.id.unwrap();
 
         let party_repo = PartyRepository::new(db.clone());
-        let customer = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let customer = party_repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
 
         let acc_repo = AccRepo::new(db.clone());
         acc_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
-        let ar_account = acc_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-        let revenue_account = acc_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-        let cash_account = acc_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let ar_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let revenue_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
+            .unwrap();
+        let cash_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
-        let user_repo = crate::backend::repositories::user_repository::UserRepository::new(db.clone());
-        let role = user_repo.create_role(&crate::backend::core::roles::Role::new("Cashier")).unwrap();
+        let user_repo =
+            crate::backend::repositories::user_repository::UserRepository::new(db.clone());
+        let role = user_repo
+            .create_role(&crate::backend::core::roles::Role::new("Cashier"))
+            .unwrap();
         let cashier = user_repo
-            .create_user(&crate::backend::core::users::User::new("cashier", "Cashier One", "hash", role.id.unwrap()))
+            .create_user(&crate::backend::core::users::User::new(
+                "cashier",
+                "Cashier One",
+                "hash",
+                role.id.unwrap(),
+            ))
             .unwrap();
 
-        let inventory_repo = crate::backend::repositories::inventory_repository::InventoryRepository::new(db.clone());
+        let inventory_repo =
+            crate::backend::repositories::inventory_repository::InventoryRepository::new(
+                db.clone(),
+            );
         let warehouse = inventory_repo
-            .create_warehouse(&crate::backend::inventory::warehouses::Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .create_warehouse(&crate::backend::inventory::warehouses::Warehouse::new(
+                company_id,
+                "Main Warehouse",
+                "MAIN",
+            ))
             .unwrap();
-        let product = inventory_repo.create_product(&crate::backend::inventory::products::Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let product = inventory_repo
+            .create_product(&crate::backend::inventory::products::Product::new(
+                company_id, "WIDGET-1", "Widget",
+            ))
+            .unwrap();
 
         TestFixture {
             sales: SalesRepository::new(db),
@@ -904,8 +1072,15 @@ mod tests {
     #[test]
     fn quotation_round_trips_with_its_lines() {
         let f = fixture();
-        let mut quotation = Quotation::new(f.company_id, f.customer_id, date(2026, 1, 1), date(2026, 1, 31));
-        quotation.lines.push(QuotationLine::new("Widget", dec!(2), dec!(50)));
+        let mut quotation = Quotation::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        );
+        quotation
+            .lines
+            .push(QuotationLine::new("Widget", dec!(2), dec!(50)));
         let created = f.sales.create_quotation(&quotation).unwrap();
 
         let fetched = f.sales.get_quotation(created.id.unwrap()).unwrap();
@@ -916,11 +1091,24 @@ mod tests {
     #[test]
     fn posting_an_invoice_creates_transaction_and_receivable_and_marks_it_posted() {
         let f = fixture();
-        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
-        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(2000)));
+        let mut invoice = Invoice::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            f.revenue_account_id,
+            "Consulting",
+            dec!(1),
+            dec!(2000),
+        ));
         let invoice = f.sales.create_invoice(&invoice).unwrap();
 
-        let (posted_invoice, transaction, receivable) = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+        let (posted_invoice, transaction, receivable) = f
+            .sales
+            .post_invoice(invoice.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
         assert_eq!(posted_invoice.status, InvoiceStatus::Posted);
         assert_eq!(posted_invoice.transaction_id, transaction.id);
@@ -936,10 +1124,22 @@ mod tests {
     #[test]
     fn posting_an_already_posted_invoice_is_rejected() {
         let f = fixture();
-        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
-        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(2000)));
+        let mut invoice = Invoice::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            f.revenue_account_id,
+            "Consulting",
+            dec!(1),
+            dec!(2000),
+        ));
         let invoice = f.sales.create_invoice(&invoice).unwrap();
-        f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+        f.sales
+            .post_invoice(invoice.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
         let result = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id);
         assert!(result.is_err());
@@ -948,33 +1148,72 @@ mod tests {
     #[test]
     fn recording_a_customer_payment_settles_the_receivable() {
         let f = fixture();
-        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
-        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(2000)));
+        let mut invoice = Invoice::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            f.revenue_account_id,
+            "Consulting",
+            dec!(1),
+            dec!(2000),
+        ));
         let invoice = f.sales.create_invoice(&invoice).unwrap();
-        f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+        f.sales
+            .post_invoice(invoice.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
-        let payment = CustomerPayment::new(f.company_id, f.customer_id, date(2026, 1, 20), dec!(2000));
-        let recorded = f.sales.record_customer_payment(&payment, f.cash_account_id, f.ar_account_id).unwrap();
+        let payment =
+            CustomerPayment::new(f.company_id, f.customer_id, date(2026, 1, 20), dec!(2000));
+        let recorded = f
+            .sales
+            .record_customer_payment(&payment, f.cash_account_id, f.ar_account_id)
+            .unwrap();
         assert!(recorded.transaction_id.is_some());
 
         let accounting = AccRepo::new(f.sales.db.clone());
-        assert!(accounting.list_open_receivables_for_company(f.company_id).unwrap().is_empty());
+        assert!(accounting
+            .list_open_receivables_for_company(f.company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
     fn posting_a_credit_note_against_a_receivable_reduces_its_balance() {
         let f = fixture();
-        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
-        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(2000)));
+        let mut invoice = Invoice::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            f.revenue_account_id,
+            "Consulting",
+            dec!(1),
+            dec!(2000),
+        ));
         let invoice = f.sales.create_invoice(&invoice).unwrap();
-        let (_, _, receivable) = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+        let (_, _, receivable) = f
+            .sales
+            .post_invoice(invoice.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
         let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
         credit_note.receivable_id = Some(receivable.id.unwrap());
-        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "Return", dec!(500)));
+        credit_note.lines.push(CreditNoteLine::new(
+            f.revenue_account_id,
+            "Return",
+            dec!(500),
+        ));
         let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
 
-        let (posted, transaction) = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id).unwrap();
+        let (posted, transaction) = f
+            .sales
+            .post_credit_note(credit_note.id.unwrap(), f.ar_account_id)
+            .unwrap();
         assert!(posted.transaction_id.is_some());
         assert!(transaction.is_balanced());
 
@@ -986,17 +1225,36 @@ mod tests {
     #[test]
     fn posting_a_credit_note_exceeding_the_linked_receivables_balance_is_rejected() {
         let f = fixture();
-        let mut invoice = Invoice::new(f.company_id, f.customer_id, date(2026, 1, 10), date(2026, 2, 9));
-        invoice.lines.push(InvoiceLine::new(f.revenue_account_id, "Consulting", dec!(1), dec!(500)));
+        let mut invoice = Invoice::new(
+            f.company_id,
+            f.customer_id,
+            date(2026, 1, 10),
+            date(2026, 2, 9),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            f.revenue_account_id,
+            "Consulting",
+            dec!(1),
+            dec!(500),
+        ));
         let invoice = f.sales.create_invoice(&invoice).unwrap();
-        let (_, _, receivable) = f.sales.post_invoice(invoice.id.unwrap(), f.ar_account_id).unwrap();
+        let (_, _, receivable) = f
+            .sales
+            .post_invoice(invoice.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
         let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
         credit_note.receivable_id = Some(receivable.id.unwrap());
-        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "Return", dec!(1000))); // more than the 500 owed
+        credit_note.lines.push(CreditNoteLine::new(
+            f.revenue_account_id,
+            "Return",
+            dec!(1000),
+        )); // more than the 500 owed
         let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
 
-        let result = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
+        let result = f
+            .sales
+            .post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
         assert!(result.is_err());
 
         let accounting = AccRepo::new(f.sales.db.clone());
@@ -1008,11 +1266,19 @@ mod tests {
     fn posting_an_already_posted_credit_note_is_rejected() {
         let f = fixture();
         let mut credit_note = CreditNote::new(f.company_id, f.customer_id, date(2026, 1, 15));
-        credit_note.lines.push(CreditNoteLine::new(f.revenue_account_id, "General credit", dec!(100)));
+        credit_note.lines.push(CreditNoteLine::new(
+            f.revenue_account_id,
+            "General credit",
+            dec!(100),
+        ));
         let credit_note = f.sales.create_credit_note(&credit_note).unwrap();
-        f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id).unwrap();
+        f.sales
+            .post_credit_note(credit_note.id.unwrap(), f.ar_account_id)
+            .unwrap();
 
-        let result = f.sales.post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
+        let result = f
+            .sales
+            .post_credit_note(credit_note.id.unwrap(), f.ar_account_id);
         assert!(result.is_err());
     }
 
@@ -1021,10 +1287,21 @@ mod tests {
         let f = fixture();
         let terminal = f
             .sales
-            .create_terminal(&Terminal::new(f.company_id, f.warehouse_id, "Front Counter"))
+            .create_terminal(&Terminal::new(
+                f.company_id,
+                f.warehouse_id,
+                "Front Counter",
+            ))
             .unwrap();
 
-        let session = f.sales.open_session(&PosSession::open(terminal.id.unwrap(), f.cashier_user_id, dec!(200))).unwrap();
+        let session = f
+            .sales
+            .open_session(&PosSession::open(
+                terminal.id.unwrap(),
+                f.cashier_user_id,
+                dec!(200),
+            ))
+            .unwrap();
         assert_eq!(session.status, PosSessionStatus::Open);
 
         f.sales
@@ -1035,11 +1312,18 @@ mod tests {
             ))
             .unwrap();
 
-        let events = f.sales.list_cash_drawer_events(session.id.unwrap()).unwrap();
-        let expected = crate::backend::pos::cash_drawer::expected_closing_cash(session.opening_cash, &events);
+        let events = f
+            .sales
+            .list_cash_drawer_events(session.id.unwrap())
+            .unwrap();
+        let expected =
+            crate::backend::pos::cash_drawer::expected_closing_cash(session.opening_cash, &events);
         assert_eq!(expected, dec!(350));
 
-        let closed = f.sales.close_session(session.id.unwrap(), dec!(350), Utc::now()).unwrap();
+        let closed = f
+            .sales
+            .close_session(session.id.unwrap(), dec!(350), Utc::now())
+            .unwrap();
         assert_eq!(closed.status, PosSessionStatus::Closed);
         assert_eq!(closed.closing_cash, Some(dec!(350)));
     }
@@ -1049,15 +1333,42 @@ mod tests {
         let f = fixture();
         let terminal = f
             .sales
-            .create_terminal(&Terminal::new(f.company_id, f.warehouse_id, "Front Counter"))
+            .create_terminal(&Terminal::new(
+                f.company_id,
+                f.warehouse_id,
+                "Front Counter",
+            ))
             .unwrap();
-        let session = f.sales.open_session(&PosSession::open(terminal.id.unwrap(), f.cashier_user_id, dec!(200))).unwrap();
+        let session = f
+            .sales
+            .open_session(&PosSession::open(
+                terminal.id.unwrap(),
+                f.cashier_user_id,
+                dec!(200),
+            ))
+            .unwrap();
 
-        let mut sale = PosSale::new(f.company_id, terminal.id.unwrap(), session.id.unwrap(), date(2026, 1, 15));
-        sale.lines.push(crate::backend::pos::sales::PosSaleLine::new(f.product_id, f.revenue_account_id, "Widget", dec!(2), dec!(50)));
-        sale.payments.push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
+        let mut sale = PosSale::new(
+            f.company_id,
+            terminal.id.unwrap(),
+            session.id.unwrap(),
+            date(2026, 1, 15),
+        );
+        sale.lines
+            .push(crate::backend::pos::sales::PosSaleLine::new(
+                f.product_id,
+                f.revenue_account_id,
+                "Widget",
+                dec!(2),
+                dec!(50),
+            ));
+        sale.payments
+            .push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
 
-        let (recorded, transaction) = f.sales.post_pos_sale(&sale, &[(PaymentMethod::Cash, f.cash_account_id)]).unwrap();
+        let (recorded, transaction) = f
+            .sales
+            .post_pos_sale(&sale, &[(PaymentMethod::Cash, f.cash_account_id)])
+            .unwrap();
         assert!(transaction.is_balanced());
         assert_eq!(recorded.transaction_id, transaction.id);
     }

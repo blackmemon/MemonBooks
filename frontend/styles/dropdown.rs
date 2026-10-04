@@ -1,5 +1,5 @@
-use iced::widget::pick_list::{Status, Style};
 use iced::widget::overlay::menu as menu_widget;
+use iced::widget::pick_list::{Status, Style};
 use iced::{Background, Color, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;

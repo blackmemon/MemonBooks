@@ -22,7 +22,13 @@ pub struct CashTransfer {
 }
 
 impl CashTransfer {
-    pub fn new(company_id: i64, from_account_id: i64, to_account_id: i64, transfer_date: NaiveDate, amount: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        from_account_id: i64,
+        to_account_id: i64,
+        transfer_date: NaiveDate,
+        amount: Decimal,
+    ) -> Self {
         Self {
             company_id,
             from_account_id,
@@ -35,17 +41,27 @@ impl CashTransfer {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.from_account_id == self.to_account_id {
-            return Err(AppError::Validation("cash transfer source and destination accounts must differ".into()));
+            return Err(AppError::Validation(
+                "cash transfer source and destination accounts must differ".into(),
+            ));
         }
         require_positive("cash transfer amount", self.amount)?;
         Ok(())
     }
 
     pub fn build_transaction(&self) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::BankTransaction, self.transfer_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::BankTransaction,
+            self.transfer_date,
+        );
         transaction.description = self.memo.clone().or_else(|| Some("Cash transfer".into()));
-        transaction.lines.push(TransactionLine::debit(self.to_account_id, self.amount));
-        transaction.lines.push(TransactionLine::credit(self.from_account_id, self.amount));
+        transaction
+            .lines
+            .push(TransactionLine::debit(self.to_account_id, self.amount));
+        transaction
+            .lines
+            .push(TransactionLine::credit(self.from_account_id, self.amount));
         transaction
     }
 }
@@ -57,13 +73,25 @@ mod tests {
 
     #[test]
     fn validate_rejects_same_source_and_destination() {
-        let transfer = CashTransfer::new(1, 10, 10, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(500));
+        let transfer = CashTransfer::new(
+            1,
+            10,
+            10,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(500),
+        );
         assert!(transfer.validate().is_err());
     }
 
     #[test]
     fn build_transaction_debits_destination_and_credits_source() {
-        let transfer = CashTransfer::new(1, 10, 20, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(500));
+        let transfer = CashTransfer::new(
+            1,
+            10,
+            20,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(500),
+        );
         let transaction = transfer.build_transaction();
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 20);

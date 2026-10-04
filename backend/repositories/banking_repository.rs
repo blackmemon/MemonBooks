@@ -3,8 +3,8 @@
 //! delegates to `AccountingRepository`, same pattern as
 //! `sales_repository.rs`/`purchase_repository.rs`.
 
-use rust_decimal::Decimal;
 use rusqlite::{params, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::banking::bank_accounts::BankAccount;
 use crate::backend::banking::bank_transactions::BankTransaction;
@@ -80,7 +80,9 @@ impl BankingRepository {
 
     pub fn update_bank_account(&self, account: &BankAccount) -> AppResult<()> {
         account.validate()?;
-        let id = account.id.ok_or_else(|| AppError::Validation("cannot update a bank account without an id".into()))?;
+        let id = account.id.ok_or_else(|| {
+            AppError::Validation("cannot update a bank account without an id".into())
+        })?;
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE bank_accounts SET gl_account_id = ?1, bank_name = ?2, account_number = ?3, currency_code = ?4, is_active = ?5 WHERE id = ?6",
@@ -117,7 +119,10 @@ impl BankingRepository {
 
     // -- bank transactions (reconciliation staging) ------------------
 
-    pub fn create_bank_transaction(&self, transaction: &BankTransaction) -> AppResult<BankTransaction> {
+    pub fn create_bank_transaction(
+        &self,
+        transaction: &BankTransaction,
+    ) -> AppResult<BankTransaction> {
         transaction.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
@@ -136,7 +141,10 @@ impl BankingRepository {
         })
     }
 
-    pub fn list_unreconciled_for_account(&self, bank_account_id: i64) -> AppResult<Vec<BankTransaction>> {
+    pub fn list_unreconciled_for_account(
+        &self,
+        bank_account_id: i64,
+    ) -> AppResult<Vec<BankTransaction>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, company_id, bank_account_id, transaction_date, description, amount, matched_transaction_id
@@ -150,14 +158,20 @@ impl BankingRepository {
     /// Marks a bank statement line as matched against an existing GL
     /// transaction (the common case: it corresponds to a payment/receipt
     /// already posted in steps 9-10).
-    pub fn match_bank_transaction(&self, bank_transaction_id: i64, gl_transaction_id: i64) -> AppResult<()> {
+    pub fn match_bank_transaction(
+        &self,
+        bank_transaction_id: i64,
+        gl_transaction_id: i64,
+    ) -> AppResult<()> {
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE bank_transactions SET matched_transaction_id = ?1 WHERE id = ?2",
                 params![gl_transaction_id, bank_transaction_id],
             )?;
             if affected == 0 {
-                return Err(AppError::NotFound(format!("bank transaction {bank_transaction_id} not found")));
+                return Err(AppError::NotFound(format!(
+                    "bank transaction {bank_transaction_id} not found"
+                )));
             }
             Ok(())
         })
@@ -166,7 +180,11 @@ impl BankingRepository {
     /// For a bank-only item (no existing GL entry): posts the adjustment
     /// transaction and marks this bank transaction matched against it, in
     /// one atomic step.
-    pub fn post_and_match_adjustment(&self, bank_transaction_id: i64, offset_account_id: i64) -> AppResult<Transaction> {
+    pub fn post_and_match_adjustment(
+        &self,
+        bank_transaction_id: i64,
+        offset_account_id: i64,
+    ) -> AppResult<Transaction> {
         let bank_transaction = self.db.with_connection(|conn| {
             conn.query_row(
                 "SELECT id, company_id, bank_account_id, transaction_date, description, amount, matched_transaction_id FROM bank_transactions WHERE id = ?1",
@@ -177,7 +195,9 @@ impl BankingRepository {
             .ok_or_else(|| AppError::NotFound(format!("bank transaction {bank_transaction_id} not found")))
         })?;
         if bank_transaction.is_reconciled() {
-            return Err(AppError::Validation("bank transaction is already matched".into()));
+            return Err(AppError::Validation(
+                "bank transaction is already matched".into(),
+            ));
         }
 
         let bank_account = self.db.with_connection(|conn| {
@@ -190,7 +210,8 @@ impl BankingRepository {
             .ok_or_else(|| AppError::NotFound(format!("bank account {} not found", bank_transaction.bank_account_id)))
         })?;
 
-        let gl_transaction = bank_transaction.build_adjustment_transaction(bank_account.gl_account_id, offset_account_id);
+        let gl_transaction = bank_transaction
+            .build_adjustment_transaction(bank_account.gl_account_id, offset_account_id);
         let posted = self.accounting.post_transaction(&gl_transaction)?;
         self.match_bank_transaction(bank_transaction_id, posted.id.unwrap())?;
         Ok(posted)
@@ -200,12 +221,17 @@ impl BankingRepository {
 
     pub fn post_cash_transfer(&self, transfer: &CashTransfer) -> AppResult<Transaction> {
         transfer.validate()?;
-        self.accounting.post_transaction(&transfer.build_transaction())
+        self.accounting
+            .post_transaction(&transfer.build_transaction())
     }
 
     /// The GL balance for a bank account as of a date -- the "book
     /// balance" side of a reconciliation.
-    pub fn book_balance(&self, bank_account_id: i64, as_of: chrono::NaiveDate) -> AppResult<Decimal> {
+    pub fn book_balance(
+        &self,
+        bank_account_id: i64,
+        as_of: chrono::NaiveDate,
+    ) -> AppResult<Decimal> {
         let bank_account = self.db.with_connection(|conn| {
             conn.query_row(
                 "SELECT id, company_id, gl_account_id, bank_name, account_number, currency_code, is_active FROM bank_accounts WHERE id = ?1",
@@ -216,8 +242,15 @@ impl BankingRepository {
             .ok_or_else(|| AppError::NotFound(format!("bank account {bank_account_id} not found")))
         })?;
 
-        let ledger = self.accounting.general_ledger_for_account(bank_account.gl_account_id, Decimal::ZERO, as_of)?;
-        Ok(ledger.last().map(|entry| entry.running_balance).unwrap_or(Decimal::ZERO))
+        let ledger = self.accounting.general_ledger_for_account(
+            bank_account.gl_account_id,
+            Decimal::ZERO,
+            as_of,
+        )?;
+        Ok(ledger
+            .last()
+            .map(|entry| entry.running_balance)
+            .unwrap_or(Decimal::ZERO))
     }
 }
 
@@ -253,7 +286,9 @@ mod tests {
     use crate::backend::accounting::chart_of_accounts::Account;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
     use crate::backend::organization::companies::Company;
-    use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
+    use crate::backend::repositories::accounting_repository::{
+        self, AccountingRepository as AccRepo,
+    };
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
@@ -272,25 +307,55 @@ mod tests {
 
     fn fixture() -> TestFixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
         let company_id = company.id.unwrap();
 
         let acc_repo = AccRepo::new(db.clone());
         acc_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
-        let bank_gl_account = acc_repo.create_account(&Account::new(company_id, "1010", "Bank - First National", AccountType::Asset)).unwrap();
-        let expense_account = acc_repo.create_account(&Account::new(company_id, "6000", "Bank Charges", AccountType::Expense)).unwrap();
+        let bank_gl_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1010",
+                "Bank - First National",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let expense_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "6000",
+                "Bank Charges",
+                AccountType::Expense,
+            ))
+            .unwrap();
 
         let banking = BankingRepository::new(db);
         let bank_account = banking
-            .create_bank_account(&BankAccount::new(company_id, bank_gl_account.id.unwrap(), "First National", "123456789", "USD"))
+            .create_bank_account(&BankAccount::new(
+                company_id,
+                bank_gl_account.id.unwrap(),
+                "First National",
+                "123456789",
+                "USD",
+            ))
             .unwrap();
 
         TestFixture {
@@ -305,11 +370,25 @@ mod tests {
     #[test]
     fn update_bank_account_persists_changed_fields() {
         let f = fixture();
-        let account = f.banking.list_bank_accounts_for_company(f.company_id).unwrap().into_iter().next().unwrap();
+        let account = f
+            .banking
+            .list_bank_accounts_for_company(f.company_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
 
-        f.banking.update_bank_account(&BankAccount { bank_name: "Second National".into(), ..account }).unwrap();
+        f.banking
+            .update_bank_account(&BankAccount {
+                bank_name: "Second National".into(),
+                ..account
+            })
+            .unwrap();
 
-        let updated = f.banking.list_bank_accounts_for_company(f.company_id).unwrap();
+        let updated = f
+            .banking
+            .list_bank_accounts_for_company(f.company_id)
+            .unwrap();
         assert_eq!(updated[0].bank_name, "Second National");
     }
 
@@ -319,13 +398,26 @@ mod tests {
 
         f.banking.delete_bank_account(f.bank_account_id).unwrap();
 
-        assert!(f.banking.list_bank_accounts_for_company(f.company_id).unwrap().is_empty());
+        assert!(f
+            .banking
+            .list_bank_accounts_for_company(f.company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
-    fn delete_bank_account_is_rejected_with_a_clear_message_when_still_referenced_by_a_bank_transaction() {
+    fn delete_bank_account_is_rejected_with_a_clear_message_when_still_referenced_by_a_bank_transaction(
+    ) {
         let f = fixture();
-        f.banking.create_bank_transaction(&BankTransaction::new(f.company_id, f.bank_account_id, date(2026, 1, 5), "Customer payment", dec!(500))).unwrap();
+        f.banking
+            .create_bank_transaction(&BankTransaction::new(
+                f.company_id,
+                f.bank_account_id,
+                date(2026, 1, 5),
+                "Customer payment",
+                dec!(500),
+            ))
+            .unwrap();
 
         let result = f.banking.delete_bank_account(f.bank_account_id);
 
@@ -338,13 +430,26 @@ mod tests {
         let f = fixture();
         let bank_transaction = f
             .banking
-            .create_bank_transaction(&BankTransaction::new(f.company_id, f.bank_account_id, date(2026, 1, 5), "Customer payment", dec!(500)))
+            .create_bank_transaction(&BankTransaction::new(
+                f.company_id,
+                f.bank_account_id,
+                date(2026, 1, 5),
+                "Customer payment",
+                dec!(500),
+            ))
             .unwrap();
 
         // A real GL transaction to match against -- matched_transaction_id
         // is a genuine foreign key, so it can't point at a made-up id.
         let acc_repo = AccRepo::new(f.banking.db.clone());
-        let ar_placeholder = acc_repo.create_account(&Account::new(f.company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
+        let ar_placeholder = acc_repo
+            .create_account(&Account::new(
+                f.company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
         let already_posted = acc_repo
             .post_transaction(
                 &crate::backend::transactions::transaction::Transaction::new(f.company_id, crate::backend::transactions::transaction_types::TransactionType::CustomerPayment, date(2026, 1, 5))
@@ -353,9 +458,21 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(f.banking.list_unreconciled_for_account(f.bank_account_id).unwrap().len(), 1);
-        f.banking.match_bank_transaction(bank_transaction.id.unwrap(), already_posted.id.unwrap()).unwrap();
-        assert!(f.banking.list_unreconciled_for_account(f.bank_account_id).unwrap().is_empty());
+        assert_eq!(
+            f.banking
+                .list_unreconciled_for_account(f.bank_account_id)
+                .unwrap()
+                .len(),
+            1
+        );
+        f.banking
+            .match_bank_transaction(bank_transaction.id.unwrap(), already_posted.id.unwrap())
+            .unwrap();
+        assert!(f
+            .banking
+            .list_unreconciled_for_account(f.bank_account_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -363,14 +480,30 @@ mod tests {
         let f = fixture();
         let bank_transaction = f
             .banking
-            .create_bank_transaction(&BankTransaction::new(f.company_id, f.bank_account_id, date(2026, 1, 10), "Monthly fee", dec!(-25)))
+            .create_bank_transaction(&BankTransaction::new(
+                f.company_id,
+                f.bank_account_id,
+                date(2026, 1, 10),
+                "Monthly fee",
+                dec!(-25),
+            ))
             .unwrap();
 
-        let posted = f.banking.post_and_match_adjustment(bank_transaction.id.unwrap(), f.expense_account_id).unwrap();
+        let posted = f
+            .banking
+            .post_and_match_adjustment(bank_transaction.id.unwrap(), f.expense_account_id)
+            .unwrap();
         assert!(posted.is_balanced());
-        assert!(f.banking.list_unreconciled_for_account(f.bank_account_id).unwrap().is_empty());
+        assert!(f
+            .banking
+            .list_unreconciled_for_account(f.bank_account_id)
+            .unwrap()
+            .is_empty());
 
-        let book_balance = f.banking.book_balance(f.bank_account_id, date(2026, 1, 31)).unwrap();
+        let book_balance = f
+            .banking
+            .book_balance(f.bank_account_id, date(2026, 1, 31))
+            .unwrap();
         assert_eq!(book_balance, dec!(-25));
     }
 
@@ -378,12 +511,30 @@ mod tests {
     fn posting_a_cash_transfer_moves_money_between_two_gl_accounts() {
         let f = fixture();
         let acc_repo = AccRepo::new(f.banking.db.clone());
-        let petty_cash = acc_repo.create_account(&Account::new(f.company_id, "1020", "Petty Cash", AccountType::Asset)).unwrap();
+        let petty_cash = acc_repo
+            .create_account(&Account::new(
+                f.company_id,
+                "1020",
+                "Petty Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
-        let transfer = CashTransfer::new(f.company_id, f.bank_gl_account_id, petty_cash.id.unwrap(), date(2026, 1, 15), dec!(200));
+        let transfer = CashTransfer::new(
+            f.company_id,
+            f.bank_gl_account_id,
+            petty_cash.id.unwrap(),
+            date(2026, 1, 15),
+            dec!(200),
+        );
         let posted = f.banking.post_cash_transfer(&transfer).unwrap();
         assert!(posted.is_balanced());
 
-        assert_eq!(f.banking.book_balance(f.bank_account_id, date(2026, 1, 31)).unwrap(), dec!(-200));
+        assert_eq!(
+            f.banking
+                .book_balance(f.bank_account_id, date(2026, 1, 31))
+                .unwrap(),
+            dec!(-200)
+        );
     }
 }

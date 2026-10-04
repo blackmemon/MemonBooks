@@ -66,15 +66,24 @@ pub fn build_closing_transaction(
             continue;
         }
         debug_assert!(
-            matches!(balance.account_type, AccountType::Revenue | AccountType::Expense),
+            matches!(
+                balance.account_type,
+                AccountType::Revenue | AccountType::Expense
+            ),
             "closing entries only zero revenue and expense accounts"
         );
 
         // Zero the account: its balance moves to the opposite side.
         if balance.net_balance > Decimal::ZERO {
-            lines.push(TransactionLine::credit(balance.account_id, balance.net_balance));
+            lines.push(TransactionLine::credit(
+                balance.account_id,
+                balance.net_balance,
+            ));
         } else {
-            lines.push(TransactionLine::debit(balance.account_id, -balance.net_balance));
+            lines.push(TransactionLine::debit(
+                balance.account_id,
+                -balance.net_balance,
+            ));
         }
 
         // Revenue (normally a credit / negative net here) adds to net
@@ -88,13 +97,21 @@ pub fn build_closing_transaction(
     }
 
     if net_income > Decimal::ZERO {
-        lines.push(TransactionLine::credit(retained_earnings_account_id, net_income));
+        lines.push(TransactionLine::credit(
+            retained_earnings_account_id,
+            net_income,
+        ));
     } else if net_income < Decimal::ZERO {
-        lines.push(TransactionLine::debit(retained_earnings_account_id, -net_income));
+        lines.push(TransactionLine::debit(
+            retained_earnings_account_id,
+            -net_income,
+        ));
     }
 
-    let mut transaction = Transaction::new(company_id, TransactionType::ManualJournal, closing_date);
-    transaction.description = Some("Closing entry: transfer net income to retained earnings".into());
+    let mut transaction =
+        Transaction::new(company_id, TransactionType::ManualJournal, closing_date);
+    transaction.description =
+        Some("Closing entry: transfer net income to retained earnings".into());
     transaction.lines = lines;
     Some(transaction)
 }
@@ -145,21 +162,41 @@ mod tests {
         // 5000 of revenue (credit balance, net = -5000) and 3000 of
         // expense (debit balance, net = +3000) -> 2000 net income.
         let balances = [
-            ClosingBalance { account_id: 10, account_type: AccountType::Revenue, net_balance: dec!(-5000) },
-            ClosingBalance { account_id: 20, account_type: AccountType::Expense, net_balance: dec!(3000) },
+            ClosingBalance {
+                account_id: 10,
+                account_type: AccountType::Revenue,
+                net_balance: dec!(-5000),
+            },
+            ClosingBalance {
+                account_id: 20,
+                account_type: AccountType::Expense,
+                net_balance: dec!(3000),
+            },
         ];
         let transaction = build_closing_transaction(1, date(2026, 12, 31), 99, &balances).unwrap();
 
         assert!(transaction.validate().is_ok());
         assert_eq!(transaction.total_debits(), transaction.total_credits());
 
-        let retained_earnings_line = transaction.lines.iter().find(|l| l.account_id == 99).unwrap();
+        let retained_earnings_line = transaction
+            .lines
+            .iter()
+            .find(|l| l.account_id == 99)
+            .unwrap();
         assert_eq!(retained_earnings_line.credit, dec!(2000));
 
-        let revenue_line = transaction.lines.iter().find(|l| l.account_id == 10).unwrap();
+        let revenue_line = transaction
+            .lines
+            .iter()
+            .find(|l| l.account_id == 10)
+            .unwrap();
         assert_eq!(revenue_line.debit, dec!(5000));
 
-        let expense_line = transaction.lines.iter().find(|l| l.account_id == 20).unwrap();
+        let expense_line = transaction
+            .lines
+            .iter()
+            .find(|l| l.account_id == 20)
+            .unwrap();
         assert_eq!(expense_line.credit, dec!(3000));
     }
 
@@ -167,13 +204,25 @@ mod tests {
     fn build_closing_transaction_debits_retained_earnings_on_a_loss() {
         // 1000 of revenue, 4000 of expense -> 3000 net loss.
         let balances = [
-            ClosingBalance { account_id: 10, account_type: AccountType::Revenue, net_balance: dec!(-1000) },
-            ClosingBalance { account_id: 20, account_type: AccountType::Expense, net_balance: dec!(4000) },
+            ClosingBalance {
+                account_id: 10,
+                account_type: AccountType::Revenue,
+                net_balance: dec!(-1000),
+            },
+            ClosingBalance {
+                account_id: 20,
+                account_type: AccountType::Expense,
+                net_balance: dec!(4000),
+            },
         ];
         let transaction = build_closing_transaction(1, date(2026, 12, 31), 99, &balances).unwrap();
 
         assert!(transaction.validate().is_ok());
-        let retained_earnings_line = transaction.lines.iter().find(|l| l.account_id == 99).unwrap();
+        let retained_earnings_line = transaction
+            .lines
+            .iter()
+            .find(|l| l.account_id == 99)
+            .unwrap();
         assert_eq!(retained_earnings_line.debit, dec!(3000));
     }
 }

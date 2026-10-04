@@ -27,7 +27,9 @@ impl Branch {
 impl Validate for Branch {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("branch must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "branch must reference a valid company".into(),
+            ));
         }
         require_non_empty("branch name", &self.name)?;
         require_max_length("branch name", &self.name, 200)?;

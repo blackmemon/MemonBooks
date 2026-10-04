@@ -31,15 +31,29 @@ pub const BALANCE_WIDTH: f32 = 120.0;
 /// free hover feedback) -- `has_children` rows (folders) get a faint
 /// tint even at rest, so the eye can separate group headers from leaf
 /// accounts before ever reading the toggle glyph.
-pub fn row(theme: Theme, has_children: bool) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
+pub fn row(
+    theme: Theme,
+    has_children: bool,
+) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
     move |_iced_theme: &IcedTheme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         let background = match (has_children, hovered) {
-            (_, true) => Some(Background::Color(Color { a: states::TABLE_ROW_HOVER_ALPHA, ..theme.neutral_bg() })),
-            (true, false) => Some(Background::Color(Color { a: states::TINTED_PANEL_ALPHA, ..theme.primary() })),
+            (_, true) => Some(Background::Color(Color {
+                a: states::TABLE_ROW_HOVER_ALPHA,
+                ..theme.neutral_bg()
+            })),
+            (true, false) => Some(Background::Color(Color {
+                a: states::TINTED_PANEL_ALPHA,
+                ..theme.primary()
+            })),
             (false, false) => None,
         };
-        button::Style { background, text_color: theme.text_primary(), border: Border::default(), shadow: iced::Shadow::default() }
+        button::Style {
+            background,
+            text_color: theme.text_primary(),
+            border: Border::default(),
+            shadow: iced::Shadow::default(),
+        }
     }
 }
 
@@ -63,7 +77,9 @@ mod tests {
     #[test]
     fn hover_wins_over_the_resting_folder_tint() {
         let hovered = row(Theme::Light, true)(&IcedTheme::Light, button::Status::Hovered);
-        let Some(Background::Color(color)) = hovered.background else { panic!("expected a background color") };
+        let Some(Background::Color(color)) = hovered.background else {
+            panic!("expected a background color")
+        };
         assert_eq!(color.a, states::TABLE_ROW_HOVER_ALPHA);
     }
 }

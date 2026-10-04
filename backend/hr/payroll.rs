@@ -47,7 +47,12 @@ pub struct PayrollRun {
 }
 
 impl PayrollRun {
-    pub fn new(company_id: i64, pay_period_start: NaiveDate, pay_period_end: NaiveDate, payment_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        pay_period_start: NaiveDate,
+        pay_period_end: NaiveDate,
+        payment_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -72,13 +77,19 @@ impl PayrollRun {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("payroll run must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "payroll run must reference a valid company".into(),
+            ));
         }
         if self.entries.is_empty() {
-            return Err(AppError::Validation("a payroll run must have at least one entry".into()));
+            return Err(AppError::Validation(
+                "a payroll run must have at least one entry".into(),
+            ));
         }
         if self.pay_period_end < self.pay_period_start {
-            return Err(AppError::Validation("payroll pay_period_end must not be before pay_period_start".into()));
+            return Err(AppError::Validation(
+                "payroll pay_period_end must not be before pay_period_start".into(),
+            ));
         }
         Ok(())
     }
@@ -87,14 +98,32 @@ impl PayrollRun {
     /// deductions payable (withheld amounts owed elsewhere) and net pay
     /// (what actually goes out) for the rest -- always balances, since
     /// net pay is defined as gross minus deductions.
-    pub fn build_transaction(&self, salary_expense_account_id: i64, deductions_payable_account_id: i64, net_pay_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::Payroll, self.payment_date);
-        transaction.description = Some(format!("Payroll {} to {}", self.pay_period_start, self.pay_period_end));
-        transaction.lines.push(TransactionLine::debit(salary_expense_account_id, self.total_gross()));
+    pub fn build_transaction(
+        &self,
+        salary_expense_account_id: i64,
+        deductions_payable_account_id: i64,
+        net_pay_account_id: i64,
+    ) -> Transaction {
+        let mut transaction =
+            Transaction::new(self.company_id, TransactionType::Payroll, self.payment_date);
+        transaction.description = Some(format!(
+            "Payroll {} to {}",
+            self.pay_period_start, self.pay_period_end
+        ));
+        transaction.lines.push(TransactionLine::debit(
+            salary_expense_account_id,
+            self.total_gross(),
+        ));
         if self.total_deductions() > Decimal::ZERO {
-            transaction.lines.push(TransactionLine::credit(deductions_payable_account_id, self.total_deductions()));
+            transaction.lines.push(TransactionLine::credit(
+                deductions_payable_account_id,
+                self.total_deductions(),
+            ));
         }
-        transaction.lines.push(TransactionLine::credit(net_pay_account_id, self.total_net()));
+        transaction.lines.push(TransactionLine::credit(
+            net_pay_account_id,
+            self.total_net(),
+        ));
         transaction
     }
 }
@@ -110,8 +139,16 @@ mod tests {
 
     fn run_with_two_employees() -> PayrollRun {
         let mut run = PayrollRun::new(1, date(2026, 1, 1), date(2026, 1, 31), date(2026, 2, 1));
-        run.entries.push(PayrollEntry { employee_id: 1, gross_pay: dec!(6000), total_deductions: dec!(800) });
-        run.entries.push(PayrollEntry { employee_id: 2, gross_pay: dec!(4000), total_deductions: dec!(400) });
+        run.entries.push(PayrollEntry {
+            employee_id: 1,
+            gross_pay: dec!(6000),
+            total_deductions: dec!(800),
+        });
+        run.entries.push(PayrollEntry {
+            employee_id: 2,
+            gross_pay: dec!(4000),
+            total_deductions: dec!(400),
+        });
         run
     }
 
@@ -134,7 +171,11 @@ mod tests {
     #[test]
     fn a_run_with_no_deductions_skips_the_deductions_line() {
         let mut run = PayrollRun::new(1, date(2026, 1, 1), date(2026, 1, 31), date(2026, 2, 1));
-        run.entries.push(PayrollEntry { employee_id: 1, gross_pay: dec!(1000), total_deductions: Decimal::ZERO });
+        run.entries.push(PayrollEntry {
+            employee_id: 1,
+            gross_pay: dec!(1000),
+            total_deductions: Decimal::ZERO,
+        });
         let transaction = run.build_transaction(60, 21, 10);
         assert_eq!(transaction.lines.len(), 2);
         assert!(transaction.is_balanced());

@@ -105,7 +105,14 @@ impl ExpenseRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        Ok((Expense { id: Some(expense_id), transaction_id: posted.id, ..expense.clone() }, posted))
+        Ok((
+            Expense {
+                id: Some(expense_id),
+                transaction_id: posted.id,
+                ..expense.clone()
+            },
+            posted,
+        ))
     }
 
     // -- expense claims -----------------------------------------------
@@ -154,10 +161,16 @@ impl ExpenseRepository {
             )));
         }
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE expense_claims SET status = ?1 WHERE id = ?2", params![to.as_str(), id])?;
+            conn.execute(
+                "UPDATE expense_claims SET status = ?1 WHERE id = ?2",
+                params![to.as_str(), id],
+            )?;
             Ok(())
         })?;
-        Ok(ExpenseClaim { status: to, ..claim })
+        Ok(ExpenseClaim {
+            status: to,
+            ..claim
+        })
     }
 
     pub fn approve_claim(&self, id: i64) -> AppResult<ExpenseClaim> {
@@ -170,13 +183,24 @@ impl ExpenseRepository {
 
     /// Posts the reimbursement transaction and marks the claim
     /// Reimbursed, atomically linked.
-    pub fn reimburse_claim(&self, id: i64, payment_account_id: i64, reimbursement_date: chrono::NaiveDate) -> AppResult<(ExpenseClaim, Transaction)> {
+    pub fn reimburse_claim(
+        &self,
+        id: i64,
+        payment_account_id: i64,
+        reimbursement_date: chrono::NaiveDate,
+    ) -> AppResult<(ExpenseClaim, Transaction)> {
         let claim = self.get_claim(id)?;
         if claim.status != ExpenseClaimStatus::Approved {
-            return Err(AppError::Validation("only an approved claim can be reimbursed".into()));
+            return Err(AppError::Validation(
+                "only an approved claim can be reimbursed".into(),
+            ));
         }
         let category = self.get_category(claim.category_id)?;
-        let transaction = claim.build_reimbursement_transaction(category.gl_account_id, payment_account_id, reimbursement_date);
+        let transaction = claim.build_reimbursement_transaction(
+            category.gl_account_id,
+            payment_account_id,
+            reimbursement_date,
+        );
         let posted = self.accounting.post_transaction(&transaction)?;
 
         self.db.with_connection(|conn| {
@@ -187,7 +211,14 @@ impl ExpenseRepository {
             Ok(())
         })?;
 
-        Ok((ExpenseClaim { status: ExpenseClaimStatus::Reimbursed, transaction_id: posted.id, ..claim }, posted))
+        Ok((
+            ExpenseClaim {
+                status: ExpenseClaimStatus::Reimbursed,
+                transaction_id: posted.id,
+                ..claim
+            },
+            posted,
+        ))
     }
 }
 
@@ -203,8 +234,13 @@ fn map_category(row: &Row) -> rusqlite::Result<ExpenseCategory> {
 fn map_claim(row: &Row) -> rusqlite::Result<ExpenseClaim> {
     let amount_text: String = row.get(5)?;
     let status_text: String = row.get(7)?;
-    let status = ExpenseClaimStatus::parse(&status_text)
-        .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, "invalid expense claim status".into()))?;
+    let status = ExpenseClaimStatus::parse(&status_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            7,
+            rusqlite::types::Type::Text,
+            "invalid expense claim status".into(),
+        )
+    })?;
     Ok(ExpenseClaim {
         id: Some(row.get(0)?),
         company_id: row.get(1)?,
@@ -225,7 +261,9 @@ mod tests {
     use crate::backend::accounting::chart_of_accounts::Account;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
     use crate::backend::organization::companies::Company;
-    use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
+    use crate::backend::repositories::accounting_repository::{
+        self, AccountingRepository as AccRepo,
+    };
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
@@ -243,24 +281,54 @@ mod tests {
 
     fn fixture() -> TestFixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
         let company_id = company.id.unwrap();
 
         let acc_repo = AccRepo::new(db.clone());
         acc_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
-        let expense_account = acc_repo.create_account(&Account::new(company_id, "6100", "Travel Expense", AccountType::Expense)).unwrap();
-        let cash_account = acc_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let expense_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "6100",
+                "Travel Expense",
+                AccountType::Expense,
+            ))
+            .unwrap();
+        let cash_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
         let expenses = ExpenseRepository::new(db);
-        let category = expenses.create_category(&ExpenseCategory::new(company_id, "Travel", expense_account.id.unwrap())).unwrap();
+        let category = expenses
+            .create_category(&ExpenseCategory::new(
+                company_id,
+                "Travel",
+                expense_account.id.unwrap(),
+            ))
+            .unwrap();
 
         TestFixture {
             expenses,
@@ -273,7 +341,14 @@ mod tests {
     #[test]
     fn recording_an_expense_posts_it_and_links_the_transaction() {
         let f = fixture();
-        let expense = Expense::new(f.company_id, f.category_id, date(2026, 1, 10), dec!(45), "Taxi fare", f.cash_account_id);
+        let expense = Expense::new(
+            f.company_id,
+            f.category_id,
+            date(2026, 1, 10),
+            dec!(45),
+            "Taxi fare",
+            f.cash_account_id,
+        );
         let (recorded, transaction) = f.expenses.record_expense(&expense).unwrap();
         assert!(transaction.is_balanced());
         assert_eq!(recorded.transaction_id, transaction.id);
@@ -284,14 +359,24 @@ mod tests {
         let f = fixture();
         let claim = f
             .expenses
-            .create_claim(&ExpenseClaim::new(f.company_id, "Jane Doe", f.category_id, date(2026, 1, 5), dec!(80), "Client dinner"))
+            .create_claim(&ExpenseClaim::new(
+                f.company_id,
+                "Jane Doe",
+                f.category_id,
+                date(2026, 1, 5),
+                dec!(80),
+                "Client dinner",
+            ))
             .unwrap();
         assert_eq!(claim.status, ExpenseClaimStatus::Submitted);
 
         let approved = f.expenses.approve_claim(claim.id.unwrap()).unwrap();
         assert_eq!(approved.status, ExpenseClaimStatus::Approved);
 
-        let (reimbursed, transaction) = f.expenses.reimburse_claim(claim.id.unwrap(), f.cash_account_id, date(2026, 1, 10)).unwrap();
+        let (reimbursed, transaction) = f
+            .expenses
+            .reimburse_claim(claim.id.unwrap(), f.cash_account_id, date(2026, 1, 10))
+            .unwrap();
         assert_eq!(reimbursed.status, ExpenseClaimStatus::Reimbursed);
         assert!(transaction.is_balanced());
     }
@@ -301,10 +386,19 @@ mod tests {
         let f = fixture();
         let claim = f
             .expenses
-            .create_claim(&ExpenseClaim::new(f.company_id, "Jane Doe", f.category_id, date(2026, 1, 5), dec!(80), "Client dinner"))
+            .create_claim(&ExpenseClaim::new(
+                f.company_id,
+                "Jane Doe",
+                f.category_id,
+                date(2026, 1, 5),
+                dec!(80),
+                "Client dinner",
+            ))
             .unwrap();
 
-        let result = f.expenses.reimburse_claim(claim.id.unwrap(), f.cash_account_id, date(2026, 1, 10));
+        let result =
+            f.expenses
+                .reimburse_claim(claim.id.unwrap(), f.cash_account_id, date(2026, 1, 10));
         assert!(result.is_err());
     }
 }

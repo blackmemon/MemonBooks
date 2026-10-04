@@ -23,7 +23,10 @@ pub struct ExpenseService {
 
 impl ExpenseService {
     pub fn new(db: Database) -> Self {
-        Self { expense_repo: ExpenseRepository::new(db.clone()), accounting_repo: AccountingRepository::new(db) }
+        Self {
+            expense_repo: ExpenseRepository::new(db.clone()),
+            accounting_repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn list_gl_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
@@ -50,7 +53,13 @@ impl ExpenseService {
         self.expense_repo.reject_claim(id)
     }
 
-    pub fn reimburse_claim(&self, id: i64, payment_account_id: i64, reimbursement_date: NaiveDate) -> AppResult<(ExpenseClaim, Transaction)> {
-        self.expense_repo.reimburse_claim(id, payment_account_id, reimbursement_date)
+    pub fn reimburse_claim(
+        &self,
+        id: i64,
+        payment_account_id: i64,
+        reimbursement_date: NaiveDate,
+    ) -> AppResult<(ExpenseClaim, Transaction)> {
+        self.expense_repo
+            .reimburse_claim(id, payment_account_id, reimbursement_date)
     }
 }

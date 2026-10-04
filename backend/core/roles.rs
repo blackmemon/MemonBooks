@@ -36,7 +36,9 @@ impl Validate for Role {
         }
         for permission in &self.permissions {
             if !is_known_permission(permission) {
-                return Err(AppError::Validation(format!("'{permission}' is not a known permission")));
+                return Err(AppError::Validation(format!(
+                    "'{permission}' is not a known permission"
+                )));
             }
         }
         Ok(())

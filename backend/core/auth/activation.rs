@@ -34,7 +34,12 @@ fn from_hex(hex: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-fn payload_string(license_id: &str, licensed_to: &str, issued_at: NaiveDate, expires_at: Option<NaiveDate>) -> String {
+fn payload_string(
+    license_id: &str,
+    licensed_to: &str,
+    issued_at: NaiveDate,
+    expires_at: Option<NaiveDate>,
+) -> String {
     format!(
         "{license_id}|{licensed_to}|{issued_at}|{}",
         expires_at.map(|d| d.to_string()).unwrap_or_default()
@@ -43,7 +48,13 @@ fn payload_string(license_id: &str, licensed_to: &str, issued_at: NaiveDate, exp
 
 /// Builds a signed key: `hex(payload_bytes).hex(signature)`. A vendor-side
 /// tool, not called by the running app in normal operation.
-pub fn sign_license_key(secret: &[u8], license_id: &str, licensed_to: &str, issued_at: NaiveDate, expires_at: Option<NaiveDate>) -> String {
+pub fn sign_license_key(
+    secret: &[u8],
+    license_id: &str,
+    licensed_to: &str,
+    issued_at: NaiveDate,
+    expires_at: Option<NaiveDate>,
+) -> String {
     let payload = payload_string(license_id, licensed_to, issued_at, expires_at);
 
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC accepts a key of any length");
@@ -59,9 +70,12 @@ pub fn verify_license_key(secret: &[u8], key: &str) -> AppResult<LicenseInfo> {
         .split_once('.')
         .ok_or_else(|| AppError::Validation("license key is malformed".into()))?;
 
-    let payload_bytes = from_hex(payload_hex).ok_or_else(|| AppError::Validation("license key is malformed".into()))?;
-    let signature_bytes = from_hex(signature_hex).ok_or_else(|| AppError::Validation("license key is malformed".into()))?;
-    let payload = String::from_utf8(payload_bytes).map_err(|_| AppError::Validation("license key is malformed".into()))?;
+    let payload_bytes = from_hex(payload_hex)
+        .ok_or_else(|| AppError::Validation("license key is malformed".into()))?;
+    let signature_bytes = from_hex(signature_hex)
+        .ok_or_else(|| AppError::Validation("license key is malformed".into()))?;
+    let payload = String::from_utf8(payload_bytes)
+        .map_err(|_| AppError::Validation("license key is malformed".into()))?;
 
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC accepts a key of any length");
     mac.update(payload.as_bytes());
@@ -75,7 +89,10 @@ pub fn verify_license_key(secret: &[u8], key: &str) -> AppResult<LicenseInfo> {
         .next()
         .and_then(|s| s.parse().ok())
         .ok_or_else(|| AppError::Validation("license key payload is malformed".into()))?;
-    let expires_at = parts.next().filter(|s| !s.is_empty()).and_then(|s| s.parse().ok());
+    let expires_at = parts
+        .next()
+        .filter(|s| !s.is_empty())
+        .and_then(|s| s.parse().ok());
 
     Ok(LicenseInfo {
         license_id,
@@ -95,7 +112,13 @@ mod tests {
 
     #[test]
     fn a_key_signed_with_the_right_secret_verifies() {
-        let key = sign_license_key(b"vendor-secret", "L-1", "Acme Trading Co", date(2026, 1, 1), None);
+        let key = sign_license_key(
+            b"vendor-secret",
+            "L-1",
+            "Acme Trading Co",
+            date(2026, 1, 1),
+            None,
+        );
         let license = verify_license_key(b"vendor-secret", &key).unwrap();
         assert_eq!(license.license_id, "L-1");
         assert_eq!(license.licensed_to, "Acme Trading Co");
@@ -104,20 +127,38 @@ mod tests {
 
     #[test]
     fn a_key_with_an_expiry_round_trips() {
-        let key = sign_license_key(b"vendor-secret", "L-2", "Acme Trading Co", date(2026, 1, 1), Some(date(2027, 1, 1)));
+        let key = sign_license_key(
+            b"vendor-secret",
+            "L-2",
+            "Acme Trading Co",
+            date(2026, 1, 1),
+            Some(date(2027, 1, 1)),
+        );
         let license = verify_license_key(b"vendor-secret", &key).unwrap();
         assert_eq!(license.expires_at, Some(date(2027, 1, 1)));
     }
 
     #[test]
     fn a_key_signed_with_the_wrong_secret_is_rejected() {
-        let key = sign_license_key(b"vendor-secret", "L-1", "Acme Trading Co", date(2026, 1, 1), None);
+        let key = sign_license_key(
+            b"vendor-secret",
+            "L-1",
+            "Acme Trading Co",
+            date(2026, 1, 1),
+            None,
+        );
         assert!(verify_license_key(b"wrong-secret", &key).is_err());
     }
 
     #[test]
     fn a_tampered_key_is_rejected() {
-        let mut key = sign_license_key(b"vendor-secret", "L-1", "Acme Trading Co", date(2026, 1, 1), None);
+        let mut key = sign_license_key(
+            b"vendor-secret",
+            "L-1",
+            "Acme Trading Co",
+            date(2026, 1, 1),
+            None,
+        );
         // Flip the licensed_to name inside the (hex-encoded) payload by
         // corrupting a character -- the signature no longer matches.
         key.replace_range(10..12, "ff");

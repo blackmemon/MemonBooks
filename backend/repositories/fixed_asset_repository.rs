@@ -1,8 +1,8 @@
 //! Persistence for fixed asset categories, assets, depreciation, and
 //! disposals.
 
-use rust_decimal::Decimal;
 use rusqlite::{params, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
@@ -114,14 +114,28 @@ impl FixedAssetRepository {
 
     /// Registers the asset and posts its acquisition (debit the asset
     /// account, credit `payment_account_id`) atomically.
-    pub fn acquire_asset(&self, asset: &Asset, payment_account_id: i64) -> AppResult<(Asset, Transaction)> {
+    pub fn acquire_asset(
+        &self,
+        asset: &Asset,
+        payment_account_id: i64,
+    ) -> AppResult<(Asset, Transaction)> {
         asset.validate()?;
         let category = self.get_category(asset.category_id)?;
 
-        let mut transaction = Transaction::new(asset.company_id, TransactionType::ManualJournal, asset.acquisition_date);
+        let mut transaction = Transaction::new(
+            asset.company_id,
+            TransactionType::ManualJournal,
+            asset.acquisition_date,
+        );
         transaction.description = Some(format!("Acquisition: {}", asset.name));
-        transaction.lines.push(TransactionLine::debit(category.asset_gl_account_id, asset.acquisition_cost));
-        transaction.lines.push(TransactionLine::credit(payment_account_id, asset.acquisition_cost));
+        transaction.lines.push(TransactionLine::debit(
+            category.asset_gl_account_id,
+            asset.acquisition_cost,
+        ));
+        transaction.lines.push(TransactionLine::credit(
+            payment_account_id,
+            asset.acquisition_cost,
+        ));
         let posted = self.accounting.post_transaction(&transaction)?;
 
         let (method, rate) = encode_method(asset.method);
@@ -148,7 +162,14 @@ impl FixedAssetRepository {
             Ok(conn.last_insert_rowid())
         })?;
 
-        Ok((Asset { id: Some(asset_id), transaction_id: posted.id, ..asset.clone() }, posted))
+        Ok((
+            Asset {
+                id: Some(asset_id),
+                transaction_id: posted.id,
+                ..asset.clone()
+            },
+            posted,
+        ))
     }
 
     pub fn get_asset(&self, id: i64) -> AppResult<Asset> {
@@ -178,14 +199,26 @@ impl FixedAssetRepository {
     /// Computes this year's depreciation from the asset's current book
     /// value, posts the expense/accumulated-depreciation entry, and
     /// updates the asset's accumulated_depreciation -- atomically.
-    pub fn record_depreciation(&self, asset_id: i64, depreciation_date: chrono::NaiveDate) -> AppResult<Option<Transaction>> {
+    pub fn record_depreciation(
+        &self,
+        asset_id: i64,
+        depreciation_date: chrono::NaiveDate,
+    ) -> AppResult<Option<Transaction>> {
         let asset = self.get_asset(asset_id)?;
         if asset.is_disposed {
-            return Err(AppError::Validation("cannot depreciate a disposed asset".into()));
+            return Err(AppError::Validation(
+                "cannot depreciate a disposed asset".into(),
+            ));
         }
         let category = self.get_category(asset.category_id)?;
 
-        let amount = depreciation::annual_depreciation(asset.method, asset.acquisition_cost, asset.salvage_value, asset.useful_life_years, asset.book_value());
+        let amount = depreciation::annual_depreciation(
+            asset.method,
+            asset.acquisition_cost,
+            asset.salvage_value,
+            asset.useful_life_years,
+            asset.book_value(),
+        );
         if amount <= Decimal::ZERO {
             return Ok(None);
         }
@@ -212,10 +245,19 @@ impl FixedAssetRepository {
     }
 
     /// Posts the disposal entry and marks the asset disposed, atomically.
-    pub fn dispose_asset(&self, asset_id: i64, disposal_date: chrono::NaiveDate, proceeds: Decimal, proceeds_account_id: i64, gain_loss_account_id: i64) -> AppResult<Transaction> {
+    pub fn dispose_asset(
+        &self,
+        asset_id: i64,
+        disposal_date: chrono::NaiveDate,
+        proceeds: Decimal,
+        proceeds_account_id: i64,
+        gain_loss_account_id: i64,
+    ) -> AppResult<Transaction> {
         let asset = self.get_asset(asset_id)?;
         if asset.is_disposed {
-            return Err(AppError::Validation("asset has already been disposed".into()));
+            return Err(AppError::Validation(
+                "asset has already been disposed".into(),
+            ));
         }
         let category = self.get_category(asset.category_id)?;
 
@@ -227,11 +269,19 @@ impl FixedAssetRepository {
             accumulated_depreciation: asset.accumulated_depreciation,
             proceeds,
         };
-        let transaction = disposal.build_transaction(category.asset_gl_account_id, category.accumulated_depreciation_gl_account_id, proceeds_account_id, gain_loss_account_id);
+        let transaction = disposal.build_transaction(
+            category.asset_gl_account_id,
+            category.accumulated_depreciation_gl_account_id,
+            proceeds_account_id,
+            gain_loss_account_id,
+        );
         let posted = self.accounting.post_transaction(&transaction)?;
 
         self.db.with_connection(|conn| {
-            conn.execute("UPDATE assets SET is_disposed = 1 WHERE id = ?1", params![asset_id])?;
+            conn.execute(
+                "UPDATE assets SET is_disposed = 1 WHERE id = ?1",
+                params![asset_id],
+            )?;
             Ok(())
         })?;
 
@@ -255,7 +305,9 @@ impl FixedAssetRepository {
 fn encode_method(method: DepreciationMethod) -> (&'static str, Option<String>) {
     match method {
         DepreciationMethod::StraightLine => ("straight_line", None),
-        DepreciationMethod::DecliningBalance { rate } => ("declining_balance", Some(rate.to_string())),
+        DepreciationMethod::DecliningBalance { rate } => {
+            ("declining_balance", Some(rate.to_string()))
+        }
     }
 }
 
@@ -263,12 +315,20 @@ fn decode_method(method: &str, rate: Option<String>) -> rusqlite::Result<Depreci
     match method {
         "straight_line" => Ok(DepreciationMethod::StraightLine),
         "declining_balance" => {
-            let rate: Decimal = rate
-                .and_then(|r| r.parse().ok())
-                .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, "missing declining balance rate".into()))?;
+            let rate: Decimal = rate.and_then(|r| r.parse().ok()).ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    "missing declining balance rate".into(),
+                )
+            })?;
             Ok(DepreciationMethod::DecliningBalance { rate })
         }
-        _ => Err(rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, "invalid depreciation method".into())),
+        _ => Err(rusqlite::Error::FromSqlConversionFailure(
+            0,
+            rusqlite::types::Type::Text,
+            "invalid depreciation method".into(),
+        )),
     }
 }
 
@@ -316,7 +376,9 @@ mod tests {
     use crate::backend::accounting::chart_of_accounts::Account;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
     use crate::backend::organization::companies::Company;
-    use crate::backend::repositories::accounting_repository::{self, AccountingRepository as AccRepo};
+    use crate::backend::repositories::accounting_repository::{
+        self, AccountingRepository as AccRepo,
+    };
     use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
@@ -335,24 +397,69 @@ mod tests {
 
     fn fixture() -> TestFixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
         let company_id = company.id.unwrap();
 
         let acc_repo = AccRepo::new(db.clone());
         acc_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "Fiscal Year 2026", date(2026, 1, 1), date(2026, 12, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Fiscal Year 2026",
+                date(2026, 1, 1),
+                date(2026, 12, 31),
+            ))
             .unwrap();
-        let asset_account = acc_repo.create_account(&Account::new(company_id, "1500", "Computer Equipment", AccountType::Asset)).unwrap();
-        let accumulated_depreciation_account = acc_repo.create_account(&Account::new(company_id, "1510", "Accumulated Depreciation", AccountType::Asset)).unwrap();
-        let depreciation_expense_account = acc_repo.create_account(&Account::new(company_id, "6500", "Depreciation Expense", AccountType::Expense)).unwrap();
-        let cash_account = acc_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let gain_loss_account = acc_repo.create_account(&Account::new(company_id, "7000", "Gain/Loss on Disposal", AccountType::Revenue)).unwrap();
+        let asset_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1500",
+                "Computer Equipment",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let accumulated_depreciation_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1510",
+                "Accumulated Depreciation",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let depreciation_expense_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "6500",
+                "Depreciation Expense",
+                AccountType::Expense,
+            ))
+            .unwrap();
+        let cash_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let gain_loss_account = acc_repo
+            .create_account(&Account::new(
+                company_id,
+                "7000",
+                "Gain/Loss on Disposal",
+                AccountType::Revenue,
+            ))
+            .unwrap();
 
         let fixed_assets = FixedAssetRepository::new(db);
         let category = fixed_assets
@@ -378,8 +485,19 @@ mod tests {
     #[test]
     fn acquiring_an_asset_posts_and_links_the_transaction() {
         let f = fixture();
-        let asset = Asset::new(f.company_id, f.category_id, "Office Laptop", date(2026, 1, 1), dec!(2000), dec!(200), 5);
-        let (acquired, transaction) = f.fixed_assets.acquire_asset(&asset, f.cash_account_id).unwrap();
+        let asset = Asset::new(
+            f.company_id,
+            f.category_id,
+            "Office Laptop",
+            date(2026, 1, 1),
+            dec!(2000),
+            dec!(200),
+            5,
+        );
+        let (acquired, transaction) = f
+            .fixed_assets
+            .acquire_asset(&asset, f.cash_account_id)
+            .unwrap();
         assert!(transaction.is_balanced());
         assert_eq!(acquired.transaction_id, transaction.id);
     }
@@ -387,10 +505,25 @@ mod tests {
     #[test]
     fn recording_depreciation_updates_accumulated_depreciation() {
         let f = fixture();
-        let asset = Asset::new(f.company_id, f.category_id, "Office Laptop", date(2026, 1, 1), dec!(2000), dec!(200), 5);
-        let (acquired, _) = f.fixed_assets.acquire_asset(&asset, f.cash_account_id).unwrap();
+        let asset = Asset::new(
+            f.company_id,
+            f.category_id,
+            "Office Laptop",
+            date(2026, 1, 1),
+            dec!(2000),
+            dec!(200),
+            5,
+        );
+        let (acquired, _) = f
+            .fixed_assets
+            .acquire_asset(&asset, f.cash_account_id)
+            .unwrap();
 
-        let transaction = f.fixed_assets.record_depreciation(acquired.id.unwrap(), date(2026, 12, 31)).unwrap().unwrap();
+        let transaction = f
+            .fixed_assets
+            .record_depreciation(acquired.id.unwrap(), date(2026, 12, 31))
+            .unwrap()
+            .unwrap();
         assert!(transaction.is_balanced());
         assert_eq!(transaction.total_debits(), dec!(360)); // (2000-200)/5
 
@@ -402,27 +535,66 @@ mod tests {
     #[test]
     fn disposing_an_asset_marks_it_disposed_and_posts_gain_or_loss() {
         let f = fixture();
-        let asset = Asset::new(f.company_id, f.category_id, "Office Laptop", date(2026, 1, 1), dec!(2000), dec!(200), 5);
-        let (acquired, _) = f.fixed_assets.acquire_asset(&asset, f.cash_account_id).unwrap();
-        f.fixed_assets.record_depreciation(acquired.id.unwrap(), date(2026, 6, 30)).unwrap();
+        let asset = Asset::new(
+            f.company_id,
+            f.category_id,
+            "Office Laptop",
+            date(2026, 1, 1),
+            dec!(2000),
+            dec!(200),
+            5,
+        );
+        let (acquired, _) = f
+            .fixed_assets
+            .acquire_asset(&asset, f.cash_account_id)
+            .unwrap();
+        f.fixed_assets
+            .record_depreciation(acquired.id.unwrap(), date(2026, 6, 30))
+            .unwrap();
 
         let transaction = f
             .fixed_assets
-            .dispose_asset(acquired.id.unwrap(), date(2026, 7, 1), dec!(1000), f.cash_account_id, f.gain_loss_account_id)
+            .dispose_asset(
+                acquired.id.unwrap(),
+                date(2026, 7, 1),
+                dec!(1000),
+                f.cash_account_id,
+                f.gain_loss_account_id,
+            )
             .unwrap();
         assert!(transaction.is_balanced());
 
-        let result = f.fixed_assets.dispose_asset(acquired.id.unwrap(), date(2026, 7, 2), dec!(0), f.cash_account_id, f.gain_loss_account_id);
+        let result = f.fixed_assets.dispose_asset(
+            acquired.id.unwrap(),
+            date(2026, 7, 2),
+            dec!(0),
+            f.cash_account_id,
+            f.gain_loss_account_id,
+        );
         assert!(result.is_err());
     }
 
     #[test]
     fn a_fully_depreciated_asset_has_nothing_left_to_depreciate() {
         let f = fixture();
-        let asset = Asset::new(f.company_id, f.category_id, "Cheap Gadget", date(2026, 1, 1), dec!(100), dec!(100), 5);
-        let (acquired, _) = f.fixed_assets.acquire_asset(&asset, f.cash_account_id).unwrap();
+        let asset = Asset::new(
+            f.company_id,
+            f.category_id,
+            "Cheap Gadget",
+            date(2026, 1, 1),
+            dec!(100),
+            dec!(100),
+            5,
+        );
+        let (acquired, _) = f
+            .fixed_assets
+            .acquire_asset(&asset, f.cash_account_id)
+            .unwrap();
 
-        let result = f.fixed_assets.record_depreciation(acquired.id.unwrap(), date(2026, 12, 31)).unwrap();
+        let result = f
+            .fixed_assets
+            .record_depreciation(acquired.id.unwrap(), date(2026, 12, 31))
+            .unwrap();
         assert!(result.is_none());
     }
 }

@@ -19,7 +19,14 @@ pub struct StockTransfer {
 }
 
 impl StockTransfer {
-    pub fn new(company_id: i64, product_id: i64, from_warehouse_id: i64, to_warehouse_id: i64, transfer_date: NaiveDate, quantity: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        product_id: i64,
+        from_warehouse_id: i64,
+        to_warehouse_id: i64,
+        transfer_date: NaiveDate,
+        quantity: Decimal,
+    ) -> Self {
         Self {
             company_id,
             product_id,
@@ -32,7 +39,9 @@ impl StockTransfer {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.from_warehouse_id == self.to_warehouse_id {
-            return Err(AppError::Validation("stock transfer source and destination warehouses must differ".into()));
+            return Err(AppError::Validation(
+                "stock transfer source and destination warehouses must differ".into(),
+            ));
         }
         require_positive("transfer quantity", self.quantity)?;
         Ok(())
@@ -43,7 +52,10 @@ impl StockTransfer {
     /// atomically) so the ledger never shows stock leaving one warehouse
     /// without arriving at the other.
     pub fn build_movements(&self) -> [StockMovement; 2] {
-        let reference = Some(format!("Transfer {} -> {}", self.from_warehouse_id, self.to_warehouse_id));
+        let reference = Some(format!(
+            "Transfer {} -> {}",
+            self.from_warehouse_id, self.to_warehouse_id
+        ));
         let mut out = StockMovement::new(
             self.company_id,
             self.product_id,
@@ -75,7 +87,14 @@ mod tests {
     use rust_decimal_macros::dec;
 
     fn transfer() -> StockTransfer {
-        StockTransfer::new(1, 1, 10, 20, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(50))
+        StockTransfer::new(
+            1,
+            1,
+            10,
+            20,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(50),
+        )
     }
 
     #[test]

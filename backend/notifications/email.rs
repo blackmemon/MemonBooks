@@ -8,16 +8,22 @@
 //! is the seam.
 
 use crate::backend::core::errors::{AppError, AppResult};
-use crate::backend::notifications::notifications::{Notification, NotificationChannel, NotificationSender};
+use crate::backend::notifications::notifications::{
+    Notification, NotificationChannel, NotificationSender,
+};
 
 pub fn validate_email_address(address: &str) -> AppResult<()> {
     let at_count = address.matches('@').count();
     if at_count != 1 {
-        return Err(AppError::Validation(format!("'{address}' is not a valid email address")));
+        return Err(AppError::Validation(format!(
+            "'{address}' is not a valid email address"
+        )));
     }
     let (local, domain) = address.split_once('@').unwrap();
     if local.is_empty() || domain.is_empty() || !domain.contains('.') {
-        return Err(AppError::Validation(format!("'{address}' is not a valid email address")));
+        return Err(AppError::Validation(format!(
+            "'{address}' is not a valid email address"
+        )));
     }
     Ok(())
 }
@@ -27,10 +33,14 @@ pub struct UnconfiguredEmailSender;
 impl NotificationSender for UnconfiguredEmailSender {
     fn send(&self, notification: &Notification) -> AppResult<()> {
         if notification.channel != NotificationChannel::Email {
-            return Err(AppError::Internal("UnconfiguredEmailSender received a non-email notification".into()));
+            return Err(AppError::Internal(
+                "UnconfiguredEmailSender received a non-email notification".into(),
+            ));
         }
         validate_email_address(&notification.recipient)?;
-        Err(AppError::Config("no SMTP server is configured -- set one up in Settings before sending email".into()))
+        Err(AppError::Config(
+            "no SMTP server is configured -- set one up in Settings before sending email".into(),
+        ))
     }
 }
 
@@ -60,6 +70,9 @@ mod tests {
         assert!(matches!(sender.send(&valid), Err(AppError::Config(_))));
 
         let invalid = Notification::new(1, NotificationChannel::Email, "not-an-email", "Hello");
-        assert!(matches!(sender.send(&invalid), Err(AppError::Validation(_))));
+        assert!(matches!(
+            sender.send(&invalid),
+            Err(AppError::Validation(_))
+        ));
     }
 }

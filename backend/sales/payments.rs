@@ -22,7 +22,12 @@ pub struct CustomerPayment {
 }
 
 impl CustomerPayment {
-    pub fn new(company_id: i64, customer_id: i64, payment_date: NaiveDate, amount: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        customer_id: i64,
+        payment_date: NaiveDate,
+        amount: Decimal,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -34,19 +39,27 @@ impl CustomerPayment {
     }
 
     pub fn build_transaction(&self, cash_account_id: i64, ar_account_id: i64) -> Transaction {
-        Transaction::new(self.company_id, TransactionType::CustomerPayment, self.payment_date)
-            .with_line(TransactionLine::debit(cash_account_id, self.amount))
-            .with_line(TransactionLine::credit(ar_account_id, self.amount))
+        Transaction::new(
+            self.company_id,
+            TransactionType::CustomerPayment,
+            self.payment_date,
+        )
+        .with_line(TransactionLine::debit(cash_account_id, self.amount))
+        .with_line(TransactionLine::credit(ar_account_id, self.amount))
     }
 }
 
 impl Validate for CustomerPayment {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("payment must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "payment must reference a valid company".into(),
+            ));
         }
         if self.customer_id <= 0 {
-            return Err(AppError::Validation("payment must reference a valid customer".into()));
+            return Err(AppError::Validation(
+                "payment must reference a valid customer".into(),
+            ));
         }
         require_positive("payment amount", self.amount)?;
         Ok(())
@@ -60,7 +73,12 @@ mod tests {
 
     #[test]
     fn build_transaction_debits_cash_and_credits_ar() {
-        let payment = CustomerPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(500));
+        let payment = CustomerPayment::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            dec!(500),
+        );
         let transaction = payment.build_transaction(10, 20);
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 10);
@@ -71,7 +89,8 @@ mod tests {
 
     #[test]
     fn validate_rejects_non_positive_amount() {
-        let payment = CustomerPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(0));
+        let payment =
+            CustomerPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(0));
         assert!(payment.validate().is_err());
     }
 }

@@ -15,9 +15,16 @@ pub fn text_color(theme: Theme, active: bool) -> Color {
     }
 }
 
-pub fn underline(theme: Theme, active: bool) -> impl Fn(&IcedTheme) -> iced::widget::container::Style {
+pub fn underline(
+    theme: Theme,
+    active: bool,
+) -> impl Fn(&IcedTheme) -> iced::widget::container::Style {
     move |_iced_theme: &IcedTheme| iced::widget::container::Style {
-        background: Some(Background::Color(if active { theme.primary() } else { theme.transparent() })),
+        background: Some(Background::Color(if active {
+            theme.primary()
+        } else {
+            theme.transparent()
+        })),
         ..iced::widget::container::Style::default()
     }
 }

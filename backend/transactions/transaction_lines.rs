@@ -54,7 +54,9 @@ impl TransactionLine {
 impl Validate for TransactionLine {
     fn validate(&self) -> AppResult<()> {
         if self.account_id <= 0 {
-            return Err(AppError::Validation("transaction line must reference a valid account".into()));
+            return Err(AppError::Validation(
+                "transaction line must reference a valid account".into(),
+            ));
         }
         require_non_negative("debit", self.debit)?;
         require_non_negative("credit", self.credit)?;
@@ -63,7 +65,8 @@ impl Validate for TransactionLine {
         let has_credit = self.credit > Decimal::ZERO;
         if has_debit == has_credit {
             return Err(AppError::Validation(
-                "a transaction line must have exactly one of debit or credit greater than zero".into(),
+                "a transaction line must have exactly one of debit or credit greater than zero"
+                    .into(),
             ));
         }
         Ok(())

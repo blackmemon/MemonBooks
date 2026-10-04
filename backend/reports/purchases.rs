@@ -28,9 +28,15 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_bill() {
-        let mut bill = Bill::new(1, 1, NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), NaiveDate::from_ymd_opt(2026, 2, 4).unwrap());
+        let mut bill = Bill::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 2, 4).unwrap(),
+        );
         bill.id = Some(3);
-        bill.lines.push(BillLine::new(50, "Office supplies", dec!(1), dec!(300)));
+        bill.lines
+            .push(BillLine::new(50, "Office supplies", dec!(1), dec!(300)));
 
         let (headers, rows) = to_rows(&[bill]);
         assert_eq!(headers.len(), 5);

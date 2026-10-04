@@ -12,11 +12,11 @@ use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -47,8 +47,14 @@ pub enum Event {
 pub fn load(ctx: &Ctx) -> State {
     let service = OrganizationService::new(ctx.db.clone());
     match service.list_companies() {
-        Ok(companies) => State { companies, ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(companies) => State {
+            companies,
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -85,12 +91,21 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) -> Event {
         // sort/secondary-action behavior is follow-up work, not part of
         // this layout pass. Switching companies is this row's primary
         // action (the visible button), not a kebab action.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => Event::None,
+        Message::TabSelected(_)
+        | Message::FiltersClicked
+        | Message::SortClicked
+        | Message::RowAction(_) => Event::None,
     }
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header = page_header::view(theme, "Companies", "Every company on this installation's books.", "Create company", Message::Create);
+    let header = page_header::view(
+        theme,
+        "Companies",
+        "Every company on this installation's books.",
+        "Create company",
+        Message::Create,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -106,10 +121,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "Company list", "Click a company's row to switch the rest of the app into it.");
+    let heading = section_heading::view(
+        theme,
+        "Company list",
+        "Click a company's row to switch the rest of the app into it.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Company> = state.companies.iter().filter(|company| query.is_empty() || company.name.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&Company> = state
+        .companies
+        .iter()
+        .filter(|company| query.is_empty() || company.name.to_lowercase().contains(&query))
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Company", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -118,26 +141,56 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let rows = filtered
         .iter()
-        .map(|company| Row::new(vec![Cell::text(company.name.clone()), Cell::text(company.base_currency_code.clone())]).with_primary_action("Switch to"))
+        .map(|company| {
+            Row::new(vec![
+                Cell::text(company.name.clone()),
+                Cell::text(company.base_currency_code.clone()),
+            ])
+            .with_primary_action("Switch to")
+        })
         .collect();
 
-    let company_ids: Vec<i64> = filtered.iter().map(|company| company.id.unwrap_or_default()).collect();
-    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::Switch(company_ids[index]));
+    let company_ids: Vec<i64> = filtered
+        .iter()
+        .map(|company| company.id.unwrap_or_default())
+        .collect();
+    let table = data_table::view(
+        theme,
+        columns,
+        rows,
+        None,
+        |_index, _checked| Message::RowAction(0),
+        |_checked| Message::RowAction(0),
+        Message::RowAction,
+        move |index| Message::Switch(company_ids[index]),
+    );
 
     let form = column![
         text("Create a company").size(typography::label()),
-        text_input("New company name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
-        button(text("Create company")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
+        text_input("New company name", &state.name_input)
+            .style(inputs::text(theme))
+            .on_input(Message::NameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        button(text("Create company"))
+            .style(button_style::primary(theme))
+            .on_press(Message::Create)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading, table, form].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table, form]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if let Some(error) = &state.error {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -150,14 +203,27 @@ mod tests {
 
     fn ctx_with_a_company() -> (Ctx, i64) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
+        let ctx = Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
         (ctx, company_id)
     }
 
@@ -166,7 +232,11 @@ mod tests {
         let (ctx, _company_id) = ctx_with_a_company();
         let mut state = State::default();
 
-        update(&mut state, Message::NameChanged("Acme Holdings".into()), &ctx);
+        update(
+            &mut state,
+            Message::NameChanged("Acme Holdings".into()),
+            &ctx,
+        );
 
         assert_eq!(state.name_input, "Acme Holdings");
     }
@@ -174,7 +244,10 @@ mod tests {
     #[test]
     fn creating_with_a_blank_name_sets_an_error() {
         let (ctx, _company_id) = ctx_with_a_company();
-        let mut state = State { name_input: "".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "".into(),
+            ..Default::default()
+        };
 
         let event = update(&mut state, Message::Create, &ctx);
 
@@ -185,7 +258,10 @@ mod tests {
     #[test]
     fn creating_a_valid_company_adds_it_with_an_open_fiscal_period() {
         let (ctx, _company_id) = ctx_with_a_company();
-        let mut state = State { name_input: "Acme Holdings".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Holdings".into(),
+            ..Default::default()
+        };
 
         let event = update(&mut state, Message::Create, &ctx);
 
@@ -207,13 +283,33 @@ mod tests {
 
         let new_company_id = state.companies[0].id.unwrap();
         let accounting = AccountingRepository::new(ctx.db.clone());
-        let cash = accounting.create_account(&Account::new(new_company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = accounting.create_account(&Account::new(new_company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        let cash = accounting
+            .create_account(&Account::new(
+                new_company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = accounting
+            .create_account(&Account::new(
+                new_company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
         let today = chrono::Utc::now().date_naive();
         let posted = accounting.post_transaction(
             &Transaction::new(new_company_id, TransactionType::OpeningBalance, today)
-                .with_line(TransactionLine::debit(cash.id.unwrap(), rust_decimal_macros::dec!(100)))
-                .with_line(TransactionLine::credit(capital.id.unwrap(), rust_decimal_macros::dec!(100))),
+                .with_line(TransactionLine::debit(
+                    cash.id.unwrap(),
+                    rust_decimal_macros::dec!(100),
+                ))
+                .with_line(TransactionLine::credit(
+                    capital.id.unwrap(),
+                    rust_decimal_macros::dec!(100),
+                )),
         );
         assert!(posted.is_ok());
     }

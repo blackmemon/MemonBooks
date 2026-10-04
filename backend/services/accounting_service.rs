@@ -25,7 +25,9 @@ pub struct AccountingService {
 
 impl AccountingService {
     pub fn new(db: Database) -> Self {
-        Self { repo: AccountingRepository::new(db) }
+        Self {
+            repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn list_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
@@ -48,7 +50,11 @@ impl AccountingService {
     /// just through `ReportService`) so `chart_of_accounts_view` can
     /// show live debit/credit/net balance columns without a second
     /// service dependency.
-    pub fn trial_balance_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<TrialBalance> {
+    pub fn trial_balance_as_of(
+        &self,
+        company_id: i64,
+        as_of: chrono::NaiveDate,
+    ) -> AppResult<TrialBalance> {
         self.repo.trial_balance_as_of(company_id, as_of)
     }
 
@@ -65,14 +71,23 @@ impl AccountingService {
     /// Reversed, mirroring how a credit note doesn't add its own row to
     /// the Invoices list either.
     pub fn list_journal_entries(&self, company_id: i64) -> AppResult<Vec<Transaction>> {
-        Ok(self.repo.list_transactions_for_company(company_id)?.into_iter().filter(|t| t.transaction_type == TransactionType::ManualJournal).collect())
+        Ok(self
+            .repo
+            .list_transactions_for_company(company_id)?
+            .into_iter()
+            .filter(|t| t.transaction_type == TransactionType::ManualJournal)
+            .collect())
     }
 
     /// Builds and posts the reversal of an already-posted journal entry
     /// -- see `AccountingRepository::reverse_transaction`. The
     /// immutability-correct way to fix a posted entry: never edited in
     /// place, only corrected via a new, dated, linked transaction.
-    pub fn reverse_transaction(&self, original_id: i64, reversal_date: chrono::NaiveDate) -> AppResult<Transaction> {
+    pub fn reverse_transaction(
+        &self,
+        original_id: i64,
+        reversal_date: chrono::NaiveDate,
+    ) -> AppResult<Transaction> {
         self.repo.reverse_transaction(original_id, reversal_date)
     }
 

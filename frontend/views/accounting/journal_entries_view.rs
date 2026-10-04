@@ -61,8 +61,14 @@ fn status_tone(status: &str) -> BadgeTone {
 pub fn load(ctx: &Ctx) -> State {
     let service = AccountingService::new(ctx.db.clone());
     match service.list_journal_entries(ctx.company_id) {
-        Ok(entries) => State { entries, ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(entries) => State {
+            entries,
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -75,7 +81,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // kebab menu has no secondary action -- a journal entry is never
         // edited in place, only reversed, which is this row's primary
         // action (the visible button), not a kebab action.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
+        Message::TabSelected(_)
+        | Message::FiltersClicked
+        | Message::SortClicked
+        | Message::RowAction(_) => {}
         Message::ReverseForRow(transaction_id) => {
             state.message = None;
             state.error = None;
@@ -83,11 +92,18 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             let service = AccountingService::new(ctx.db.clone());
             match service.reverse_transaction(transaction_id, today) {
                 Ok(reversal) => {
-                    if let Some(slot) = state.entries.iter_mut().find(|t| t.id == Some(transaction_id)) {
+                    if let Some(slot) = state
+                        .entries
+                        .iter_mut()
+                        .find(|t| t.id == Some(transaction_id))
+                    {
                         slot.status = TransactionStatus::Reversed;
                         slot.reversed_by_transaction_id = reversal.id;
                     }
-                    state.message = Some(format!("Reversed JE-{transaction_id} (reversal #{}).", reversal.id.unwrap_or_default()));
+                    state.message = Some(format!(
+                        "Reversed JE-{transaction_id} (reversal #{}).",
+                        reversal.id.unwrap_or_default()
+                    ));
                 }
                 Err(err) => state.error = Some(err.to_string()),
             }
@@ -96,7 +112,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header = page_header::view(theme, "Journal Entries", "Every manual journal entry posted to this company's books.", "Refresh", Message::Refresh);
+    let header = page_header::view(
+        theme,
+        "Journal Entries",
+        "Every manual journal entry posted to this company's books.",
+        "Refresh",
+        Message::Refresh,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -112,7 +134,11 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "Entry list", "Reverse a posted entry to correct it -- posted entries are never edited in place.");
+    let heading = section_heading::view(
+        theme,
+        "Entry list",
+        "Reverse a posted entry to correct it -- posted entries are never edited in place.",
+    );
 
     let query = state.search.trim().to_lowercase();
     let filtered: Vec<&Transaction> = state
@@ -120,8 +146,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .iter()
         .filter(|entry| {
             query.is_empty()
-                || entry.description.as_deref().unwrap_or_default().to_lowercase().contains(&query)
-                || entry.id.map(|id| format!("JE-{id}")).unwrap_or_default().to_lowercase().contains(&query)
+                || entry
+                    .description
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .contains(&query)
+                || entry
+                    .id
+                    .map(|id| format!("JE-{id}"))
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .contains(&query)
         })
         .collect();
 
@@ -139,15 +175,27 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             let row = Row::new(vec![
                 Cell::text(entry.id.map(|id| format!("JE-{id}")).unwrap_or_default()),
                 Cell::date(entry.transaction_date.to_string()),
-                Cell::text(entry.description.clone().unwrap_or_else(|| "--".to_string())),
+                Cell::text(
+                    entry
+                        .description
+                        .clone()
+                        .unwrap_or_else(|| "--".to_string()),
+                ),
                 Cell::status(entry.status.as_str(), status_tone(entry.status.as_str())),
                 Cell::text(entry.total_debits().to_string()),
             ]);
-            if entry.status == TransactionStatus::Posted { row.with_primary_action("Reverse") } else { row }
+            if entry.status == TransactionStatus::Posted {
+                row.with_primary_action("Reverse")
+            } else {
+                row
+            }
         })
         .collect();
 
-    let entry_ids: Vec<i64> = filtered.iter().map(|entry| entry.id.unwrap_or_default()).collect();
+    let entry_ids: Vec<i64> = filtered
+        .iter()
+        .map(|entry| entry.id.unwrap_or_default())
+        .collect();
     let table = data_table::view(
         theme,
         columns,
@@ -159,7 +207,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::ReverseForRow(entry_ids[index]),
     );
 
-    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));
@@ -168,7 +219,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -200,21 +253,62 @@ mod tests {
 
     fn fixture() -> Fixture {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
-        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
-        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
-        let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+        accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
+            .unwrap();
+        let cash = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
+        let revenue = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
+            .unwrap();
 
         Fixture {
-            ctx: Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") },
+            ctx: Ctx {
+                db,
+                company_id,
+                current_user_id: None,
+                export_dir: PathBuf::from("."),
+                uploads_dir: PathBuf::from("."),
+            },
             cash: cash.id.unwrap(),
             capital: capital.id.unwrap(),
             revenue: revenue.id.unwrap(),
@@ -225,10 +319,18 @@ mod tests {
     /// `capital` for `amount`, with `memo`, and returns its id.
     fn post_journal_entry(f: &Fixture, memo: &str, amount: rust_decimal::Decimal) -> i64 {
         let service = AccountingService::new(f.ctx.db.clone());
-        let mut transaction = Transaction::new(f.ctx.company_id, TransactionType::ManualJournal, date(2026, 1, 10));
+        let mut transaction = Transaction::new(
+            f.ctx.company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 10),
+        );
         transaction.description = Some(memo.to_string());
-        transaction.lines.push(TransactionLine::debit(f.cash, amount));
-        transaction.lines.push(TransactionLine::credit(f.capital, amount));
+        transaction
+            .lines
+            .push(TransactionLine::debit(f.cash, amount));
+        transaction
+            .lines
+            .push(TransactionLine::credit(f.capital, amount));
         service.post_transaction(&transaction).unwrap().id.unwrap()
     }
 
@@ -238,15 +340,23 @@ mod tests {
         post_journal_entry(&f, "Owner contribution", dec!(1000));
 
         let service = AccountingService::new(f.ctx.db.clone());
-        let mut sale = Transaction::new(f.ctx.company_id, TransactionType::SalesInvoice, date(2026, 1, 12));
+        let mut sale = Transaction::new(
+            f.ctx.company_id,
+            TransactionType::SalesInvoice,
+            date(2026, 1, 12),
+        );
         sale.lines.push(TransactionLine::debit(f.cash, dec!(200)));
-        sale.lines.push(TransactionLine::credit(f.revenue, dec!(200)));
+        sale.lines
+            .push(TransactionLine::credit(f.revenue, dec!(200)));
         service.post_transaction(&sale).unwrap();
 
         let state = load(&f.ctx);
 
         assert_eq!(state.entries.len(), 1);
-        assert_eq!(state.entries[0].description.as_deref(), Some("Owner contribution"));
+        assert_eq!(
+            state.entries[0].description.as_deref(),
+            Some("Owner contribution")
+        );
     }
 
     #[test]
@@ -279,8 +389,16 @@ mod tests {
         update(&mut state, Message::ReverseForRow(entry_id), &f.ctx);
 
         assert!(state.error.is_none());
-        assert!(state.message.as_deref().unwrap_or_default().starts_with("Reversed"));
-        let updated = state.entries.iter().find(|t| t.id == Some(entry_id)).unwrap();
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("Reversed"));
+        let updated = state
+            .entries
+            .iter()
+            .find(|t| t.id == Some(entry_id))
+            .unwrap();
         assert_eq!(updated.status, TransactionStatus::Reversed);
         assert!(updated.reversed_by_transaction_id.is_some());
 
@@ -288,12 +406,16 @@ mod tests {
         // -- not just a status flip.
         let accounting_repo = AccountingRepository::new(f.ctx.db.clone());
         let reloaded_original = accounting_repo.get_transaction(entry_id).unwrap();
-        let reversal = accounting_repo.get_transaction(reloaded_original.reversed_by_transaction_id.unwrap()).unwrap();
+        let reversal = accounting_repo
+            .get_transaction(reloaded_original.reversed_by_transaction_id.unwrap())
+            .unwrap();
         assert!(reversal.is_balanced());
         assert_eq!(reversal.transaction_type, TransactionType::Reversal);
 
         // The ledger nets back to zero across both entries.
-        let trial_balance = accounting_repo.trial_balance_as_of(f.ctx.company_id, date(2030, 1, 1)).unwrap();
+        let trial_balance = accounting_repo
+            .trial_balance_as_of(f.ctx.company_id, date(2030, 1, 1))
+            .unwrap();
         assert!(trial_balance.is_balanced());
         assert_eq!(trial_balance.total_debits(), dec!(0));
     }
@@ -305,13 +427,25 @@ mod tests {
         let mut state = load(&f.ctx);
         update(&mut state, Message::ReverseForRow(entry_id), &f.ctx);
         assert!(state.error.is_none());
-        let first_reversal_id = state.entries.iter().find(|t| t.id == Some(entry_id)).unwrap().reversed_by_transaction_id;
+        let first_reversal_id = state
+            .entries
+            .iter()
+            .find(|t| t.id == Some(entry_id))
+            .unwrap()
+            .reversed_by_transaction_id;
 
         update(&mut state, Message::ReverseForRow(entry_id), &f.ctx);
 
         assert!(state.error.is_some());
-        let unchanged = state.entries.iter().find(|t| t.id == Some(entry_id)).unwrap();
+        let unchanged = state
+            .entries
+            .iter()
+            .find(|t| t.id == Some(entry_id))
+            .unwrap();
         assert_eq!(unchanged.status, TransactionStatus::Reversed);
-        assert_eq!(unchanged.reversed_by_transaction_id, first_reversal_id, "the original reversal link must not be disturbed by the rejected second attempt");
+        assert_eq!(
+            unchanged.reversed_by_transaction_id, first_reversal_id,
+            "the original reversal link must not be disturbed by the rejected second attempt"
+        );
     }
 }

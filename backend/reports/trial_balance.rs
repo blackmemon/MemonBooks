@@ -8,9 +8,21 @@ pub fn to_rows(report: &TrialBalance) -> (Vec<&'static str>, Vec<Vec<String>>) {
     let mut rows: Vec<Vec<String>> = report
         .lines
         .iter()
-        .map(|line| vec![line.account_code.clone(), line.account_name.clone(), line.debit.to_string(), line.credit.to_string()])
+        .map(|line| {
+            vec![
+                line.account_code.clone(),
+                line.account_name.clone(),
+                line.debit.to_string(),
+                line.credit.to_string(),
+            ]
+        })
         .collect();
-    rows.push(vec!["".into(), "Total".into(), report.total_debits().to_string(), report.total_credits().to_string()]);
+    rows.push(vec![
+        "".into(),
+        "Total".into(),
+        report.total_debits().to_string(),
+        report.total_credits().to_string(),
+    ]);
     (vec!["Code", "Account", "Debit", "Credit"], rows)
 }
 
@@ -24,7 +36,12 @@ mod tests {
     fn to_rows_appends_a_totals_row() {
         let report = TrialBalance {
             as_of: chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
-            lines: vec![TrialBalanceLine::from_net_movement(1, "1000", "Cash", dec!(100))],
+            lines: vec![TrialBalanceLine::from_net_movement(
+                1,
+                "1000",
+                "Cash",
+                dec!(100),
+            )],
         };
         let (headers, rows) = to_rows(&report);
         assert_eq!(headers.len(), 4);

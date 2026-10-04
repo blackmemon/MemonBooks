@@ -26,27 +26,71 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 #[test]
 fn balance_sheet_and_profit_and_loss_agree_with_the_trial_balance() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+    let company_id = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let accounting_repo = AccountingRepository::new(db);
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "Fiscal Year 2026", date(2026, 1, 1), date(2026, 12, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "Fiscal Year 2026",
+            date(2026, 1, 1),
+            date(2026, 12, 31),
+        ))
         .unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-    let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-    let expense = accounting_repo.create_account(&Account::new(company_id, "6000", "Rent Expense", AccountType::Expense)).unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let capital = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "3000",
+            "Owner's Capital",
+            AccountType::Equity,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
+    let expense = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "6000",
+            "Rent Expense",
+            AccountType::Expense,
+        ))
+        .unwrap();
 
     accounting_repo
         .post_transaction(
-            &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
-                .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(10000)))
-                .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(10000))),
+            &Transaction::new(
+                company_id,
+                TransactionType::OpeningBalance,
+                date(2026, 1, 1),
+            )
+            .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(10000)))
+            .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(10000))),
         )
         .unwrap();
     accounting_repo
@@ -65,15 +109,24 @@ fn balance_sheet_and_profit_and_loss_agree_with_the_trial_balance() {
         .unwrap();
 
     let as_of = date(2026, 12, 31);
-    let accounts = accounting_repo.list_accounts_for_company(company_id).unwrap();
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, as_of).unwrap();
+    let accounts = accounting_repo
+        .list_accounts_for_company(company_id)
+        .unwrap();
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, as_of)
+        .unwrap();
     assert!(trial_balance.is_balanced());
 
-    let pl_balances = accounting_repo.revenue_and_expense_balances_as_of(company_id, as_of).unwrap();
+    let pl_balances = accounting_repo
+        .revenue_and_expense_balances_as_of(company_id, as_of)
+        .unwrap();
     let pl_accounts: Vec<(String, String)> = pl_balances
         .iter()
         .map(|b| {
-            let account = accounts.iter().find(|a| a.id == Some(b.account_id)).unwrap();
+            let account = accounts
+                .iter()
+                .find(|a| a.id == Some(b.account_id))
+                .unwrap();
             (account.account_code.clone(), account.account_name.clone())
         })
         .collect();
@@ -84,8 +137,17 @@ fn balance_sheet_and_profit_and_loss_agree_with_the_trial_balance() {
         .lines
         .iter()
         .map(|line| {
-            let account = accounts.iter().find(|a| a.id == Some(line.account_id)).unwrap();
-            (line.account_id, line.account_code.clone(), line.account_name.clone(), account.account_type, line.debit - line.credit)
+            let account = accounts
+                .iter()
+                .find(|a| a.id == Some(line.account_id))
+                .unwrap();
+            (
+                line.account_id,
+                line.account_code.clone(),
+                line.account_name.clone(),
+                account.account_type,
+                line.debit - line.credit,
+            )
         })
         .collect();
     let balance_sheet = balance_sheet::build(as_of, &bs_input, profit_and_loss.net_income());

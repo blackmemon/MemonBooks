@@ -21,8 +21,14 @@ fn totp_for(secret_base32: &str) -> AppResult<TOTP> {
         .to_bytes()
         .map_err(|_| AppError::Validation("two-factor secret is not valid base32".into()))?;
 
-    TOTP::new(Algorithm::SHA1, DIGITS, SKEW_STEPS, STEP_SECONDS, secret_bytes)
-        .map_err(|err| AppError::Internal(format!("failed to build TOTP generator: {err}")))
+    TOTP::new(
+        Algorithm::SHA1,
+        DIGITS,
+        SKEW_STEPS,
+        STEP_SECONDS,
+        secret_bytes,
+    )
+    .map_err(|err| AppError::Internal(format!("failed to build TOTP generator: {err}")))
 }
 
 /// Checks a 6-digit code the user typed against their stored secret.

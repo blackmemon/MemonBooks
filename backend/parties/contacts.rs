@@ -34,13 +34,17 @@ impl Contact {
 impl Validate for Contact {
     fn validate(&self) -> AppResult<()> {
         if self.party_id <= 0 {
-            return Err(AppError::Validation("contact must reference a valid party".into()));
+            return Err(AppError::Validation(
+                "contact must reference a valid party".into(),
+            ));
         }
         require_non_empty("contact name", &self.name)?;
         require_max_length("contact name", &self.name, 200)?;
         if let Some(email) = &self.email {
             if !email.contains('@') {
-                return Err(AppError::Validation("contact email is not a valid email address".into()));
+                return Err(AppError::Validation(
+                    "contact email is not a valid email address".into(),
+                ));
             }
             require_max_length("contact email", email, 200)?;
         }

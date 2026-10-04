@@ -61,9 +61,15 @@ impl CreditNote {
     }
 
     pub fn build_transaction(&self, ar_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::SalesInvoice, self.credit_note_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::SalesInvoice,
+            self.credit_note_date,
+        );
         transaction.description = Some(format!("Credit note for customer #{}", self.customer_id));
-        transaction.lines.push(TransactionLine::credit(ar_account_id, self.total()));
+        transaction
+            .lines
+            .push(TransactionLine::credit(ar_account_id, self.total()));
         for line in &self.lines {
             transaction.lines.push(TransactionLine {
                 description: Some(line.description.clone()),
@@ -77,13 +83,19 @@ impl CreditNote {
 impl Validate for CreditNote {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("credit note must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "credit note must reference a valid company".into(),
+            ));
         }
         if self.customer_id <= 0 {
-            return Err(AppError::Validation("credit note must reference a valid customer".into()));
+            return Err(AppError::Validation(
+                "credit note must reference a valid customer".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a credit note must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a credit note must have at least one line".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("credit note line description", &line.description)?;
@@ -105,7 +117,9 @@ mod tests {
     #[test]
     fn build_transaction_credits_ar_and_debits_revenue() {
         let mut credit_note = CreditNote::new(1, 1, date(2026, 2, 1));
-        credit_note.lines.push(CreditNoteLine::new(10, "Return", dec!(100)));
+        credit_note
+            .lines
+            .push(CreditNoteLine::new(10, "Return", dec!(100)));
 
         let transaction = credit_note.build_transaction(99);
         assert!(transaction.is_balanced());

@@ -49,7 +49,12 @@ pub struct BillLine {
 }
 
 impl BillLine {
-    pub fn new(account_id: i64, description: impl Into<String>, quantity: Decimal, unit_price: Decimal) -> Self {
+    pub fn new(
+        account_id: i64,
+        description: impl Into<String>,
+        quantity: Decimal,
+        unit_price: Decimal,
+    ) -> Self {
         Self {
             account_id,
             description: description.into(),
@@ -94,7 +99,11 @@ impl Bill {
     }
 
     pub fn build_transaction(&self, ap_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::PurchaseBill, self.bill_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::PurchaseBill,
+            self.bill_date,
+        );
         transaction.description = Some(format!("Bill from vendor #{}", self.vendor_id));
         for line in &self.lines {
             transaction.lines.push(TransactionLine {
@@ -102,12 +111,20 @@ impl Bill {
                 ..TransactionLine::debit(line.account_id, line.amount())
             });
         }
-        transaction.lines.push(TransactionLine::credit(ap_account_id, self.total()));
+        transaction
+            .lines
+            .push(TransactionLine::credit(ap_account_id, self.total()));
         transaction
     }
 
     pub fn build_payable(&self) -> Payable {
-        let mut payable = Payable::new(self.company_id, self.vendor_id, self.bill_date, self.due_date, self.total());
+        let mut payable = Payable::new(
+            self.company_id,
+            self.vendor_id,
+            self.bill_date,
+            self.due_date,
+            self.total(),
+        );
         payable.reference = self.id.map(|id| format!("BILL-{id}"));
         payable
     }
@@ -116,16 +133,24 @@ impl Bill {
 impl Validate for Bill {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("bill must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "bill must reference a valid company".into(),
+            ));
         }
         if self.vendor_id <= 0 {
-            return Err(AppError::Validation("bill must reference a valid vendor".into()));
+            return Err(AppError::Validation(
+                "bill must reference a valid vendor".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a bill must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a bill must have at least one line".into(),
+            ));
         }
         if self.due_date < self.bill_date {
-            return Err(AppError::Validation("bill due_date must not be before bill_date".into()));
+            return Err(AppError::Validation(
+                "bill due_date must not be before bill_date".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("bill line description", &line.description)?;
@@ -147,8 +172,10 @@ mod tests {
 
     fn bill_with_two_lines() -> Bill {
         let mut bill = Bill::new(1, 1, date(2026, 1, 1), date(2026, 1, 31));
-        bill.lines.push(BillLine::new(50, "Office rent", dec!(1), dec!(1200)));
-        bill.lines.push(BillLine::new(51, "Utilities", dec!(1), dec!(300)));
+        bill.lines
+            .push(BillLine::new(50, "Office rent", dec!(1), dec!(1200)));
+        bill.lines
+            .push(BillLine::new(51, "Utilities", dec!(1), dec!(300)));
         bill
     }
 

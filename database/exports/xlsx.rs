@@ -7,7 +7,12 @@ use rust_xlsxwriter::{Format, Workbook};
 
 use crate::backend::core::errors::{AppError, AppResult};
 
-pub fn export_xlsx(sheet_name: &str, headers: &[&str], rows: &[Vec<String>], path: &Path) -> AppResult<()> {
+pub fn export_xlsx(
+    sheet_name: &str,
+    headers: &[&str],
+    rows: &[Vec<String>],
+    path: &Path,
+) -> AppResult<()> {
     let mut workbook = Workbook::new();
     let bold = Format::new().set_bold();
     let sheet = workbook
@@ -29,9 +34,10 @@ pub fn export_xlsx(sheet_name: &str, headers: &[&str], rows: &[Vec<String>], pat
         }
     }
 
-    workbook
-        .save(path)
-        .map_err(|source| AppError::Io { path: path.to_path_buf(), source: std::io::Error::other(source) })
+    workbook.save(path).map_err(|source| AppError::Io {
+        path: path.to_path_buf(),
+        source: std::io::Error::other(source),
+    })
 }
 
 #[cfg(test)]
@@ -44,7 +50,13 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("report.xlsx");
 
-        export_xlsx("Trial Balance", &["Account", "Balance"], &[vec!["Cash".into(), "100.00".into()]], &path).unwrap();
+        export_xlsx(
+            "Trial Balance",
+            &["Account", "Balance"],
+            &[vec!["Cash".into(), "100.00".into()]],
+            &path,
+        )
+        .unwrap();
 
         assert!(path.exists());
         assert!(std::fs::metadata(&path).unwrap().len() > 0);

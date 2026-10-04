@@ -12,7 +12,13 @@ pub struct CashBookAccount {
 pub fn to_rows(accounts: &[CashBookAccount]) -> (Vec<&'static str>, Vec<Vec<String>>) {
     let mut rows = Vec::new();
     for account in accounts {
-        rows.push(vec![account.account_name.clone(), String::new(), String::new(), String::new(), String::new()]);
+        rows.push(vec![
+            account.account_name.clone(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+        ]);
         for entry in &account.entries {
             rows.push(vec![
                 entry.transaction_date.to_string(),
@@ -23,7 +29,10 @@ pub fn to_rows(accounts: &[CashBookAccount]) -> (Vec<&'static str>, Vec<Vec<Stri
             ]);
         }
     }
-    (vec!["Date", "Description", "Debit", "Credit", "Balance"], rows)
+    (
+        vec!["Date", "Description", "Debit", "Credit", "Balance"],
+        rows,
+    )
 }
 
 #[cfg(test)]

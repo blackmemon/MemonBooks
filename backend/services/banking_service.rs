@@ -25,7 +25,10 @@ pub struct BankingService {
 
 impl BankingService {
     pub fn new(db: Database) -> Self {
-        Self { banking_repo: BankingRepository::new(db.clone()), accounting_repo: AccountingRepository::new(db) }
+        Self {
+            banking_repo: BankingRepository::new(db.clone()),
+            accounting_repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn list_bank_accounts(&self, company_id: i64) -> AppResult<Vec<BankAccount>> {

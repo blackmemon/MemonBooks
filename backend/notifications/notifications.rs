@@ -77,7 +77,12 @@ pub struct Notification {
 }
 
 impl Notification {
-    pub fn new(company_id: i64, channel: NotificationChannel, recipient: impl Into<String>, body: impl Into<String>) -> Self {
+    pub fn new(
+        company_id: i64,
+        channel: NotificationChannel,
+        recipient: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -94,7 +99,9 @@ impl Notification {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("notification must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "notification must reference a valid company".into(),
+            ));
         }
         require_non_empty("notification recipient", &self.recipient)?;
         require_non_empty("notification body", &self.body)?;
@@ -104,7 +111,10 @@ impl Notification {
     /// Only a `Pending` or `Failed` notification is eligible to (re)send;
     /// a `Sent` one is done.
     pub fn is_eligible_to_send(&self) -> bool {
-        matches!(self.status, NotificationStatus::Pending | NotificationStatus::Failed)
+        matches!(
+            self.status,
+            NotificationStatus::Pending | NotificationStatus::Failed
+        )
     }
 }
 
@@ -121,21 +131,31 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_channel() {
-        for channel in [NotificationChannel::Email, NotificationChannel::Sms, NotificationChannel::WhatsApp, NotificationChannel::InApp] {
+        for channel in [
+            NotificationChannel::Email,
+            NotificationChannel::Sms,
+            NotificationChannel::WhatsApp,
+            NotificationChannel::InApp,
+        ] {
             assert_eq!(NotificationChannel::parse(channel.as_str()), Some(channel));
         }
     }
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_status() {
-        for status in [NotificationStatus::Pending, NotificationStatus::Sent, NotificationStatus::Failed] {
+        for status in [
+            NotificationStatus::Pending,
+            NotificationStatus::Sent,
+            NotificationStatus::Failed,
+        ] {
             assert_eq!(NotificationStatus::parse(status.as_str()), Some(status));
         }
     }
 
     #[test]
     fn only_pending_or_failed_are_eligible_to_send() {
-        let mut notification = Notification::new(1, NotificationChannel::Email, "jane@example.com", "Hello");
+        let mut notification =
+            Notification::new(1, NotificationChannel::Email, "jane@example.com", "Hello");
         assert!(notification.is_eligible_to_send());
         notification.status = NotificationStatus::Sent;
         assert!(!notification.is_eligible_to_send());

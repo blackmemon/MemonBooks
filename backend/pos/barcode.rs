@@ -12,7 +12,9 @@ pub fn find_by_barcode<'a>(products: &'a [Product], scanned_code: &str) -> Optio
     if scanned_code.is_empty() {
         return None;
     }
-    products.iter().find(|p| p.barcode.as_deref().map(str::trim) == Some(scanned_code))
+    products
+        .iter()
+        .find(|p| p.barcode.as_deref().map(str::trim) == Some(scanned_code))
 }
 
 #[cfg(test)]

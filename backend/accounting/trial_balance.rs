@@ -22,7 +22,12 @@ impl TrialBalanceLine {
     /// Builds a line from an account's net movement (total debits minus
     /// total credits): a non-negative net is a debit balance, negative is
     /// a credit balance.
-    pub fn from_net_movement(account_id: i64, account_code: impl Into<String>, account_name: impl Into<String>, net: Decimal) -> Self {
+    pub fn from_net_movement(
+        account_id: i64,
+        account_code: impl Into<String>,
+        account_name: impl Into<String>,
+        net: Decimal,
+    ) -> Self {
         let (debit, credit) = if net >= Decimal::ZERO {
             (net, Decimal::ZERO)
         } else {

@@ -1,7 +1,7 @@
 //! Persistence for warehouses, categories, products, and stock movements.
 
-use rust_decimal::Decimal;
 use rusqlite::{params, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
@@ -13,10 +13,11 @@ use crate::backend::inventory::transfers::StockTransfer;
 use crate::backend::inventory::warehouses::Warehouse;
 use crate::database::database::{Database, Migration};
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1100,
-    name: "inventory_schema",
-    sql: "
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1100,
+        name: "inventory_schema",
+        sql: "
         CREATE TABLE warehouses (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id  INTEGER NOT NULL REFERENCES companies(id),
@@ -60,14 +61,16 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             transaction_id  INTEGER REFERENCES transactions(id)
         );
     ",
-}, Migration {
-    // Additive: products already has rows by the time POS (step 16)
-    // needs barcode lookup, so this extends the existing table rather
-    // than editing migration 1100's already-applied SQL.
-    version: 1600,
-    name: "products_barcode_column",
-    sql: "ALTER TABLE products ADD COLUMN barcode TEXT;",
-}];
+    },
+    Migration {
+        // Additive: products already has rows by the time POS (step 16)
+        // needs barcode lookup, so this extends the existing table rather
+        // than editing migration 1100's already-applied SQL.
+        version: 1600,
+        name: "products_barcode_column",
+        sql: "ALTER TABLE products ADD COLUMN barcode TEXT;",
+    },
+];
 
 #[derive(Clone)]
 pub struct InventoryRepository {
@@ -104,7 +107,9 @@ impl InventoryRepository {
 
     pub fn update_warehouse(&self, warehouse: &Warehouse) -> AppResult<()> {
         warehouse.validate()?;
-        let id = warehouse.id.ok_or_else(|| AppError::Validation("cannot update a warehouse without an id".into()))?;
+        let id = warehouse.id.ok_or_else(|| {
+            AppError::Validation("cannot update a warehouse without an id".into())
+        })?;
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE warehouses SET name = ?1, code = ?2, address = ?3, is_active = ?4 WHERE id = ?5",
@@ -147,7 +152,10 @@ impl InventoryRepository {
                 "INSERT INTO categories (company_id, name, parent_id) VALUES (?1, ?2, ?3)",
                 params![category.company_id, category.name, category.parent_id],
             )?;
-            Ok(Category { id: Some(conn.last_insert_rowid()), ..category.clone() })
+            Ok(Category {
+                id: Some(conn.last_insert_rowid()),
+                ..category.clone()
+            })
         })
     }
 
@@ -197,7 +205,11 @@ impl InventoryRepository {
         })
     }
 
-    pub fn get_product_by_barcode(&self, company_id: i64, barcode: &str) -> AppResult<Option<Product>> {
+    pub fn get_product_by_barcode(
+        &self,
+        company_id: i64,
+        barcode: &str,
+    ) -> AppResult<Option<Product>> {
         self.db.with_connection(|conn| {
             conn.query_row(
                 "SELECT id, company_id, sku, name, barcode, category_id, unit_of_measure, cost_price, sale_price, track_inventory, is_active
@@ -223,7 +235,9 @@ impl InventoryRepository {
 
     pub fn update_product(&self, product: &Product) -> AppResult<()> {
         product.validate()?;
-        let id = product.id.ok_or_else(|| AppError::Validation("cannot update a product without an id".into()))?;
+        let id = product
+            .id
+            .ok_or_else(|| AppError::Validation("cannot update a product without an id".into()))?;
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE products SET sku = ?1, name = ?2, barcode = ?3, category_id = ?4, unit_of_measure = ?5, cost_price = ?6, sale_price = ?7, track_inventory = ?8, is_active = ?9
@@ -316,10 +330,23 @@ impl InventoryRepository {
             Ok((out_id, in_id))
         })?;
 
-        Ok([StockMovement { id: Some(out_id), ..out }, StockMovement { id: Some(in_id), ..inbound }])
+        Ok([
+            StockMovement {
+                id: Some(out_id),
+                ..out
+            },
+            StockMovement {
+                id: Some(in_id),
+                ..inbound
+            },
+        ])
     }
 
-    pub fn list_movements_for_product(&self, company_id: i64, product_id: i64) -> AppResult<Vec<StockMovement>> {
+    pub fn list_movements_for_product(
+        &self,
+        company_id: i64,
+        product_id: i64,
+    ) -> AppResult<Vec<StockMovement>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, company_id, product_id, warehouse_id, movement_date, movement_type, quantity_delta, reference, transaction_id
@@ -330,9 +357,18 @@ impl InventoryRepository {
         })
     }
 
-    pub fn on_hand_quantity(&self, company_id: i64, product_id: i64, warehouse_id: i64) -> AppResult<Decimal> {
+    pub fn on_hand_quantity(
+        &self,
+        company_id: i64,
+        product_id: i64,
+        warehouse_id: i64,
+    ) -> AppResult<Decimal> {
         let movements = self.list_movements_for_product(company_id, product_id)?;
-        Ok(stock::on_hand_quantity(&movements, product_id, warehouse_id))
+        Ok(stock::on_hand_quantity(
+            &movements,
+            product_id,
+            warehouse_id,
+        ))
     }
 }
 
@@ -377,7 +413,11 @@ fn map_product(row: &Row) -> rusqlite::Result<Product> {
 fn map_movement(row: &Row) -> rusqlite::Result<StockMovement> {
     let movement_type_text: String = row.get(5)?;
     let movement_type = MovementType::parse(&movement_type_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid movement_type".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid movement_type".into(),
+        )
     })?;
     let quantity_text: String = row.get(6)?;
     Ok(StockMovement {
@@ -407,12 +447,16 @@ mod tests {
 
     fn repo_with_company() -> (InventoryRepository, i64) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::repositories::accounting_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::repositories::accounting_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
 
         (InventoryRepository::new(db), company.id.unwrap())
     }
@@ -420,7 +464,9 @@ mod tests {
     #[test]
     fn product_round_trips_by_id() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let created = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
         let fetched = repo.get_product(created.id.unwrap()).unwrap();
         assert_eq!(fetched.sku, "WIDGET-1");
     }
@@ -428,17 +474,28 @@ mod tests {
     #[test]
     fn update_product_persists_changed_fields() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let created = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
 
-        repo.update_product(&Product { name: "Deluxe Widget".into(), ..created.clone() }).unwrap();
+        repo.update_product(&Product {
+            name: "Deluxe Widget".into(),
+            ..created.clone()
+        })
+        .unwrap();
 
-        assert_eq!(repo.get_product(created.id.unwrap()).unwrap().name, "Deluxe Widget");
+        assert_eq!(
+            repo.get_product(created.id.unwrap()).unwrap().name,
+            "Deluxe Widget"
+        );
     }
 
     #[test]
     fn delete_product_removes_an_unreferenced_product() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
+        let created = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
 
         repo.delete_product(created.id.unwrap()).unwrap();
 
@@ -448,9 +505,21 @@ mod tests {
     #[test]
     fn delete_product_is_rejected_with_a_clear_message_when_still_referenced_by_a_stock_movement() {
         let (repo, company_id) = repo_with_company();
-        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
-        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
-        repo.record_movement(&StockMovement::new(company_id, product.id.unwrap(), warehouse.id.unwrap(), date(2026, 1, 1), MovementType::Purchase, dec!(100))).unwrap();
+        let product = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
+        let warehouse = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
+        repo.record_movement(&StockMovement::new(
+            company_id,
+            product.id.unwrap(),
+            warehouse.id.unwrap(),
+            date(2026, 1, 1),
+            MovementType::Purchase,
+            dec!(100),
+        ))
+        .unwrap();
 
         let result = repo.delete_product(product.id.unwrap());
 
@@ -462,9 +531,15 @@ mod tests {
     #[test]
     fn update_warehouse_persists_changed_fields() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        let created = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
 
-        repo.update_warehouse(&Warehouse { name: "Central Warehouse".into(), ..created.clone() }).unwrap();
+        repo.update_warehouse(&Warehouse {
+            name: "Central Warehouse".into(),
+            ..created.clone()
+        })
+        .unwrap();
 
         let updated = repo.list_warehouses_for_company(company_id).unwrap();
         assert_eq!(updated[0].name, "Central Warehouse");
@@ -473,19 +548,37 @@ mod tests {
     #[test]
     fn delete_warehouse_removes_an_unreferenced_warehouse() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        let created = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
 
         repo.delete_warehouse(created.id.unwrap()).unwrap();
 
-        assert!(repo.list_warehouses_for_company(company_id).unwrap().is_empty());
+        assert!(repo
+            .list_warehouses_for_company(company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
-    fn delete_warehouse_is_rejected_with_a_clear_message_when_still_referenced_by_a_stock_movement() {
+    fn delete_warehouse_is_rejected_with_a_clear_message_when_still_referenced_by_a_stock_movement()
+    {
         let (repo, company_id) = repo_with_company();
-        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
-        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
-        repo.record_movement(&StockMovement::new(company_id, product.id.unwrap(), warehouse.id.unwrap(), date(2026, 1, 1), MovementType::Purchase, dec!(100))).unwrap();
+        let product = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
+        let warehouse = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
+        repo.record_movement(&StockMovement::new(
+            company_id,
+            product.id.unwrap(),
+            warehouse.id.unwrap(),
+            date(2026, 1, 1),
+            MovementType::Purchase,
+            dec!(100),
+        ))
+        .unwrap();
 
         let result = repo.delete_warehouse(warehouse.id.unwrap());
 
@@ -496,8 +589,12 @@ mod tests {
     #[test]
     fn recording_movements_and_querying_on_hand_quantity() {
         let (repo, company_id) = repo_with_company();
-        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
-        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        let product = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
+        let warehouse = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
 
         repo.record_movement(&StockMovement::new(
             company_id,
@@ -518,35 +615,83 @@ mod tests {
         ))
         .unwrap();
 
-        let on_hand = repo.on_hand_quantity(company_id, product.id.unwrap(), warehouse.id.unwrap()).unwrap();
+        let on_hand = repo
+            .on_hand_quantity(company_id, product.id.unwrap(), warehouse.id.unwrap())
+            .unwrap();
         assert_eq!(on_hand, dec!(60));
     }
 
     #[test]
     fn post_transfer_moves_quantity_between_warehouses_atomically() {
         let (repo, company_id) = repo_with_company();
-        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
-        let main = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
-        let overflow = repo.create_warehouse(&Warehouse::new(company_id, "Overflow Warehouse", "OVERFLOW")).unwrap();
-
-        repo.record_movement(&StockMovement::new(company_id, product.id.unwrap(), main.id.unwrap(), date(2026, 1, 1), MovementType::Purchase, dec!(100)))
+        let product = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
+        let main = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
+        let overflow = repo
+            .create_warehouse(&Warehouse::new(
+                company_id,
+                "Overflow Warehouse",
+                "OVERFLOW",
+            ))
             .unwrap();
 
-        let transfer = StockTransfer::new(company_id, product.id.unwrap(), main.id.unwrap(), overflow.id.unwrap(), date(2026, 1, 10), dec!(30));
+        repo.record_movement(&StockMovement::new(
+            company_id,
+            product.id.unwrap(),
+            main.id.unwrap(),
+            date(2026, 1, 1),
+            MovementType::Purchase,
+            dec!(100),
+        ))
+        .unwrap();
+
+        let transfer = StockTransfer::new(
+            company_id,
+            product.id.unwrap(),
+            main.id.unwrap(),
+            overflow.id.unwrap(),
+            date(2026, 1, 10),
+            dec!(30),
+        );
         repo.post_transfer(&transfer).unwrap();
 
-        assert_eq!(repo.on_hand_quantity(company_id, product.id.unwrap(), main.id.unwrap()).unwrap(), dec!(70));
-        assert_eq!(repo.on_hand_quantity(company_id, product.id.unwrap(), overflow.id.unwrap()).unwrap(), dec!(30));
+        assert_eq!(
+            repo.on_hand_quantity(company_id, product.id.unwrap(), main.id.unwrap())
+                .unwrap(),
+            dec!(70)
+        );
+        assert_eq!(
+            repo.on_hand_quantity(company_id, product.id.unwrap(), overflow.id.unwrap())
+                .unwrap(),
+            dec!(30)
+        );
     }
 
     #[test]
     fn an_invalid_transfer_posts_neither_leg() {
         let (repo, company_id) = repo_with_company();
-        let product = repo.create_product(&Product::new(company_id, "WIDGET-1", "Widget")).unwrap();
-        let warehouse = repo.create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN")).unwrap();
+        let product = repo
+            .create_product(&Product::new(company_id, "WIDGET-1", "Widget"))
+            .unwrap();
+        let warehouse = repo
+            .create_warehouse(&Warehouse::new(company_id, "Main Warehouse", "MAIN"))
+            .unwrap();
 
-        let transfer = StockTransfer::new(company_id, product.id.unwrap(), warehouse.id.unwrap(), warehouse.id.unwrap(), date(2026, 1, 10), dec!(30));
+        let transfer = StockTransfer::new(
+            company_id,
+            product.id.unwrap(),
+            warehouse.id.unwrap(),
+            warehouse.id.unwrap(),
+            date(2026, 1, 10),
+            dec!(30),
+        );
         assert!(repo.post_transfer(&transfer).is_err());
-        assert!(repo.list_movements_for_product(company_id, product.id.unwrap()).unwrap().is_empty());
+        assert!(repo
+            .list_movements_for_product(company_id, product.id.unwrap())
+            .unwrap()
+            .is_empty());
     }
 }

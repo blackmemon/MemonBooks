@@ -4,8 +4,8 @@
 //! repository as later steps build them, since they all share this one
 //! migration set and company-scoped schema.
 
-use rust_decimal::Decimal;
 use rusqlite::{params, Connection, OptionalExtension, Row};
+use rust_decimal::Decimal;
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::accounts_payable::payables::Payable;
@@ -217,7 +217,11 @@ impl AccountingRepository {
         })
     }
 
-    pub fn get_account_by_code(&self, company_id: i64, account_code: &str) -> AppResult<Option<Account>> {
+    pub fn get_account_by_code(
+        &self,
+        company_id: i64,
+        account_code: &str,
+    ) -> AppResult<Option<Account>> {
         self.db.with_connection(|conn| {
             let found = conn
                 .query_row(
@@ -343,7 +347,11 @@ impl AccountingRepository {
     }
 
     /// The fiscal period (if any) that contains `date` for this company.
-    pub fn fiscal_period_for_date(&self, company_id: i64, date: chrono::NaiveDate) -> AppResult<Option<FiscalPeriod>> {
+    pub fn fiscal_period_for_date(
+        &self,
+        company_id: i64,
+        date: chrono::NaiveDate,
+    ) -> AppResult<Option<FiscalPeriod>> {
         self.db.with_connection(|conn| {
             conn.query_row(
                 "SELECT id, company_id, name, start_date, end_date, status FROM fiscal_periods
@@ -358,7 +366,11 @@ impl AccountingRepository {
 
     /// Applies a validated status transition (see
     /// `FiscalPeriodStatus::can_transition_to`) and persists it.
-    pub fn transition_fiscal_period_status(&self, id: i64, to: FiscalPeriodStatus) -> AppResult<FiscalPeriod> {
+    pub fn transition_fiscal_period_status(
+        &self,
+        id: i64,
+        to: FiscalPeriodStatus,
+    ) -> AppResult<FiscalPeriod> {
         let period = self.get_fiscal_period(id)?;
         if !period.status.can_transition_to(to) {
             return Err(AppError::Validation(format!(
@@ -374,7 +386,10 @@ impl AccountingRepository {
             )?;
             Ok(())
         })?;
-        Ok(FiscalPeriod { status: to, ..period })
+        Ok(FiscalPeriod {
+            status: to,
+            ..period
+        })
     }
 
     // -- transactions (the transaction engine's persistence) -----------
@@ -399,7 +414,11 @@ impl AccountingRepository {
     /// write -- used by sales invoices/credit notes/payments (Development
     /// Order step 10), so a GL posting can never exist without its
     /// matching subledger entry, or vice versa.
-    pub fn post_transaction_with_receivable(&self, transaction: &Transaction, receivable: &Receivable) -> AppResult<(Transaction, Receivable)> {
+    pub fn post_transaction_with_receivable(
+        &self,
+        transaction: &Transaction,
+        receivable: &Receivable,
+    ) -> AppResult<(Transaction, Receivable)> {
         self.validate_for_posting(transaction)?;
         receivable.validate()?;
         let (transaction_id, receivable_id) = self.db.with_transaction(|tx| {
@@ -421,14 +440,26 @@ impl AccountingRepository {
             Ok((transaction_id, tx.last_insert_rowid()))
         })?;
         Ok((
-            Transaction { id: Some(transaction_id), status: TransactionStatus::Posted, ..transaction.clone() },
-            Receivable { id: Some(receivable_id), transaction_id: Some(transaction_id), ..receivable.clone() },
+            Transaction {
+                id: Some(transaction_id),
+                status: TransactionStatus::Posted,
+                ..transaction.clone()
+            },
+            Receivable {
+                id: Some(receivable_id),
+                transaction_id: Some(transaction_id),
+                ..receivable.clone()
+            },
         ))
     }
 
     /// Posts `transaction` and records `payable` atomically. Mirrors
     /// `post_transaction_with_receivable`.
-    pub fn post_transaction_with_payable(&self, transaction: &Transaction, payable: &Payable) -> AppResult<(Transaction, Payable)> {
+    pub fn post_transaction_with_payable(
+        &self,
+        transaction: &Transaction,
+        payable: &Payable,
+    ) -> AppResult<(Transaction, Payable)> {
         self.validate_for_posting(transaction)?;
         payable.validate()?;
         let (transaction_id, payable_id) = self.db.with_transaction(|tx| {
@@ -450,8 +481,16 @@ impl AccountingRepository {
             Ok((transaction_id, tx.last_insert_rowid()))
         })?;
         Ok((
-            Transaction { id: Some(transaction_id), status: TransactionStatus::Posted, ..transaction.clone() },
-            Payable { id: Some(payable_id), transaction_id: Some(transaction_id), ..payable.clone() },
+            Transaction {
+                id: Some(transaction_id),
+                status: TransactionStatus::Posted,
+                ..transaction.clone()
+            },
+            Payable {
+                id: Some(payable_id),
+                transaction_id: Some(transaction_id),
+                ..payable.clone()
+            },
         ))
     }
 
@@ -470,7 +509,10 @@ impl AccountingRepository {
     /// The shared insert path: transaction header, every line, the
     /// reversal link on the original (if any), and the audit log entry --
     /// all within the caller's open `tx`. Returns the new transaction's id.
-    pub(crate) fn insert_transaction_and_lines(tx: &rusqlite::Transaction, transaction: &Transaction) -> AppResult<i64> {
+    pub(crate) fn insert_transaction_and_lines(
+        tx: &rusqlite::Transaction,
+        transaction: &Transaction,
+    ) -> AppResult<i64> {
         tx.execute(
             "INSERT INTO transactions
              (company_id, transaction_type, transaction_date, description, status,
@@ -511,7 +553,10 @@ impl AccountingRepository {
             )?;
         }
 
-        let mut entry = AuditLog::new(format!("accounting.transaction.{}", transaction.transaction_type.as_str()));
+        let mut entry = AuditLog::new(format!(
+            "accounting.transaction.{}",
+            transaction.transaction_type.as_str()
+        ));
         entry.user_id = transaction.posted_by_user_id;
         entry.entity_type = Some("transaction".into());
         entry.entity_id = Some(transaction_id.to_string());
@@ -561,7 +606,11 @@ impl AccountingRepository {
     /// Builds and posts the reversal of an already-posted transaction.
     /// The original is *not* edited beyond its status/reversal link
     /// (Architecture Rules, Section 3: posted entries are immutable).
-    pub fn reverse_transaction(&self, original_id: i64, reversal_date: chrono::NaiveDate) -> AppResult<Transaction> {
+    pub fn reverse_transaction(
+        &self,
+        original_id: i64,
+        reversal_date: chrono::NaiveDate,
+    ) -> AppResult<Transaction> {
         let original = self.get_transaction(original_id)?;
         let reversal = original.build_reversal(reversal_date)?;
         self.post_transaction(&reversal)
@@ -605,56 +654,72 @@ impl AccountingRepository {
         })?;
 
         let bare_postings: Vec<Posting> = postings.iter().map(|(p, _)| *p).collect();
-        let balances = general_ledger::running_balances(account.normal_balance(), opening_balance, &bare_postings);
+        let balances = general_ledger::running_balances(
+            account.normal_balance(),
+            opening_balance,
+            &bare_postings,
+        );
 
         Ok(postings
             .into_iter()
             .zip(balances)
-            .map(|((posting, description), running_balance)| GeneralLedgerEntry {
-                transaction_id: posting.transaction_id,
-                transaction_date: posting.transaction_date,
-                description,
-                debit: posting.debit,
-                credit: posting.credit,
-                running_balance,
-            })
+            .map(
+                |((posting, description), running_balance)| GeneralLedgerEntry {
+                    transaction_id: posting.transaction_id,
+                    transaction_date: posting.transaction_date,
+                    description,
+                    debit: posting.debit,
+                    credit: posting.credit,
+                    running_balance,
+                },
+            )
             .collect())
     }
 
     /// Every account's net balance as of `as_of`, shown on whichever side
     /// it actually falls on. Derived entirely from posted transaction
     /// lines -- nothing here is a stored total.
-    pub fn trial_balance_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<TrialBalance> {
+    pub fn trial_balance_as_of(
+        &self,
+        company_id: i64,
+        as_of: chrono::NaiveDate,
+    ) -> AppResult<TrialBalance> {
         let accounts = self.list_accounts_for_company(company_id)?;
 
-        let net_movements: std::collections::HashMap<i64, Decimal> = self.db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT tl.account_id, tl.debit, tl.credit
+        let net_movements: std::collections::HashMap<i64, Decimal> =
+            self.db.with_connection(|conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT tl.account_id, tl.debit, tl.credit
                  FROM transaction_lines tl
                  JOIN transactions t ON t.id = tl.transaction_id
                  WHERE t.company_id = ?1 AND t.status != 'draft' AND t.transaction_date <= ?2",
-            )?;
-            let rows = stmt.query_map(params![company_id, as_of], |row| {
-                let debit_text: String = row.get(1)?;
-                let credit_text: String = row.get(2)?;
-                let debit: Decimal = debit_text.parse().unwrap_or(Decimal::ZERO);
-                let credit: Decimal = credit_text.parse().unwrap_or(Decimal::ZERO);
-                Ok((row.get::<_, i64>(0)?, debit - credit))
-            })?;
+                )?;
+                let rows = stmt.query_map(params![company_id, as_of], |row| {
+                    let debit_text: String = row.get(1)?;
+                    let credit_text: String = row.get(2)?;
+                    let debit: Decimal = debit_text.parse().unwrap_or(Decimal::ZERO);
+                    let credit: Decimal = credit_text.parse().unwrap_or(Decimal::ZERO);
+                    Ok((row.get::<_, i64>(0)?, debit - credit))
+                })?;
 
-            let mut totals = std::collections::HashMap::new();
-            for row in rows {
-                let (account_id, net) = row?;
-                *totals.entry(account_id).or_insert(Decimal::ZERO) += net;
-            }
-            Ok(totals)
-        })?;
+                let mut totals = std::collections::HashMap::new();
+                for row in rows {
+                    let (account_id, net) = row?;
+                    *totals.entry(account_id).or_insert(Decimal::ZERO) += net;
+                }
+                Ok(totals)
+            })?;
 
         let lines = accounts
             .into_iter()
             .filter_map(|account| {
                 let net = *net_movements.get(&account.id.unwrap())?;
-                Some(TrialBalanceLine::from_net_movement(account.id.unwrap(), account.account_code, account.account_name, net))
+                Some(TrialBalanceLine::from_net_movement(
+                    account.id.unwrap(),
+                    account.account_code,
+                    account.account_name,
+                    net,
+                ))
             })
             .collect();
 
@@ -665,7 +730,11 @@ impl AccountingRepository {
 
     /// Revenue and expense account balances as of a date, shaped for
     /// `period_closing::build_closing_transaction`.
-    pub fn revenue_and_expense_balances_as_of(&self, company_id: i64, as_of: chrono::NaiveDate) -> AppResult<Vec<ClosingBalance>> {
+    pub fn revenue_and_expense_balances_as_of(
+        &self,
+        company_id: i64,
+        as_of: chrono::NaiveDate,
+    ) -> AppResult<Vec<ClosingBalance>> {
         let accounts = self.list_accounts_for_company(company_id)?;
         let trial_balance = self.trial_balance_as_of(company_id, as_of)?;
 
@@ -674,7 +743,10 @@ impl AccountingRepository {
             .iter()
             .filter_map(|line| {
                 let account = accounts.iter().find(|a| a.id == Some(line.account_id))?;
-                if !matches!(account.account_type, AccountType::Revenue | AccountType::Expense) {
+                if !matches!(
+                    account.account_type,
+                    AccountType::Revenue | AccountType::Expense
+                ) {
                     return None;
                 }
                 Some(ClosingBalance {
@@ -840,7 +912,11 @@ impl AccountingRepository {
 fn map_account(row: &Row) -> rusqlite::Result<Account> {
     let account_type_text: String = row.get(4)?;
     let account_type = AccountType::parse(&account_type_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, "invalid account_type".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            4,
+            rusqlite::types::Type::Text,
+            "invalid account_type".into(),
+        )
     })?;
     Ok(Account {
         id: Some(row.get(0)?),
@@ -865,7 +941,8 @@ fn map_account(row: &Row) -> rusqlite::Result<Account> {
 /// shape (user_repository) since SQLite has no native array/JSON type
 /// this codebase otherwise relies on.
 fn account_attachments(conn: &Connection, account_id: i64) -> rusqlite::Result<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT file_name FROM account_attachments WHERE account_id = ?1 ORDER BY id")?;
+    let mut stmt = conn
+        .prepare("SELECT file_name FROM account_attachments WHERE account_id = ?1 ORDER BY id")?;
     let rows = stmt.query_map(params![account_id], |row| row.get::<_, String>(0))?;
     rows.collect()
 }
@@ -873,7 +950,11 @@ fn account_attachments(conn: &Connection, account_id: i64) -> rusqlite::Result<V
 fn map_fiscal_period(row: &Row) -> rusqlite::Result<FiscalPeriod> {
     let status_text: String = row.get(5)?;
     let status = FiscalPeriodStatus::parse(&status_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid fiscal period status".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid fiscal period status".into(),
+        )
     })?;
     Ok(FiscalPeriod {
         id: Some(row.get(0)?),
@@ -888,11 +969,19 @@ fn map_fiscal_period(row: &Row) -> rusqlite::Result<FiscalPeriod> {
 fn map_transaction(row: &Row) -> rusqlite::Result<Transaction> {
     let transaction_type_text: String = row.get(2)?;
     let transaction_type = TransactionType::parse(&transaction_type_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, "invalid transaction_type".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            "invalid transaction_type".into(),
+        )
     })?;
     let status_text: String = row.get(5)?;
     let status = TransactionStatus::parse(&status_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, "invalid transaction status".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            "invalid transaction status".into(),
+        )
     })?;
     Ok(Transaction {
         id: Some(row.get(0)?),
@@ -945,7 +1034,11 @@ fn map_transaction_line(row: &Row) -> rusqlite::Result<TransactionLine> {
     let credit_text: String = row.get(4)?;
     let parse_decimal = |field: usize, text: &str| {
         text.parse().map_err(|_| {
-            rusqlite::Error::FromSqlConversionFailure(field, rusqlite::types::Type::Text, "invalid decimal".into())
+            rusqlite::Error::FromSqlConversionFailure(
+                field,
+                rusqlite::types::Type::Text,
+                "invalid decimal".into(),
+            )
         })
     };
     Ok(TransactionLine {
@@ -971,13 +1064,17 @@ mod tests {
 
     fn db_with_company() -> (Database, i64) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::repositories::party_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::repositories::party_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
         db.run_migrations(audit_logs::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
 
         (db, company.id.unwrap())
     }
@@ -989,7 +1086,13 @@ mod tests {
     #[test]
     fn creates_and_fetches_an_account_by_code() {
         let (repo, company_id) = repo_with_company();
-        repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        repo.create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
 
         let found = repo
             .get_account_by_code(company_id, "1000")
@@ -1002,17 +1105,39 @@ mod tests {
     #[test]
     fn account_codes_are_unique_per_company() {
         let (repo, company_id) = repo_with_company();
-        repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let result = repo.create_account(&Account::new(company_id, "1000", "Duplicate", AccountType::Asset));
+        repo.create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
+        let result = repo.create_account(&Account::new(
+            company_id,
+            "1000",
+            "Duplicate",
+            AccountType::Asset,
+        ));
         assert!(matches!(result, Err(AppError::Database(_))));
     }
 
     #[test]
     fn update_account_persists_changed_fields() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let created = repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
-        repo.update_account(&Account { account_name: "Petty Cash".into(), ..created.clone() }).unwrap();
+        repo.update_account(&Account {
+            account_name: "Petty Cash".into(),
+            ..created.clone()
+        })
+        .unwrap();
 
         let fetched = repo.get_account(created.id.unwrap()).unwrap();
         assert_eq!(fetched.account_name, "Petty Cash");
@@ -1021,7 +1146,14 @@ mod tests {
     #[test]
     fn delete_account_removes_an_unreferenced_account() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        let created = repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
         repo.delete_account(created.id.unwrap()).unwrap();
 
@@ -1031,13 +1163,43 @@ mod tests {
     #[test]
     fn delete_account_is_rejected_with_a_clear_message_when_still_referenced() {
         let (repo, company_id) = repo_with_company();
-        let cash = repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
+        let cash = repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = repo
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "Open Period",
+            date(2026, 1, 1),
+            date(2030, 12, 31),
+        ))
+        .unwrap();
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
-                .with_line(TransactionLine::debit(cash.id.unwrap(), rust_decimal_macros::dec!(100)))
-                .with_line(TransactionLine::credit(capital.id.unwrap(), rust_decimal_macros::dec!(100))),
+            &Transaction::new(
+                company_id,
+                TransactionType::OpeningBalance,
+                date(2026, 1, 1),
+            )
+            .with_line(TransactionLine::debit(
+                cash.id.unwrap(),
+                rust_decimal_macros::dec!(100),
+            ))
+            .with_line(TransactionLine::credit(
+                capital.id.unwrap(),
+                rust_decimal_macros::dec!(100),
+            )),
         )
         .unwrap();
 
@@ -1054,7 +1216,12 @@ mod tests {
     fn parent_child_accounts_round_trip() {
         let (repo, company_id) = repo_with_company();
         let parent = repo
-            .create_account(&Account::new(company_id, "1000", "Current Assets", AccountType::Asset))
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Current Assets",
+                AccountType::Asset,
+            ))
             .unwrap();
 
         let mut child = Account::new(company_id, "1010", "Cash", AccountType::Asset);
@@ -1068,10 +1235,20 @@ mod tests {
     #[test]
     fn fiscal_period_for_date_finds_the_containing_period() {
         let (repo, company_id) = repo_with_company();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
-            .unwrap();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "February 2026", date(2026, 2, 1), date(2026, 2, 28)))
-            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
+        .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "February 2026",
+            date(2026, 2, 1),
+            date(2026, 2, 28),
+        ))
+        .unwrap();
 
         let found = repo
             .fiscal_period_for_date(company_id, date(2026, 2, 15))
@@ -1079,14 +1256,22 @@ mod tests {
             .expect("February should contain this date");
         assert_eq!(found.name, "February 2026");
 
-        assert!(repo.fiscal_period_for_date(company_id, date(2026, 3, 1)).unwrap().is_none());
+        assert!(repo
+            .fiscal_period_for_date(company_id, date(2026, 3, 1))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
     fn valid_status_transition_persists() {
         let (repo, company_id) = repo_with_company();
         let period = repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
 
         let closed = repo
@@ -1102,10 +1287,16 @@ mod tests {
     fn invalid_status_transition_is_rejected_and_not_persisted() {
         let (repo, company_id) = repo_with_company();
         let period = repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
 
-        let result = repo.transition_fiscal_period_status(period.id.unwrap(), FiscalPeriodStatus::Locked);
+        let result =
+            repo.transition_fiscal_period_status(period.id.unwrap(), FiscalPeriodStatus::Locked);
         assert!(result.is_err());
 
         let refetched = repo.get_fiscal_period(period.id.unwrap()).unwrap();
@@ -1114,13 +1305,28 @@ mod tests {
 
     fn repo_with_company_and_accounts() -> (AccountingRepository, i64, i64, i64) {
         let (repo, company_id) = repo_with_company();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
-            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
+        .unwrap();
         let cash = repo
-            .create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset))
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
             .unwrap();
         let capital = repo
-            .create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity))
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
             .unwrap();
         (repo, company_id, cash.id.unwrap(), capital.id.unwrap())
     }
@@ -1128,9 +1334,19 @@ mod tests {
     #[test]
     fn posting_a_balanced_transaction_persists_header_lines_and_audit_entry() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
-        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
-            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(5000)));
+        let transaction = Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 15),
+        )
+        .with_line(TransactionLine::debit(
+            cash_id,
+            rust_decimal_macros::dec!(5000),
+        ))
+        .with_line(TransactionLine::credit(
+            capital_id,
+            rust_decimal_macros::dec!(5000),
+        ));
 
         let posted = repo.post_transaction(&transaction).unwrap();
         assert!(posted.id.is_some());
@@ -1142,27 +1358,50 @@ mod tests {
 
         let audit = audit_logs::list_recent(&repo.db, 10).unwrap();
         assert_eq!(audit.len(), 1);
-        assert_eq!(audit[0].entity_id.as_deref(), Some(posted.id.unwrap().to_string().as_str()));
+        assert_eq!(
+            audit[0].entity_id.as_deref(),
+            Some(posted.id.unwrap().to_string().as_str())
+        );
     }
 
     #[test]
     fn posting_an_unbalanced_transaction_is_rejected_and_nothing_is_written() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
-        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
-            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(4000)));
+        let transaction = Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 15),
+        )
+        .with_line(TransactionLine::debit(
+            cash_id,
+            rust_decimal_macros::dec!(5000),
+        ))
+        .with_line(TransactionLine::credit(
+            capital_id,
+            rust_decimal_macros::dec!(4000),
+        ));
 
         let result = repo.post_transaction(&transaction);
         assert!(result.is_err());
-        assert!(repo.list_transactions_for_company(company_id).unwrap().is_empty());
+        assert!(repo
+            .list_transactions_for_company(company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
     fn posting_outside_the_fiscal_period_range_is_rejected() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
-        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 3, 1))
-            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
-            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100)));
+        let transaction =
+            Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 3, 1))
+                .with_line(TransactionLine::debit(
+                    cash_id,
+                    rust_decimal_macros::dec!(100),
+                ))
+                .with_line(TransactionLine::credit(
+                    capital_id,
+                    rust_decimal_macros::dec!(100),
+                ));
 
         assert!(repo.post_transaction(&transaction).is_err());
     }
@@ -1174,9 +1413,19 @@ mod tests {
         repo.transition_fiscal_period_status(periods[0].id.unwrap(), FiscalPeriodStatus::Closed)
             .unwrap();
 
-        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
-            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100)));
+        let transaction = Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 15),
+        )
+        .with_line(TransactionLine::debit(
+            cash_id,
+            rust_decimal_macros::dec!(100),
+        ))
+        .with_line(TransactionLine::credit(
+            capital_id,
+            rust_decimal_macros::dec!(100),
+        ));
 
         assert!(repo.post_transaction(&transaction).is_err());
     }
@@ -1184,12 +1433,24 @@ mod tests {
     #[test]
     fn reversing_a_posted_transaction_balances_it_out_and_marks_the_original_reversed() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
-        let transaction = Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-            .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
-            .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(5000)));
+        let transaction = Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 15),
+        )
+        .with_line(TransactionLine::debit(
+            cash_id,
+            rust_decimal_macros::dec!(5000),
+        ))
+        .with_line(TransactionLine::credit(
+            capital_id,
+            rust_decimal_macros::dec!(5000),
+        ));
         let posted = repo.post_transaction(&transaction).unwrap();
 
-        let reversal = repo.reverse_transaction(posted.id.unwrap(), date(2026, 1, 20)).unwrap();
+        let reversal = repo
+            .reverse_transaction(posted.id.unwrap(), date(2026, 1, 20))
+            .unwrap();
         assert_eq!(reversal.transaction_type, TransactionType::Reversal);
         assert_eq!(reversal.reverses_transaction_id, posted.id);
 
@@ -1219,14 +1480,30 @@ mod tests {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
         repo.post_transaction(
             &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(1000)))
-                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(1000))),
+                .with_line(TransactionLine::debit(
+                    cash_id,
+                    rust_decimal_macros::dec!(1000),
+                ))
+                .with_line(TransactionLine::credit(
+                    capital_id,
+                    rust_decimal_macros::dec!(1000),
+                )),
         )
         .unwrap();
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 20))
-                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(300)))
-                .with_line(TransactionLine::debit(capital_id, rust_decimal_macros::dec!(300))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 20),
+            )
+            .with_line(TransactionLine::credit(
+                cash_id,
+                rust_decimal_macros::dec!(300),
+            ))
+            .with_line(TransactionLine::debit(
+                capital_id,
+                rust_decimal_macros::dec!(300),
+            )),
         )
         .unwrap();
 
@@ -1243,8 +1520,14 @@ mod tests {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
         repo.post_transaction(
             &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(100)))
-                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(100))),
+                .with_line(TransactionLine::debit(
+                    cash_id,
+                    rust_decimal_macros::dec!(100),
+                ))
+                .with_line(TransactionLine::credit(
+                    capital_id,
+                    rust_decimal_macros::dec!(100),
+                )),
         )
         .unwrap();
 
@@ -1265,66 +1548,126 @@ mod tests {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
         repo.post_transaction(
             &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 5))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(1000)))
-                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(1000))),
+                .with_line(TransactionLine::debit(
+                    cash_id,
+                    rust_decimal_macros::dec!(1000),
+                ))
+                .with_line(TransactionLine::credit(
+                    capital_id,
+                    rust_decimal_macros::dec!(1000),
+                )),
         )
         .unwrap();
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 20))
-                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(300)))
-                .with_line(TransactionLine::debit(capital_id, rust_decimal_macros::dec!(300))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 20),
+            )
+            .with_line(TransactionLine::credit(
+                cash_id,
+                rust_decimal_macros::dec!(300),
+            ))
+            .with_line(TransactionLine::debit(
+                capital_id,
+                rust_decimal_macros::dec!(300),
+            )),
         )
         .unwrap();
 
-        let mid_month = repo.trial_balance_as_of(company_id, date(2026, 1, 10)).unwrap();
+        let mid_month = repo
+            .trial_balance_as_of(company_id, date(2026, 1, 10))
+            .unwrap();
         assert!(mid_month.is_balanced());
-        let cash_line = mid_month.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        let cash_line = mid_month
+            .lines
+            .iter()
+            .find(|l| l.account_id == cash_id)
+            .unwrap();
         assert_eq!(cash_line.debit, rust_decimal_macros::dec!(1000));
 
-        let end_month = repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+        let end_month = repo
+            .trial_balance_as_of(company_id, date(2026, 1, 31))
+            .unwrap();
         assert!(end_month.is_balanced());
-        let cash_line = end_month.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        let cash_line = end_month
+            .lines
+            .iter()
+            .find(|l| l.account_id == cash_id)
+            .unwrap();
         assert_eq!(cash_line.debit, rust_decimal_macros::dec!(700));
     }
 
     #[test]
     fn posting_opening_balances_seeds_the_trial_balance() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
-        let opening = crate::backend::accounting::opening_balances::OpeningBalances::new(company_id, date(2026, 1, 1))
-            .with_balance(cash_id, rust_decimal_macros::dec!(10000))
-            .with_balance(capital_id, rust_decimal_macros::dec!(-10000))
-            .into_transaction();
+        let opening = crate::backend::accounting::opening_balances::OpeningBalances::new(
+            company_id,
+            date(2026, 1, 1),
+        )
+        .with_balance(cash_id, rust_decimal_macros::dec!(10000))
+        .with_balance(capital_id, rust_decimal_macros::dec!(-10000))
+        .into_transaction();
 
         repo.post_transaction(&opening).unwrap();
 
-        let trial_balance = repo.trial_balance_as_of(company_id, date(2026, 1, 1)).unwrap();
+        let trial_balance = repo
+            .trial_balance_as_of(company_id, date(2026, 1, 1))
+            .unwrap();
         assert!(trial_balance.is_balanced());
-        let cash_line = trial_balance.lines.iter().find(|l| l.account_id == cash_id).unwrap();
+        let cash_line = trial_balance
+            .lines
+            .iter()
+            .find(|l| l.account_id == cash_id)
+            .unwrap();
         assert_eq!(cash_line.debit, rust_decimal_macros::dec!(10000));
     }
 
     #[test]
     fn closing_a_period_out_of_order_is_rejected() {
         let (repo, company_id) = repo_with_company();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "December 2025", date(2025, 12, 1), date(2025, 12, 31)))
-            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "December 2025",
+            date(2025, 12, 1),
+            date(2025, 12, 31),
+        ))
+        .unwrap();
         let january = repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                date(2026, 1, 1),
+                date(2026, 1, 31),
+            ))
             .unwrap();
 
         let result = repo.close_fiscal_period(january.id.unwrap());
         assert!(result.is_err());
-        assert_eq!(repo.get_fiscal_period(january.id.unwrap()).unwrap().status, FiscalPeriodStatus::Open);
+        assert_eq!(
+            repo.get_fiscal_period(january.id.unwrap()).unwrap().status,
+            FiscalPeriodStatus::Open
+        );
     }
 
     #[test]
     fn closing_the_earliest_open_period_succeeds() {
         let (repo, company_id) = repo_with_company();
         let december = repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "December 2025", date(2025, 12, 1), date(2025, 12, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "December 2025",
+                date(2025, 12, 1),
+                date(2025, 12, 31),
+            ))
             .unwrap();
-        repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
-            .unwrap();
+        repo.create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
+        .unwrap();
 
         let closed = repo.close_fiscal_period(december.id.unwrap()).unwrap();
         assert_eq!(closed.status, FiscalPeriodStatus::Closed);
@@ -1334,24 +1677,51 @@ mod tests {
     fn revenue_and_expense_balances_as_of_excludes_balance_sheet_accounts() {
         let (repo, company_id, cash_id, capital_id) = repo_with_company_and_accounts();
         let sales = repo
-            .create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue))
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
             .unwrap();
 
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(2000)))
-                .with_line(TransactionLine::credit(sales.id.unwrap(), rust_decimal_macros::dec!(2000))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 15),
+            )
+            .with_line(TransactionLine::debit(
+                cash_id,
+                rust_decimal_macros::dec!(2000),
+            ))
+            .with_line(TransactionLine::credit(
+                sales.id.unwrap(),
+                rust_decimal_macros::dec!(2000),
+            )),
         )
         .unwrap();
         // A balance-sheet-only entry that should not show up as revenue/expense.
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 16))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(500)))
-                .with_line(TransactionLine::credit(capital_id, rust_decimal_macros::dec!(500))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 16),
+            )
+            .with_line(TransactionLine::debit(
+                cash_id,
+                rust_decimal_macros::dec!(500),
+            ))
+            .with_line(TransactionLine::credit(
+                capital_id,
+                rust_decimal_macros::dec!(500),
+            )),
         )
         .unwrap();
 
-        let balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
+        let balances = repo
+            .revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31))
+            .unwrap();
         assert_eq!(balances.len(), 1);
         assert_eq!(balances[0].account_id, sales.id.unwrap());
         assert_eq!(balances[0].net_balance, rust_decimal_macros::dec!(-2000));
@@ -1361,41 +1731,95 @@ mod tests {
     fn end_to_end_closing_entry_posts_and_zeroes_revenue_and_expense() {
         let (repo, company_id, cash_id, _capital_id) = repo_with_company_and_accounts();
         let sales = repo
-            .create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue))
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
             .unwrap();
         let rent = repo
-            .create_account(&Account::new(company_id, "5000", "Rent Expense", AccountType::Expense))
+            .create_account(&Account::new(
+                company_id,
+                "5000",
+                "Rent Expense",
+                AccountType::Expense,
+            ))
             .unwrap();
         let retained_earnings = repo
-            .create_account(&Account::new(company_id, "3900", "Retained Earnings", AccountType::Equity))
+            .create_account(&Account::new(
+                company_id,
+                "3900",
+                "Retained Earnings",
+                AccountType::Equity,
+            ))
             .unwrap();
 
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 10))
-                .with_line(TransactionLine::debit(cash_id, rust_decimal_macros::dec!(5000)))
-                .with_line(TransactionLine::credit(sales.id.unwrap(), rust_decimal_macros::dec!(5000))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 10),
+            )
+            .with_line(TransactionLine::debit(
+                cash_id,
+                rust_decimal_macros::dec!(5000),
+            ))
+            .with_line(TransactionLine::credit(
+                sales.id.unwrap(),
+                rust_decimal_macros::dec!(5000),
+            )),
         )
         .unwrap();
         repo.post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 12))
-                .with_line(TransactionLine::debit(rent.id.unwrap(), rust_decimal_macros::dec!(1200)))
-                .with_line(TransactionLine::credit(cash_id, rust_decimal_macros::dec!(1200))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 12),
+            )
+            .with_line(TransactionLine::debit(
+                rent.id.unwrap(),
+                rust_decimal_macros::dec!(1200),
+            ))
+            .with_line(TransactionLine::credit(
+                cash_id,
+                rust_decimal_macros::dec!(1200),
+            )),
         )
         .unwrap();
 
-        let balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
-        let closing_transaction =
-            period_closing::build_closing_transaction(company_id, date(2026, 1, 31), retained_earnings.id.unwrap(), &balances)
-                .expect("there should be something to close");
+        let balances = repo
+            .revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31))
+            .unwrap();
+        let closing_transaction = period_closing::build_closing_transaction(
+            company_id,
+            date(2026, 1, 31),
+            retained_earnings.id.unwrap(),
+            &balances,
+        )
+        .expect("there should be something to close");
         repo.post_transaction(&closing_transaction).unwrap();
 
-        let post_closing_balances = repo.revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31)).unwrap();
-        assert!(post_closing_balances.iter().all(|b| b.net_balance == Decimal::ZERO));
+        let post_closing_balances = repo
+            .revenue_and_expense_balances_as_of(company_id, date(2026, 1, 31))
+            .unwrap();
+        assert!(post_closing_balances
+            .iter()
+            .all(|b| b.net_balance == Decimal::ZERO));
 
-        let trial_balance = repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+        let trial_balance = repo
+            .trial_balance_as_of(company_id, date(2026, 1, 31))
+            .unwrap();
         assert!(trial_balance.is_balanced());
-        let retained_earnings_line = trial_balance.lines.iter().find(|l| l.account_id == retained_earnings.id.unwrap()).unwrap();
-        assert_eq!(retained_earnings_line.credit, rust_decimal_macros::dec!(3800));
+        let retained_earnings_line = trial_balance
+            .lines
+            .iter()
+            .find(|l| l.account_id == retained_earnings.id.unwrap())
+            .unwrap();
+        assert_eq!(
+            retained_earnings_line.credit,
+            rust_decimal_macros::dec!(3800)
+        );
     }
 
     #[test]
@@ -1404,7 +1828,10 @@ mod tests {
         let repo = AccountingRepository::new(db.clone());
         let party_repo = crate::backend::repositories::party_repository::PartyRepository::new(db);
         let customer = party_repo
-            .create_customer(&crate::backend::parties::customers::Customer::new(company_id, "Acme Retail"))
+            .create_customer(&crate::backend::parties::customers::Customer::new(
+                company_id,
+                "Acme Retail",
+            ))
             .unwrap();
 
         let receivable = repo
@@ -1417,11 +1844,22 @@ mod tests {
             ))
             .unwrap();
 
-        assert_eq!(repo.list_open_receivables_for_company(company_id).unwrap().len(), 1);
+        assert_eq!(
+            repo.list_open_receivables_for_company(company_id)
+                .unwrap()
+                .len(),
+            1
+        );
 
-        repo.apply_receivable_payments(&[(receivable.id.unwrap(), rust_decimal_macros::dec!(1000))])
-            .unwrap();
-        assert!(repo.list_open_receivables_for_company(company_id).unwrap().is_empty());
+        repo.apply_receivable_payments(&[(
+            receivable.id.unwrap(),
+            rust_decimal_macros::dec!(1000),
+        )])
+        .unwrap();
+        assert!(repo
+            .list_open_receivables_for_company(company_id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -1430,7 +1868,10 @@ mod tests {
         let repo = AccountingRepository::new(db.clone());
         let party_repo = crate::backend::repositories::party_repository::PartyRepository::new(db);
         let vendor = party_repo
-            .create_vendor(&crate::backend::parties::vendors::Vendor::new(company_id, "Acme Supplies Ltd"))
+            .create_vendor(&crate::backend::parties::vendors::Vendor::new(
+                company_id,
+                "Acme Supplies Ltd",
+            ))
             .unwrap();
 
         let payable = repo

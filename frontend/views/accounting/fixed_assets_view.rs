@@ -38,8 +38,14 @@ pub enum Message {
 pub fn load(ctx: &Ctx) -> State {
     let service = FixedAssetService::new(ctx.db.clone());
     match service.list_assets(ctx.company_id) {
-        Ok(assets) => State { assets, ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(assets) => State {
+            assets,
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -51,9 +57,14 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             let today = Utc::now().date_naive();
             match service.record_depreciation(asset_id, today) {
                 Ok(Some(transaction)) => {
-                    state.message = Some(format!("Posted depreciation transaction #{}.", transaction.id.unwrap_or_default()));
+                    state.message = Some(format!(
+                        "Posted depreciation transaction #{}.",
+                        transaction.id.unwrap_or_default()
+                    ));
                     if let Ok(updated) = service.get_asset(asset_id) {
-                        if let Some(existing) = state.assets.iter_mut().find(|a| a.id == Some(asset_id)) {
+                        if let Some(existing) =
+                            state.assets.iter_mut().find(|a| a.id == Some(asset_id))
+                        {
                             *existing = updated;
                         }
                     }
@@ -69,12 +80,21 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // sort/secondary-action behavior is follow-up work, not part of
         // this layout pass. Depreciating is this row's primary action
         // (the visible button), not a kebab action.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
+        Message::TabSelected(_)
+        | Message::FiltersClicked
+        | Message::SortClicked
+        | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header = page_header::view(theme, "Fixed Assets", "Everything this company owns and depreciates.", "Refresh", Message::Refresh);
+    let header = page_header::view(
+        theme,
+        "Fixed Assets",
+        "Everything this company owns and depreciates.",
+        "Refresh",
+        Message::Refresh,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -90,10 +110,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "Asset list", "Cost, accumulated depreciation, and current book value.");
+    let heading = section_heading::view(
+        theme,
+        "Asset list",
+        "Cost, accumulated depreciation, and current book value.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Asset> = state.assets.iter().filter(|asset| query.is_empty() || asset.name.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&Asset> = state
+        .assets
+        .iter()
+        .filter(|asset| query.is_empty() || asset.name.to_lowercase().contains(&query))
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Asset", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -115,10 +143,25 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .collect();
 
-    let asset_ids: Vec<i64> = filtered.iter().map(|asset| asset.id.unwrap_or_default()).collect();
-    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, move |index| Message::RecordDepreciation(asset_ids[index]));
+    let asset_ids: Vec<i64> = filtered
+        .iter()
+        .map(|asset| asset.id.unwrap_or_default())
+        .collect();
+    let table = data_table::view(
+        theme,
+        columns,
+        rows,
+        None,
+        |_index, _checked| Message::RowAction(0),
+        |_checked| Message::RowAction(0),
+        Message::RowAction,
+        move |index| Message::RecordDepreciation(asset_ids[index]),
+    );
 
-    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));
@@ -127,7 +170,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -152,31 +197,98 @@ mod tests {
 
     fn ctx_with_one_asset() -> (Ctx, i64) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
-        db.run_migrations(fixed_asset_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(fixed_asset_repository::MIGRATIONS)
+            .unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
         // Spans acquisition through well past "today" so depreciation
         // (dated `Utc::now()` by the view) always lands inside an open period.
-        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
-        let asset_account = accounting_repo.create_account(&Account::new(company_id, "1500", "Equipment", AccountType::Asset)).unwrap();
-        let accum_depr = accounting_repo.create_account(&Account::new(company_id, "1510", "Accumulated Depreciation", AccountType::Asset)).unwrap();
-        let depr_expense = accounting_repo.create_account(&Account::new(company_id, "6100", "Depreciation Expense", AccountType::Expense)).unwrap();
-        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+        accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
+            .unwrap();
+        let asset_account = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1500",
+                "Equipment",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let accum_depr = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1510",
+                "Accumulated Depreciation",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let depr_expense = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "6100",
+                "Depreciation Expense",
+                AccountType::Expense,
+            ))
+            .unwrap();
+        let cash = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
         let asset_repo = FixedAssetRepository::new(db.clone());
         let category = asset_repo
-            .create_category(&AssetCategory::new(company_id, "Equipment", asset_account.id.unwrap(), accum_depr.id.unwrap(), depr_expense.id.unwrap(), 5))
+            .create_category(&AssetCategory::new(
+                company_id,
+                "Equipment",
+                asset_account.id.unwrap(),
+                accum_depr.id.unwrap(),
+                depr_expense.id.unwrap(),
+                5,
+            ))
             .unwrap();
-        let asset = Asset::new(company_id, category.id.unwrap(), "Office Laptop", date(2026, 1, 1), dec!(6000), dec!(0), 5);
+        let asset = Asset::new(
+            company_id,
+            category.id.unwrap(),
+            "Office Laptop",
+            date(2026, 1, 1),
+            dec!(6000),
+            dec!(0),
+            5,
+        );
         let (created, _transaction) = asset_repo.acquire_asset(&asset, cash.id.unwrap()).unwrap();
 
-        (Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }, created.id.unwrap())
+        (
+            Ctx {
+                db,
+                company_id,
+                current_user_id: None,
+                export_dir: PathBuf::from("."),
+                uploads_dir: PathBuf::from("."),
+            },
+            created.id.unwrap(),
+        )
     }
 
     #[test]
@@ -198,7 +310,11 @@ mod tests {
 
         update(&mut state, Message::RecordDepreciation(asset_id), &ctx);
 
-        assert!(state.message.as_deref().unwrap_or_default().starts_with("Posted depreciation transaction"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("Posted depreciation transaction"));
         assert!(state.error.is_none());
         assert_eq!(state.assets[0].accumulated_depreciation, dec!(1200)); // 6000 / 5 years
     }

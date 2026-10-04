@@ -39,7 +39,9 @@ fn crate_root() -> PathBuf {
 }
 
 fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -79,10 +81,16 @@ fn is_forbidden_numeric_literal(arg: &str) -> bool {
     if arg.chars().any(|character| character.is_alphabetic()) {
         return false;
     }
-    arg.chars().any(|character| character.is_ascii_digit() && character != '0')
+    arg.chars()
+        .any(|character| character.is_ascii_digit() && character != '0')
 }
 
-fn check_numeric_call(line: &str, needle: &str, reason: &'static str, violations: &mut Vec<&'static str>) {
+fn check_numeric_call(
+    line: &str,
+    needle: &str,
+    reason: &'static str,
+    violations: &mut Vec<&'static str>,
+) {
     if let Some(position) = line.find(needle) {
         if let Some(arg) = call_arg(line, position + needle.len()) {
             if is_forbidden_numeric_literal(arg) {
@@ -106,12 +114,32 @@ fn check_line(line: &str) -> Vec<&'static str> {
         violations.push("hand-built Color { .. } literal not blended over a Theme color -- use a Theme method, or ..theme.X() for an alpha blend");
     }
 
-    check_numeric_call(line, ".spacing(", "raw .spacing(N) literal -- reference a spacing.rs constant instead", &mut violations);
-    check_numeric_call(line, ".padding(", "raw .padding(N) literal -- reference a spacing.rs constant instead", &mut violations);
+    check_numeric_call(
+        line,
+        ".spacing(",
+        "raw .spacing(N) literal -- reference a spacing.rs constant instead",
+        &mut violations,
+    );
+    check_numeric_call(
+        line,
+        ".padding(",
+        "raw .padding(N) literal -- reference a spacing.rs constant instead",
+        &mut violations,
+    );
     if !line.contains("checkbox(") {
-        check_numeric_call(line, ".size(", "raw .size(N) font-size literal -- reference a typography.rs constant instead", &mut violations);
+        check_numeric_call(
+            line,
+            ".size(",
+            "raw .size(N) font-size literal -- reference a typography.rs constant instead",
+            &mut violations,
+        );
     }
-    check_numeric_call(line, ".text_size(", "raw .text_size(N) font-size literal -- reference a typography.rs constant instead", &mut violations);
+    check_numeric_call(
+        line,
+        ".text_size(",
+        "raw .text_size(N) font-size literal -- reference a typography.rs constant instead",
+        &mut violations,
+    );
 
     if line.contains("Border {") && (line.contains("color:") || line.contains("width:")) {
         violations.push("hand-built Border { .. } with its own color/width -- use borders::card() (or another borders.rs helper) instead");
@@ -133,10 +161,16 @@ fn views_and_components_source_all_styling_from_styles_rs() {
 
     let mut findings = Vec::new();
     for file in &files {
-        let content = fs::read_to_string(file).unwrap_or_else(|error| panic!("failed to read {}: {error}", file.display()));
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", file.display()));
         for (index, line) in production_source(&content).lines().enumerate() {
             for reason in check_line(line) {
-                findings.push(format!("{}:{}: {reason}\n    {}", file.strip_prefix(&root).unwrap_or(file).display(), index + 1, line.trim()));
+                findings.push(format!(
+                    "{}:{}: {reason}\n    {}",
+                    file.strip_prefix(&root).unwrap_or(file).display(),
+                    index + 1,
+                    line.trim()
+                ));
             }
         }
     }

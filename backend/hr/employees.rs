@@ -24,7 +24,12 @@ pub struct Employee {
 }
 
 impl Employee {
-    pub fn new(company_id: i64, employee_code: impl Into<String>, full_name: impl Into<String>, hire_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        employee_code: impl Into<String>,
+        full_name: impl Into<String>,
+        hire_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -45,7 +50,9 @@ impl Employee {
 impl Validate for Employee {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("employee must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "employee must reference a valid company".into(),
+            ));
         }
         require_non_empty("employee code", &self.employee_code)?;
         require_max_length("employee code", &self.employee_code, 30)?;
@@ -53,7 +60,9 @@ impl Validate for Employee {
         require_max_length("employee full name", &self.full_name, 200)?;
         if let Some(termination_date) = self.termination_date {
             if termination_date < self.hire_date {
-                return Err(AppError::Validation("employee termination_date must not be before hire_date".into()));
+                return Err(AppError::Validation(
+                    "employee termination_date must not be before hire_date".into(),
+                ));
             }
         }
         Ok(())

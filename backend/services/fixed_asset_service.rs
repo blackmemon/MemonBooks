@@ -15,7 +15,9 @@ pub struct FixedAssetService {
 
 impl FixedAssetService {
     pub fn new(db: Database) -> Self {
-        Self { repo: FixedAssetRepository::new(db) }
+        Self {
+            repo: FixedAssetRepository::new(db),
+        }
     }
 
     pub fn list_assets(&self, company_id: i64) -> AppResult<Vec<Asset>> {
@@ -26,7 +28,11 @@ impl FixedAssetService {
         self.repo.get_asset(asset_id)
     }
 
-    pub fn record_depreciation(&self, asset_id: i64, depreciation_date: NaiveDate) -> AppResult<Option<Transaction>> {
+    pub fn record_depreciation(
+        &self,
+        asset_id: i64,
+        depreciation_date: NaiveDate,
+    ) -> AppResult<Option<Transaction>> {
         self.repo.record_depreciation(asset_id, depreciation_date)
     }
 }

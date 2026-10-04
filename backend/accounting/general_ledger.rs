@@ -42,7 +42,11 @@ fn signed_effect(normal_balance: NormalBalance, debit: Decimal, credit: Decimal)
 
 /// Turns `postings` (already ordered chronologically) plus an opening
 /// balance into the running balance after each one.
-pub fn running_balances(normal_balance: NormalBalance, opening_balance: Decimal, postings: &[Posting]) -> Vec<Decimal> {
+pub fn running_balances(
+    normal_balance: NormalBalance,
+    opening_balance: Decimal,
+    postings: &[Posting],
+) -> Vec<Decimal> {
     let mut balance = opening_balance;
     postings
         .iter()
@@ -73,14 +77,20 @@ mod tests {
 
     #[test]
     fn debit_normal_account_balance_grows_with_debits() {
-        let postings = vec![posting(1, dec!(100), dec!(0)), posting(2, dec!(0), dec!(40))];
+        let postings = vec![
+            posting(1, dec!(100), dec!(0)),
+            posting(2, dec!(0), dec!(40)),
+        ];
         let balances = running_balances(NormalBalance::Debit, dec!(0), &postings);
         assert_eq!(balances, vec![dec!(100), dec!(60)]);
     }
 
     #[test]
     fn credit_normal_account_balance_grows_with_credits() {
-        let postings = vec![posting(1, dec!(0), dec!(500)), posting(2, dec!(200), dec!(0))];
+        let postings = vec![
+            posting(1, dec!(0), dec!(500)),
+            posting(2, dec!(200), dec!(0)),
+        ];
         let balances = running_balances(NormalBalance::Credit, dec!(0), &postings);
         assert_eq!(balances, vec![dec!(500), dec!(300)]);
     }

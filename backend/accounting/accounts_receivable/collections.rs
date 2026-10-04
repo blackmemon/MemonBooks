@@ -11,9 +11,15 @@ use crate::backend::accounting::accounts_receivable::receivables::Receivable;
 /// simply doesn't appear (or appears with less than its full balance).
 /// Ids without an id (not yet persisted) are skipped -- there's nothing
 /// to apply a collection against yet.
-pub fn allocate_collection(open_receivables: &[Receivable], amount: Decimal) -> Vec<(i64, Decimal)> {
+pub fn allocate_collection(
+    open_receivables: &[Receivable],
+    amount: Decimal,
+) -> Vec<(i64, Decimal)> {
     let mut remaining = amount;
-    let mut sorted: Vec<&Receivable> = open_receivables.iter().filter(|r| !r.is_settled() && r.id.is_some()).collect();
+    let mut sorted: Vec<&Receivable> = open_receivables
+        .iter()
+        .filter(|r| !r.is_settled() && r.id.is_some())
+        .collect();
     sorted.sort_by_key(|r| r.due_date);
 
     let mut allocations = Vec::new();

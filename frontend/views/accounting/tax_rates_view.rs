@@ -19,12 +19,12 @@ use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::spacing;
+use crate::frontend::styles::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -85,10 +85,22 @@ pub fn load(ctx: &Ctx) -> State {
     let tax_rates = service.list_tax_rates(ctx.company_id).unwrap_or_default();
     let gl_accounts = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
+        .map(|accounts: Vec<Account>| {
+            accounts
+                .iter()
+                .map(|a| Choice {
+                    id: a.id.unwrap_or_default(),
+                    label: format!("{} - {}", a.account_code, a.account_name),
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
-    State { tax_rates, gl_accounts, ..Default::default() }
+    State {
+        tax_rates,
+        gl_accounts,
+        ..Default::default()
+    }
 }
 
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
@@ -113,12 +125,19 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
 
             if let Some(id) = state.editing_id {
-                let Some(existing) = state.tax_rates.iter().find(|r| r.id == Some(id)).cloned() else {
+                let Some(existing) = state.tax_rates.iter().find(|r| r.id == Some(id)).cloned()
+                else {
                     state.error = Some("that tax rate no longer exists".into());
                     state.editing_id = None;
                     return;
                 };
-                let tax_rate = TaxRate { name: state.name_input.clone(), rate_percent, direction, gl_account_id: gl_account.id, ..existing };
+                let tax_rate = TaxRate {
+                    name: state.name_input.clone(),
+                    rate_percent,
+                    direction,
+                    gl_account_id: gl_account.id,
+                    ..existing
+                };
                 if let Err(err) = tax_rate.validate() {
                     state.error = Some(err.to_string());
                     return;
@@ -139,7 +158,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 return;
             }
 
-            let tax_rate = TaxRate::new(ctx.company_id, state.name_input.clone(), rate_percent, direction, gl_account.id);
+            let tax_rate = TaxRate::new(
+                ctx.company_id,
+                state.name_input.clone(),
+                rate_percent,
+                direction,
+                gl_account.id,
+            );
             let service = TaxService::new(ctx.db.clone());
             match service.create_tax_rate(&tax_rate) {
                 Ok(created) => {
@@ -158,7 +183,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state.name_input = rate.name.clone();
                 state.rate_input = rate.rate_percent.to_string();
                 state.direction = Some(rate.direction);
-                state.gl_account = state.gl_accounts.iter().find(|c| c.id == rate.gl_account_id).cloned();
+                state.gl_account = state
+                    .gl_accounts
+                    .iter()
+                    .find(|c| c.id == rate.gl_account_id)
+                    .cloned();
             }
         }
         Message::CancelEdit => {
@@ -203,7 +232,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 }
             }
             if !failures.is_empty() {
-                state.error = Some(format!("Deleted {deleted}; {} could not be deleted -- {}", failures.len(), failures.join("; ")));
+                state.error = Some(format!(
+                    "Deleted {deleted}; {} could not be deleted -- {}",
+                    failures.len(),
+                    failures.join("; ")
+                ));
             } else if deleted > 0 {
                 state.message = Some(format!("Deleted {deleted} tax rate(s)."));
             }
@@ -211,15 +244,36 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::BulkExportCsv => {
             state.message = None;
             state.error = None;
-            let selected: Vec<&TaxRate> = state.tax_rates.iter().filter(|r| state.selected.contains(&r.id.unwrap_or_default())).collect();
+            let selected: Vec<&TaxRate> = state
+                .tax_rates
+                .iter()
+                .filter(|r| state.selected.contains(&r.id.unwrap_or_default()))
+                .collect();
             let headers = ["Name", "Rate %", "Direction", "Status"];
             let rows: Vec<Vec<String>> = selected
                 .iter()
-                .map(|r| vec![r.name.clone(), r.rate_percent.to_string(), r.direction.as_str().to_string(), if r.is_active { "Active".to_string() } else { "Inactive".to_string() }])
+                .map(|r| {
+                    vec![
+                        r.name.clone(),
+                        r.rate_percent.to_string(),
+                        r.direction.as_str().to_string(),
+                        if r.is_active {
+                            "Active".to_string()
+                        } else {
+                            "Inactive".to_string()
+                        },
+                    ]
+                })
                 .collect();
             let path = ctx.export_path("tax_rates_export.csv");
             match std::fs::write(&path, csv::export_csv(&headers, &rows)) {
-                Ok(()) => state.message = Some(format!("Exported {} tax rate(s) to {}", selected.len(), path.display())),
+                Ok(()) => {
+                    state.message = Some(format!(
+                        "Exported {} tax rate(s) to {}",
+                        selected.len(),
+                        path.display()
+                    ))
+                }
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
@@ -233,8 +287,18 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add tax rate" };
-    let header = page_header::view(theme, "Tax Rates", "Every tax rate on this company's books.", header_label, Message::Create);
+    let header_label = if state.editing_id.is_some() {
+        "Save changes"
+    } else {
+        "Add tax rate"
+    };
+    let header = page_header::view(
+        theme,
+        "Tax Rates",
+        "Every tax rate on this company's books.",
+        header_label,
+        Message::Create,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -250,10 +314,18 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "Tax rate list", "Every output and input tax rate configured.");
+    let heading = section_heading::view(
+        theme,
+        "Tax rate list",
+        "Every output and input tax rate configured.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&TaxRate> = state.tax_rates.iter().filter(|rate| query.is_empty() || rate.name.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&TaxRate> = state
+        .tax_rates
+        .iter()
+        .filter(|rate| query.is_empty() || rate.name.to_lowercase().contains(&query))
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Name", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -261,11 +333,23 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         ColumnDef::new("Direction", Length::FillPortion(1)),
     ];
 
-    let rows = filtered.iter().map(|rate| Row::new(vec![Cell::text(rate.name.clone()), Cell::text(rate.rate_percent.to_string()), Cell::status(rate.direction.as_str(), BadgeTone::Neutral)])).collect();
+    let rows = filtered
+        .iter()
+        .map(|rate| {
+            Row::new(vec![
+                Cell::text(rate.name.clone()),
+                Cell::text(rate.rate_percent.to_string()),
+                Cell::status(rate.direction.as_str(), BadgeTone::Neutral),
+            ])
+        })
+        .collect();
 
     let row_ids: Vec<i64> = filtered.iter().map(|r| r.id.unwrap_or_default()).collect();
     let select_ids = row_ids.clone();
-    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let selected_flags: Vec<bool> = row_ids
+        .iter()
+        .map(|id| state.selected.contains(id))
+        .collect();
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
 
@@ -280,32 +364,72 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let form_heading = if state.editing_id.is_some() { "Edit tax rate" } else { "Add a tax rate" };
+    let form_heading = if state.editing_id.is_some() {
+        "Edit tax rate"
+    } else {
+        "Add a tax rate"
+    };
     let mut form = column![
         text(form_heading).size(typography::label()),
-        text_input("Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
-        text_input("Rate %", &state.rate_input).style(inputs::text(theme)).on_input(Message::RateChanged).width(Length::Fill).padding(spacing::SM),
-        pick_list(DIRECTIONS, state.direction, Message::DirectionSelected).style(dropdown::style(theme)).placeholder("Direction"),
-        pick_list(state.gl_accounts.as_slice(), state.gl_account.clone(), Message::GlAccountSelected).style(dropdown::style(theme)).placeholder("GL account"),
+        text_input("Name", &state.name_input)
+            .style(inputs::text(theme))
+            .on_input(Message::NameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        text_input("Rate %", &state.rate_input)
+            .style(inputs::text(theme))
+            .on_input(Message::RateChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        pick_list(DIRECTIONS, state.direction, Message::DirectionSelected)
+            .style(dropdown::style(theme))
+            .placeholder("Direction"),
+        pick_list(
+            state.gl_accounts.as_slice(),
+            state.gl_account.clone(),
+            Message::GlAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("GL account"),
     ]
     .spacing(spacing::SM);
 
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+                button(text("Save changes"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::Create)
+                    .padding(spacing::SM),
+                button(text("Cancel"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::CancelEdit)
+                    .padding(spacing::SM),
             ]
             .spacing(spacing::SM),
         );
     } else {
-        form = form.push(button(text("Add tax rate")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));
+        form = form.push(
+            button(text("Add tax rate"))
+                .style(button_style::primary(theme))
+                .on_press(Message::Create)
+                .padding(spacing::SM),
+        );
     }
 
-    let mut content = column![header, toolbar, heading].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if !state.selected.is_empty() {
-        content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
+        content = content.push(bulk_action_bar::view(
+            theme,
+            state.selected.len(),
+            Message::BulkDelete,
+            Message::BulkExportCsv,
+            Message::ClearSelection,
+        ));
     }
 
     content = content.push(table).push(form);
@@ -317,7 +441,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -333,25 +459,57 @@ mod tests {
 
     fn ctx_with_a_gl_account() -> (Ctx, Choice) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(tax_repository::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
-        let tax_payable = accounting_repo.create_account(&Account::new(company_id, "2200", "Tax Payable", AccountType::Liability)).unwrap();
+        let tax_payable = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "2200",
+                "Tax Payable",
+                AccountType::Liability,
+            ))
+            .unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
-        let choice = Choice { id: tax_payable.id.unwrap(), label: "2200 - Tax Payable".into() };
+        let ctx = Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
+        let choice = Choice {
+            id: tax_payable.id.unwrap(),
+            label: "2200 - Tax Payable".into(),
+        };
         (ctx, choice)
     }
 
     fn ctx_with_temp_export_dir() -> (Ctx, Choice) {
         let (ctx, choice) = ctx_with_a_gl_account();
-        (Ctx { export_dir: std::env::temp_dir().join(format!("memonbooks_tax_rates_view_test_{:?}", std::thread::current().id())), ..ctx }, choice)
+        (
+            Ctx {
+                export_dir: std::env::temp_dir().join(format!(
+                    "memonbooks_tax_rates_view_test_{:?}",
+                    std::thread::current().id()
+                )),
+                ..ctx
+            },
+            choice,
+        )
     }
 
     #[test]
@@ -361,8 +519,16 @@ mod tests {
 
         update(&mut state, Message::NameChanged("Sales Tax".into()), &ctx);
         update(&mut state, Message::RateChanged("15".into()), &ctx);
-        update(&mut state, Message::GlAccountSelected(gl_account.clone()), &ctx);
-        update(&mut state, Message::DirectionSelected(TaxDirection::Output), &ctx);
+        update(
+            &mut state,
+            Message::GlAccountSelected(gl_account.clone()),
+            &ctx,
+        );
+        update(
+            &mut state,
+            Message::DirectionSelected(TaxDirection::Output),
+            &ctx,
+        );
 
         assert_eq!(state.name_input, "Sales Tax");
         assert_eq!(state.rate_input, "15");
@@ -373,11 +539,18 @@ mod tests {
     #[test]
     fn creating_without_a_gl_account_or_direction_sets_an_error() {
         let (ctx, _gl_account) = ctx_with_a_gl_account();
-        let mut state = State { name_input: "Sales Tax".into(), rate_input: "15".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Sales Tax".into(),
+            rate_input: "15".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
-        assert_eq!(state.error.as_deref(), Some("choose a GL account and a direction"));
+        assert_eq!(
+            state.error.as_deref(),
+            Some("choose a GL account and a direction")
+        );
     }
 
     #[test]
@@ -470,7 +643,10 @@ mod tests {
         assert!(state.error.is_none());
         assert!(state.editing_id.is_none());
         assert_eq!(state.tax_rates.len(), 1);
-        assert_eq!(state.tax_rates[0].rate_percent, rust_decimal_macros::dec!(16));
+        assert_eq!(
+            state.tax_rates[0].rate_percent,
+            rust_decimal_macros::dec!(16)
+        );
 
         let service = TaxService::new(ctx.db.clone());
         let reloaded = service.list_tax_rates(ctx.company_id).unwrap();
@@ -496,7 +672,10 @@ mod tests {
         update(&mut state, Message::CancelEdit, &ctx);
 
         assert!(state.editing_id.is_none());
-        assert_eq!(state.tax_rates[0].rate_percent, rust_decimal_macros::dec!(15));
+        assert_eq!(
+            state.tax_rates[0].rate_percent,
+            rust_decimal_macros::dec!(15)
+        );
     }
 
     #[test]
@@ -517,17 +696,28 @@ mod tests {
         let (ctx, _gl_account) = ctx_with_a_gl_account();
         let mut state = State::default();
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], true), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], true),
+            &ctx,
+        );
         assert_eq!(state.selected, HashSet::from([1, 2, 3]));
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], false), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], false),
+            &ctx,
+        );
         assert!(state.selected.is_empty());
     }
 
     #[test]
     fn clear_selection_empties_it_regardless_of_what_was_selected() {
         let (ctx, _gl_account) = ctx_with_a_gl_account();
-        let mut state = State { selected: HashSet::from([1, 2, 3]), ..Default::default() };
+        let mut state = State {
+            selected: HashSet::from([1, 2, 3]),
+            ..Default::default()
+        };
 
         update(&mut state, Message::ClearSelection, &ctx);
 
@@ -537,7 +727,12 @@ mod tests {
     #[test]
     fn bulk_delete_removes_every_selected_unreferenced_tax_rate() {
         let (ctx, gl_account) = ctx_with_a_gl_account();
-        let mut state = State { gl_accounts: vec![gl_account.clone()], gl_account: Some(gl_account), direction: Some(TaxDirection::Output), ..Default::default() };
+        let mut state = State {
+            gl_accounts: vec![gl_account.clone()],
+            gl_account: Some(gl_account),
+            direction: Some(TaxDirection::Output),
+            ..Default::default()
+        };
         state.name_input = "Sales Tax".into();
         state.rate_input = "15".into();
         update(&mut state, Message::Create, &ctx);
@@ -552,7 +747,11 @@ mod tests {
         assert!(state.error.is_none());
         assert!(state.tax_rates.is_empty());
         assert!(state.selected.is_empty());
-        assert!(state.message.as_deref().unwrap_or_default().contains("Deleted 2"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Deleted 2"));
     }
 
     /// A selection that includes a tax rate still referenced by a posted
@@ -561,27 +760,68 @@ mod tests {
     /// bulk delete does not block the whole batch over one stuck record.
     #[test]
     fn bulk_delete_skips_a_referenced_tax_rate_and_reports_it_while_still_deleting_the_rest() {
-        use crate::backend::tax::tax_transactions::TaxTransaction;
         use crate::backend::repositories::tax_repository::TaxRepository;
+        use crate::backend::tax::tax_transactions::TaxTransaction;
 
         let (ctx, gl_account) = ctx_with_a_gl_account();
         let accounting_repo = AccountingRepository::new(ctx.db.clone());
-        accounting_repo.create_fiscal_period(&crate::backend::accounting::fiscal_periods::FiscalPeriod::new(ctx.company_id, "Open Period", chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), chrono::NaiveDate::from_ymd_opt(2030, 12, 31).unwrap())).unwrap();
-        let ar_account = accounting_repo.create_account(&Account::new(ctx.company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
+        accounting_repo
+            .create_fiscal_period(
+                &crate::backend::accounting::fiscal_periods::FiscalPeriod::new(
+                    ctx.company_id,
+                    "Open Period",
+                    chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+                    chrono::NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
+                ),
+            )
+            .unwrap();
+        let ar_account = accounting_repo
+            .create_account(&Account::new(
+                ctx.company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
 
-        let mut state = State { gl_accounts: vec![gl_account.clone()], gl_account: Some(gl_account), direction: Some(TaxDirection::Output), ..Default::default() };
+        let mut state = State {
+            gl_accounts: vec![gl_account.clone()],
+            gl_account: Some(gl_account),
+            direction: Some(TaxDirection::Output),
+            ..Default::default()
+        };
         state.name_input = "Sales Tax".into();
         state.rate_input = "15".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Service Tax".into();
         state.rate_input = "5".into();
         update(&mut state, Message::Create, &ctx);
-        let referenced_id = state.tax_rates.iter().find(|r| r.name == "Sales Tax").unwrap().id.unwrap();
-        let free_id = state.tax_rates.iter().find(|r| r.name == "Service Tax").unwrap().id.unwrap();
+        let referenced_id = state
+            .tax_rates
+            .iter()
+            .find(|r| r.name == "Sales Tax")
+            .unwrap()
+            .id
+            .unwrap();
+        let free_id = state
+            .tax_rates
+            .iter()
+            .find(|r| r.name == "Service Tax")
+            .unwrap()
+            .id
+            .unwrap();
 
         let tax = TaxRepository::new(ctx.db.clone());
-        let tax_transaction = TaxTransaction::new(ctx.company_id, referenced_id, chrono::NaiveDate::from_ymd_opt(2026, 1, 10).unwrap(), rust_decimal_macros::dec!(1000), rust_decimal_macros::dec!(150), TaxDirection::Output);
-        tax.post_tax(&tax_transaction, ar_account.id.unwrap()).unwrap();
+        let tax_transaction = TaxTransaction::new(
+            ctx.company_id,
+            referenced_id,
+            chrono::NaiveDate::from_ymd_opt(2026, 1, 10).unwrap(),
+            rust_decimal_macros::dec!(1000),
+            rust_decimal_macros::dec!(150),
+            TaxDirection::Output,
+        );
+        tax.post_tax(&tax_transaction, ar_account.id.unwrap())
+            .unwrap();
 
         state.selected = HashSet::from([referenced_id, free_id]);
         update(&mut state, Message::BulkDelete, &ctx);
@@ -597,14 +837,25 @@ mod tests {
     #[test]
     fn bulk_export_csv_writes_only_the_selected_tax_rates() {
         let (ctx, gl_account) = ctx_with_temp_export_dir();
-        let mut state = State { gl_accounts: vec![gl_account.clone()], gl_account: Some(gl_account), direction: Some(TaxDirection::Output), ..Default::default() };
+        let mut state = State {
+            gl_accounts: vec![gl_account.clone()],
+            gl_account: Some(gl_account),
+            direction: Some(TaxDirection::Output),
+            ..Default::default()
+        };
         state.name_input = "Sales Tax".into();
         state.rate_input = "15".into();
         update(&mut state, Message::Create, &ctx);
         state.name_input = "Service Tax".into();
         state.rate_input = "5".into();
         update(&mut state, Message::Create, &ctx);
-        let export_id = state.tax_rates.iter().find(|r| r.name == "Sales Tax").unwrap().id.unwrap();
+        let export_id = state
+            .tax_rates
+            .iter()
+            .find(|r| r.name == "Sales Tax")
+            .unwrap()
+            .id
+            .unwrap();
         state.selected = HashSet::from([export_id]);
 
         update(&mut state, Message::BulkExportCsv, &ctx);

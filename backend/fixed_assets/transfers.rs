@@ -30,10 +30,14 @@ impl AssetTransfer {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.asset_id <= 0 {
-            return Err(AppError::Validation("asset transfer must reference a valid asset".into()));
+            return Err(AppError::Validation(
+                "asset transfer must reference a valid asset".into(),
+            ));
         }
         if self.from_branch_id.is_some() && self.from_branch_id == self.to_branch_id {
-            return Err(AppError::Validation("asset transfer source and destination branches must differ".into()));
+            return Err(AppError::Validation(
+                "asset transfer source and destination branches must differ".into(),
+            ));
         }
         Ok(())
     }

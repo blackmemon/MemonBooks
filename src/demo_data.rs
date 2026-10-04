@@ -81,13 +81,45 @@ fn run_clear(conn: &mut Connection) -> AppResult<ClearSummary> {
 
     // Company-scoped, direct child of companies.
     for table in [
-        "branches", "departments", "employees", "payroll_runs", "customers", "vendors", "accounts", "fiscal_periods",
-        "transactions", "receivables", "payables", "quotations", "invoices", "credit_notes", "customer_payments",
-        "pos_terminals", "pos_sales", "purchase_orders", "bills", "debit_notes", "vendor_payments", "warehouses",
-        "categories", "products", "stock_movements", "bank_accounts", "bank_transactions", "expense_categories",
-        "expenses", "expense_claims", "asset_categories", "assets", "tax_rates", "tax_transactions",
+        "branches",
+        "departments",
+        "employees",
+        "payroll_runs",
+        "customers",
+        "vendors",
+        "accounts",
+        "fiscal_periods",
+        "transactions",
+        "receivables",
+        "payables",
+        "quotations",
+        "invoices",
+        "credit_notes",
+        "customer_payments",
+        "pos_terminals",
+        "pos_sales",
+        "purchase_orders",
+        "bills",
+        "debit_notes",
+        "vendor_payments",
+        "warehouses",
+        "categories",
+        "products",
+        "stock_movements",
+        "bank_accounts",
+        "bank_transactions",
+        "expense_categories",
+        "expenses",
+        "expense_claims",
+        "asset_categories",
+        "assets",
+        "tax_rates",
+        "tax_transactions",
     ] {
-        tx.execute(&format!("DELETE FROM {table} WHERE company_id IN ({company_filter})"), [])?;
+        tx.execute(
+            &format!("DELETE FROM {table} WHERE company_id IN ({company_filter})"),
+            [],
+        )?;
     }
 
     // One level indirect (child of a direct company-scoped table).
@@ -103,7 +135,11 @@ fn run_clear(conn: &mut Connection) -> AppResult<ClearSummary> {
         ("pos_sessions", "terminal_id", "pos_terminals"),
         ("pos_sale_lines", "pos_sale_id", "pos_sales"),
         ("pos_sale_payments", "pos_sale_id", "pos_sales"),
-        ("purchase_order_lines", "purchase_order_id", "purchase_orders"),
+        (
+            "purchase_order_lines",
+            "purchase_order_id",
+            "purchase_orders",
+        ),
         ("bill_lines", "bill_id", "bills"),
         ("debit_note_lines", "debit_note_id", "debit_notes"),
         ("asset_transfers", "asset_id", "assets"),
@@ -147,14 +183,18 @@ fn run_clear(conn: &mut Connection) -> AppResult<ClearSummary> {
         )?;
     }
 
-    summary.companies_removed = tx.execute(&format!("DELETE FROM companies WHERE id IN ({company_filter})"), [])? as i64;
+    summary.companies_removed = tx.execute(
+        &format!("DELETE FROM companies WHERE id IN ({company_filter})"),
+        [],
+    )? as i64;
 
     // Not company-scoped at all: the demo system user/role, found by tag.
     tx.execute(
         "DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE display_name LIKE 'DEMO-%')",
         [],
     )?;
-    summary.users_removed = tx.execute("DELETE FROM users WHERE display_name LIKE 'DEMO-%'", [])? as i64;
+    summary.users_removed =
+        tx.execute("DELETE FROM users WHERE display_name LIKE 'DEMO-%'", [])? as i64;
     tx.execute(
         "DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE name LIKE 'DEMO-%')",
         [],

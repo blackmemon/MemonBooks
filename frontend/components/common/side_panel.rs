@@ -1,22 +1,33 @@
 use iced::widget::{container, row};
 use iced::{Background, Element, Length};
 
-use crate::frontend::styles::{borders, states};
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::spacing;
+use crate::frontend::styles::{borders, states};
 
 pub const WIDTH: f32 = 380.0;
 
-pub fn card<'a, Message: Clone + 'a>(theme: Theme, content: Element<'a, Message>) -> Element<'a, Message> {
+pub fn card<'a, Message: Clone + 'a>(
+    theme: Theme,
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
     container(content)
         .padding(spacing::LG)
         .width(Length::Fixed(WIDTH))
         .height(Length::Fill)
-        .style(move |_iced_theme: &iced::Theme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, states::RADIUS_LG), ..container::Style::default() })
+        .style(move |_iced_theme: &iced::Theme| container::Style {
+            background: Some(Background::Color(theme.surface())),
+            border: borders::card(theme, states::RADIUS_LG),
+            ..container::Style::default()
+        })
         .into()
 }
 
-pub fn split<'a, Message: Clone + 'a>(theme: Theme, base: Element<'a, Message>, panel: Option<Element<'a, Message>>) -> Element<'a, Message> {
+pub fn split<'a, Message: Clone + 'a>(
+    theme: Theme,
+    base: Element<'a, Message>,
+    panel: Option<Element<'a, Message>>,
+) -> Element<'a, Message> {
     let content: Element<'a, Message> = match panel {
         None => base,
         Some(content) => {
@@ -26,7 +37,16 @@ pub fn split<'a, Message: Clone + 'a>(theme: Theme, base: Element<'a, Message>, 
         }
     };
 
-    container(content).width(Length::Fill).height(Length::Fill).padding(iced::Padding { top: 0.0, right: 0.0, bottom: spacing::LG, left: 0.0 }).into()
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(iced::Padding {
+            top: 0.0,
+            right: 0.0,
+            bottom: spacing::LG,
+            left: 0.0,
+        })
+        .into()
 }
 
 #[cfg(test)]

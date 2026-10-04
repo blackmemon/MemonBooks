@@ -27,7 +27,13 @@ pub struct BankTransaction {
 }
 
 impl BankTransaction {
-    pub fn new(company_id: i64, bank_account_id: i64, transaction_date: NaiveDate, description: impl Into<String>, amount: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        bank_account_id: i64,
+        transaction_date: NaiveDate,
+        description: impl Into<String>,
+        amount: Decimal,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -48,15 +54,31 @@ impl BankTransaction {
     /// bring the books in line with the statement. A deposit debits the
     /// bank's GL account; a withdrawal credits it, both against
     /// `offset_account_id` (e.g. a bank charges expense account).
-    pub fn build_adjustment_transaction(&self, bank_gl_account_id: i64, offset_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::BankTransaction, self.transaction_date);
+    pub fn build_adjustment_transaction(
+        &self,
+        bank_gl_account_id: i64,
+        offset_account_id: i64,
+    ) -> Transaction {
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::BankTransaction,
+            self.transaction_date,
+        );
         transaction.description = Some(self.description.clone());
         if self.amount >= Decimal::ZERO {
-            transaction.lines.push(TransactionLine::debit(bank_gl_account_id, self.amount));
-            transaction.lines.push(TransactionLine::credit(offset_account_id, self.amount));
+            transaction
+                .lines
+                .push(TransactionLine::debit(bank_gl_account_id, self.amount));
+            transaction
+                .lines
+                .push(TransactionLine::credit(offset_account_id, self.amount));
         } else {
-            transaction.lines.push(TransactionLine::credit(bank_gl_account_id, -self.amount));
-            transaction.lines.push(TransactionLine::debit(offset_account_id, -self.amount));
+            transaction
+                .lines
+                .push(TransactionLine::credit(bank_gl_account_id, -self.amount));
+            transaction
+                .lines
+                .push(TransactionLine::debit(offset_account_id, -self.amount));
         }
         transaction
     }
@@ -65,14 +87,20 @@ impl BankTransaction {
 impl Validate for BankTransaction {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("bank transaction must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "bank transaction must reference a valid company".into(),
+            ));
         }
         if self.bank_account_id <= 0 {
-            return Err(AppError::Validation("bank transaction must reference a valid bank account".into()));
+            return Err(AppError::Validation(
+                "bank transaction must reference a valid bank account".into(),
+            ));
         }
         require_non_empty("bank transaction description", &self.description)?;
         if self.amount == Decimal::ZERO {
-            return Err(AppError::Validation("bank transaction amount must not be zero".into()));
+            return Err(AppError::Validation(
+                "bank transaction amount must not be zero".into(),
+            ));
         }
         Ok(())
     }

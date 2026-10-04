@@ -30,10 +30,14 @@ impl Terminal {
 impl Validate for Terminal {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("terminal must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "terminal must reference a valid company".into(),
+            ));
         }
         if self.warehouse_id <= 0 {
-            return Err(AppError::Validation("terminal must reference a valid warehouse".into()));
+            return Err(AppError::Validation(
+                "terminal must reference a valid warehouse".into(),
+            ));
         }
         require_non_empty("terminal name", &self.name)?;
         require_max_length("terminal name", &self.name, 100)?;

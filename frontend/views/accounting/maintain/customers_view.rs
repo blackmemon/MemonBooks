@@ -14,11 +14,11 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, section_heading, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 const COLUMN_LABELS: [&str; 4] = ["Customer", "Phone", "Terms", "Status"];
@@ -67,8 +67,14 @@ pub enum Message {
 pub fn load(ctx: &Ctx) -> State {
     let service = PartyService::new(ctx.db.clone());
     match service.list_customers(ctx.company_id) {
-        Ok(customers) => State { customers, ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(customers) => State {
+            customers,
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -81,14 +87,19 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.error = None;
 
             if let Some(id) = state.editing_id {
-                let Some(existing) = state.customers.iter().find(|c| c.id == Some(id)).cloned() else {
+                let Some(existing) = state.customers.iter().find(|c| c.id == Some(id)).cloned()
+                else {
                     state.error = Some("that customer no longer exists".into());
                     state.editing_id = None;
                     return;
                 };
                 let customer = Customer {
                     name: state.name_input.clone(),
-                    email: if state.email_input.trim().is_empty() { None } else { Some(state.email_input.clone()) },
+                    email: if state.email_input.trim().is_empty() {
+                        None
+                    } else {
+                        Some(state.email_input.clone())
+                    },
                     ..existing
                 };
                 if let Err(err) = customer.validate() {
@@ -178,7 +189,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 }
             }
             if !failures.is_empty() {
-                state.error = Some(format!("Deleted {deleted}; {} could not be deleted -- {}", failures.len(), failures.join("; ")));
+                state.error = Some(format!(
+                    "Deleted {deleted}; {} could not be deleted -- {}",
+                    failures.len(),
+                    failures.join("; ")
+                ));
             } else if deleted > 0 {
                 state.message = Some(format!("Deleted {deleted} customer(s)."));
             }
@@ -188,9 +203,17 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.error = None;
             let query = state.search.trim().to_lowercase();
             let selected: Vec<&Customer> = if state.selected.is_empty() {
-                state.customers.iter().filter(|c| matches_filters(c, &query, state.status_filter)).collect()
+                state
+                    .customers
+                    .iter()
+                    .filter(|c| matches_filters(c, &query, state.status_filter))
+                    .collect()
             } else {
-                state.customers.iter().filter(|c| state.selected.contains(&c.id.unwrap_or_default())).collect()
+                state
+                    .customers
+                    .iter()
+                    .filter(|c| state.selected.contains(&c.id.unwrap_or_default()))
+                    .collect()
             };
             let headers = ["Name", "Email", "Phone", "Payment Terms (days)", "Status"];
             let rows: Vec<Vec<String>> = selected
@@ -201,13 +224,23 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         c.email.clone().unwrap_or_default(),
                         c.phone.clone().unwrap_or_default(),
                         c.payment_terms_days.to_string(),
-                        if c.is_active { "Active".to_string() } else { "Inactive".to_string() },
+                        if c.is_active {
+                            "Active".to_string()
+                        } else {
+                            "Inactive".to_string()
+                        },
                     ]
                 })
                 .collect();
             let path = ctx.export_path("customers_export.csv");
             match std::fs::write(&path, csv::export_csv(&headers, &rows)) {
-                Ok(()) => state.message = Some(format!("Exported {} customer(s) to {}", selected.len(), path.display())),
+                Ok(()) => {
+                    state.message = Some(format!(
+                        "Exported {} customer(s) to {}",
+                        selected.len(),
+                        path.display()
+                    ))
+                }
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
@@ -235,17 +268,38 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 /// `BulkExportCsv`'s "no selection -> export everything currently
 /// visible" fallback, so the two can never disagree.
 fn matches_filters(customer: &Customer, query: &str, status: StatusFilter) -> bool {
-    status.matches(customer.is_active) && (query.is_empty() || customer.name.to_lowercase().contains(query) || customer.email.as_deref().unwrap_or_default().to_lowercase().contains(query))
+    status.matches(customer.is_active)
+        && (query.is_empty()
+            || customer.name.to_lowercase().contains(query)
+            || customer
+                .email
+                .as_deref()
+                .unwrap_or_default()
+                .to_lowercase()
+                .contains(query))
 }
 
 const TITLE: &str = "Customers";
 const DESCRIPTION: &str = "Everyone you invoice, in one place.";
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add customer" };
-    let header = container(page_header::view(theme, TITLE, DESCRIPTION, header_label, Message::Create)).padding(spacing::HEADER_PADDING);
+    let header_label = if state.editing_id.is_some() {
+        "Save changes"
+    } else {
+        "Add customer"
+    };
+    let header = container(page_header::view(
+        theme,
+        TITLE,
+        DESCRIPTION,
+        header_label,
+        Message::Create,
+    ))
+    .padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme)].spacing(spacing::SPACE_20).into()
+    column![header, body(state, theme)]
+        .spacing(spacing::SPACE_20)
+        .into()
 }
 
 /// Same as [`view`], except the title sits inline with `switcher` (a
@@ -254,12 +308,30 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 /// own `Message` into whatever the caller's `switcher` produces, so the
 /// two can share one `Element` tree despite having different message
 /// types.
-pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
-    let header_label = if state.editing_id.is_some() { "Save changes" } else { "Add customer" };
-    let header =
-        container(page_header::page_header_view_with_switcher(theme, TITLE, DESCRIPTION, switcher, header_label, wrap(Message::Create))).padding(spacing::HEADER_PADDING);
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    switcher: Element<'a, ParentMessage>,
+    wrap: impl Fn(Message) -> ParentMessage + 'a,
+) -> Element<'a, ParentMessage> {
+    let header_label = if state.editing_id.is_some() {
+        "Save changes"
+    } else {
+        "Add customer"
+    };
+    let header = container(page_header::page_header_view_with_switcher(
+        theme,
+        TITLE,
+        DESCRIPTION,
+        switcher,
+        header_label,
+        wrap(Message::Create),
+    ))
+    .padding(spacing::HEADER_PADDING);
 
-    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_20).into()
+    column![header, body(state, theme).map(wrap)]
+        .spacing(spacing::SPACE_20)
+        .into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -277,10 +349,18 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::BulkDelete,
     );
 
-    let heading = section_heading::view(theme, "Customer list", "Every customer on this company's books.");
+    let heading = section_heading::view(
+        theme,
+        "Customer list",
+        "Every customer on this company's books.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Customer> = state.customers.iter().filter(|customer| matches_filters(customer, &query, state.status_filter)).collect();
+    let filtered: Vec<&Customer> = state
+        .customers
+        .iter()
+        .filter(|customer| matches_filters(customer, &query, state.status_filter))
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Customer", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -293,17 +373,27 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         .iter()
         .map(|customer| {
             Row::new(vec![
-                Cell::person(customer.name.clone(), customer.email.clone().unwrap_or_default()),
+                Cell::person(
+                    customer.name.clone(),
+                    customer.email.clone().unwrap_or_default(),
+                ),
                 Cell::text(customer.phone.clone().unwrap_or_else(|| "--".to_string())),
                 Cell::text(format!("{} days", customer.payment_terms_days)),
-                if customer.is_active { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+                if customer.is_active {
+                    Cell::status("Active", BadgeTone::Positive)
+                } else {
+                    Cell::status("Inactive", BadgeTone::Neutral)
+                },
             ])
         })
         .collect();
 
     let row_ids: Vec<i64> = filtered.iter().map(|c| c.id.unwrap_or_default()).collect();
     let select_ids = row_ids.clone();
-    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let selected_flags: Vec<bool> = row_ids
+        .iter()
+        .map(|id| state.selected.contains(id))
+        .collect();
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
 
@@ -319,24 +409,53 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         move |index| Message::EditRow(edit_ids_primary[index]),
     );
 
-    let form_heading = if state.editing_id.is_some() { "Edit customer" } else { "Add a customer" };
+    let form_heading = if state.editing_id.is_some() {
+        "Edit customer"
+    } else {
+        "Add a customer"
+    };
     let mut form = column![
         text(form_heading).size(typography::label()),
-        text_input("Customer name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM),
-        text_input("Email (optional)", &state.email_input).style(inputs::text(theme)).on_input(Message::EmailChanged).width(Length::Fill).padding(spacing::SM),
+        text_input("Customer name", &state.name_input)
+            .style(inputs::text(theme))
+            .on_input(Message::NameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        text_input("Email (optional)", &state.email_input)
+            .style(inputs::text(theme))
+            .on_input(Message::EmailChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
     if state.editing_id.is_some() {
-        form = form.push(iced::widget::row![
-            button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-            button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
-        ].spacing(spacing::SM));
+        form = form.push(
+            iced::widget::row![
+                button(text("Save changes"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::Create)
+                    .padding(spacing::SM),
+                button(text("Cancel"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::CancelEdit)
+                    .padding(spacing::SM),
+            ]
+            .spacing(spacing::SM),
+        );
     } else {
-        form = form.push(button(text("Add customer")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM));
+        form = form.push(
+            button(text("Add customer"))
+                .style(button_style::primary(theme))
+                .on_press(Message::Create)
+                .padding(spacing::SM),
+        );
     }
 
-    let mut content = column![toolbar].spacing(spacing::SPACE_20).padding(spacing::CONTENT_PADDING).width(Length::Fill);
+    let mut content = column![toolbar]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::CONTENT_PADDING)
+        .width(Length::Fill);
 
     content = content.push(heading).push(table).push(form);
 
@@ -347,10 +466,20 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill)).width(Length::Fill).into();
+    let base: Element<'_, Message> = container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into();
 
     let panel = if state.columns_open {
-        Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled, Message::SelectAllColumns, Message::DeselectAllColumns, Message::ResetColumns))
+        Some(data_table::columns_panel(
+            theme,
+            &COLUMN_LABELS,
+            &state.column_visible,
+            Message::ColumnToggled,
+            Message::SelectAllColumns,
+            Message::DeselectAllColumns,
+            Message::ResetColumns,
+        ))
     } else {
         None
     };
@@ -369,18 +498,35 @@ mod tests {
 
     fn ctx_with_company() -> Ctx {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(party_repository::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
-        Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") }
+        Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        }
     }
 
     fn ctx_with_temp_export_dir() -> Ctx {
         let ctx = ctx_with_company();
-        Ctx { export_dir: std::env::temp_dir().join(format!("memonbooks_customers_view_test_{:?}", std::thread::current().id())), ..ctx }
+        Ctx {
+            export_dir: std::env::temp_dir().join(format!(
+                "memonbooks_customers_view_test_{:?}",
+                std::thread::current().id()
+            )),
+            ..ctx
+        }
     }
 
     #[test]
@@ -389,7 +535,11 @@ mod tests {
         let mut state = State::default();
 
         update(&mut state, Message::NameChanged("Acme Retail".into()), &ctx);
-        update(&mut state, Message::EmailChanged("ar@acmeretail.test".into()), &ctx);
+        update(
+            &mut state,
+            Message::EmailChanged("ar@acmeretail.test".into()),
+            &ctx,
+        );
 
         assert_eq!(state.name_input, "Acme Retail");
         assert_eq!(state.email_input, "ar@acmeretail.test");
@@ -398,7 +548,10 @@ mod tests {
     #[test]
     fn creating_with_a_blank_name_is_rejected_before_reaching_the_service() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
@@ -409,7 +562,11 @@ mod tests {
     #[test]
     fn creating_with_a_blank_email_leaves_it_unset() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Acme Retail".into(), email_input: "".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Retail".into(),
+            email_input: "".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
@@ -420,13 +577,20 @@ mod tests {
     #[test]
     fn creating_a_valid_customer_adds_it_to_the_list_and_clears_the_form() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Acme Retail".into(), email_input: "ar@acmeretail.test".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Retail".into(),
+            email_input: "ar@acmeretail.test".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::Create, &ctx);
 
         assert!(state.error.is_none());
         assert_eq!(state.customers.len(), 1);
-        assert_eq!(state.customers[0].email.as_deref(), Some("ar@acmeretail.test"));
+        assert_eq!(
+            state.customers[0].email.as_deref(),
+            Some("ar@acmeretail.test")
+        );
         assert!(state.name_input.is_empty());
         assert!(state.email_input.is_empty());
     }
@@ -444,7 +608,11 @@ mod tests {
     #[test]
     fn edit_row_prefills_the_form_from_the_existing_customer() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Acme Retail".into(), email_input: "ar@acmeretail.test".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Retail".into(),
+            email_input: "ar@acmeretail.test".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.customers[0].id.unwrap();
 
@@ -458,7 +626,11 @@ mod tests {
     #[test]
     fn saving_an_edit_updates_the_existing_customer_in_place_and_clears_editing_state() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Acme Retail".into(), email_input: "".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Retail".into(),
+            email_input: "".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.customers[0].id.unwrap();
 
@@ -481,7 +653,11 @@ mod tests {
     #[test]
     fn cancel_edit_clears_editing_state_without_touching_the_stored_customer() {
         let ctx = ctx_with_company();
-        let mut state = State { name_input: "Acme Retail".into(), email_input: "".into(), ..Default::default() };
+        let mut state = State {
+            name_input: "Acme Retail".into(),
+            email_input: "".into(),
+            ..Default::default()
+        };
         update(&mut state, Message::Create, &ctx);
         let id = state.customers[0].id.unwrap();
 
@@ -512,17 +688,28 @@ mod tests {
         let ctx = ctx_with_company();
         let mut state = State::default();
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], true), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], true),
+            &ctx,
+        );
         assert_eq!(state.selected, HashSet::from([1, 2, 3]));
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], false), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], false),
+            &ctx,
+        );
         assert!(state.selected.is_empty());
     }
 
     #[test]
     fn clear_selection_empties_it_regardless_of_what_was_selected() {
         let ctx = ctx_with_company();
-        let mut state = State { selected: HashSet::from([1, 2, 3]), ..Default::default() };
+        let mut state = State {
+            selected: HashSet::from([1, 2, 3]),
+            ..Default::default()
+        };
 
         update(&mut state, Message::ClearSelection, &ctx);
 
@@ -545,7 +732,11 @@ mod tests {
         assert!(state.error.is_none());
         assert!(state.customers.is_empty());
         assert!(state.selected.is_empty());
-        assert!(state.message.as_deref().unwrap_or_default().contains("Deleted 2"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Deleted 2"));
     }
 
     /// A selection that includes a customer still referenced by an
@@ -563,8 +754,12 @@ mod tests {
         use crate::backend::services::sales_service::SalesService;
 
         let ctx = ctx_with_company();
-        ctx.db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        ctx.db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        ctx.db
+            .run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        ctx.db
+            .run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         ctx.db.run_migrations(sales_repository::MIGRATIONS).unwrap();
 
         let mut state = State::default();
@@ -576,14 +771,47 @@ mod tests {
         let free_id = state.customers[1].id.unwrap();
 
         let accounting = AccountingRepository::new(ctx.db.clone());
-        accounting.create_fiscal_period(&FiscalPeriod::new(ctx.company_id, "Open Period", chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), chrono::NaiveDate::from_ymd_opt(2030, 12, 31).unwrap())).unwrap();
-        let ar = accounting.create_account(&Account::new(ctx.company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-        let revenue = accounting.create_account(&Account::new(ctx.company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+        accounting
+            .create_fiscal_period(&FiscalPeriod::new(
+                ctx.company_id,
+                "Open Period",
+                chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+                chrono::NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
+            ))
+            .unwrap();
+        let ar = accounting
+            .create_account(&Account::new(
+                ctx.company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let revenue = accounting
+            .create_account(&Account::new(
+                ctx.company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
+            .unwrap();
         let sales = SalesRepository::new(ctx.db.clone());
-        let mut invoice = Invoice::new(ctx.company_id, referenced_id, chrono::NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), chrono::NaiveDate::from_ymd_opt(2026, 2, 4).unwrap());
-        invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(500)));
+        let mut invoice = Invoice::new(
+            ctx.company_id,
+            referenced_id,
+            chrono::NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            chrono::NaiveDate::from_ymd_opt(2026, 2, 4).unwrap(),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            revenue.id.unwrap(),
+            "Consulting",
+            rust_decimal_macros::dec!(1),
+            rust_decimal_macros::dec!(500),
+        ));
         let created = sales.create_invoice(&invoice).unwrap();
-        sales.post_invoice(created.id.unwrap(), ar.id.unwrap()).unwrap();
+        sales
+            .post_invoice(created.id.unwrap(), ar.id.unwrap())
+            .unwrap();
         let _ = SalesService::new(ctx.db.clone());
 
         state.selected = HashSet::from([referenced_id, free_id]);
@@ -643,7 +871,11 @@ mod tests {
     #[test]
     fn reset_all_clears_search_and_status_filter() {
         let ctx = ctx_with_company();
-        let mut state = State { search: "acme".into(), status_filter: StatusFilter::Inactive, ..Default::default() };
+        let mut state = State {
+            search: "acme".into(),
+            status_filter: StatusFilter::Inactive,
+            ..Default::default()
+        };
 
         update(&mut state, Message::ResetAll, &ctx);
 

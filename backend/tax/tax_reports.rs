@@ -28,8 +28,14 @@ impl TaxSummary {
 
 /// Sums every tax transaction dated within `[period_start, period_end]`
 /// by direction.
-pub fn summarize(transactions: &[TaxTransaction], period_start: NaiveDate, period_end: NaiveDate) -> TaxSummary {
-    let in_period = transactions.iter().filter(|t| t.tax_date >= period_start && t.tax_date <= period_end);
+pub fn summarize(
+    transactions: &[TaxTransaction],
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+) -> TaxSummary {
+    let in_period = transactions
+        .iter()
+        .filter(|t| t.tax_date >= period_start && t.tax_date <= period_end);
 
     let mut summary = TaxSummary {
         period_start,

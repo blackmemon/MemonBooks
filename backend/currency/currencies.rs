@@ -15,7 +15,12 @@ pub struct Currency {
 }
 
 impl Currency {
-    pub fn new(code: impl Into<String>, name: impl Into<String>, symbol: impl Into<String>, decimal_places: u32) -> Self {
+    pub fn new(
+        code: impl Into<String>,
+        name: impl Into<String>,
+        symbol: impl Into<String>,
+        decimal_places: u32,
+    ) -> Self {
         Self {
             code: code.into().to_ascii_uppercase(),
             name: name.into(),

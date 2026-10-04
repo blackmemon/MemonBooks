@@ -25,49 +25,97 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 #[test]
 fn posting_balanced_entries_keeps_the_trial_balance_balanced_end_to_end() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+    let company = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap();
     let company_id = company.id.unwrap();
 
     let accounting_repo = AccountingRepository::new(db);
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
 
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-    let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let capital = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "3000",
+            "Owner's Capital",
+            AccountType::Equity,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
 
     // Opening capital.
     accounting_repo
         .post_transaction(
-            &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
-                .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(10000)))
-                .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(10000))),
+            &Transaction::new(
+                company_id,
+                TransactionType::OpeningBalance,
+                date(2026, 1, 1),
+            )
+            .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(10000)))
+            .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(10000))),
         )
         .unwrap();
 
     // A sale.
     let sale = accounting_repo
         .post_transaction(
-            &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-                .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(2500)))
-                .with_line(TransactionLine::credit(revenue.id.unwrap(), dec!(2500))),
+            &Transaction::new(
+                company_id,
+                TransactionType::ManualJournal,
+                date(2026, 1, 15),
+            )
+            .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(2500)))
+            .with_line(TransactionLine::credit(revenue.id.unwrap(), dec!(2500))),
         )
         .unwrap();
 
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
-    assert!(trial_balance.is_balanced(), "trial balance must balance after any number of balanced postings");
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, date(2026, 1, 31))
+        .unwrap();
+    assert!(
+        trial_balance.is_balanced(),
+        "trial balance must balance after any number of balanced postings"
+    );
     assert_eq!(trial_balance.total_debits(), dec!(12500));
 
     // Reversing the sale should bring cash and revenue back to their
     // opening-only state, and the trial balance must still balance.
-    accounting_repo.reverse_transaction(sale.id.unwrap(), date(2026, 1, 20)).unwrap();
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+    accounting_repo
+        .reverse_transaction(sale.id.unwrap(), date(2026, 1, 20))
+        .unwrap();
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, date(2026, 1, 31))
+        .unwrap();
     assert!(trial_balance.is_balanced());
     assert_eq!(trial_balance.total_debits(), dec!(10000));
 }
@@ -75,26 +123,57 @@ fn posting_balanced_entries_keeps_the_trial_balance_balanced_end_to_end() {
 #[test]
 fn an_unbalanced_transaction_is_rejected_before_touching_the_ledger() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+    let company = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap();
     let company_id = company.id.unwrap();
 
     let accounting_repo = AccountingRepository::new(db);
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-    let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let capital = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "3000",
+            "Owner's Capital",
+            AccountType::Equity,
+        ))
+        .unwrap();
 
     let result = accounting_repo.post_transaction(
-        &Transaction::new(company_id, TransactionType::ManualJournal, date(2026, 1, 15))
-            .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(100)))
-            .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(99))),
+        &Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            date(2026, 1, 15),
+        )
+        .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(100)))
+        .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(99))),
     );
     assert!(result.is_err());
-    assert!(accounting_repo.list_transactions_for_company(company_id).unwrap().is_empty());
+    assert!(accounting_repo
+        .list_transactions_for_company(company_id)
+        .unwrap()
+        .is_empty());
 }

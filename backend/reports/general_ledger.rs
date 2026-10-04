@@ -16,7 +16,10 @@ pub fn to_rows(entries: &[GeneralLedgerEntry]) -> (Vec<&'static str>, Vec<Vec<St
             ]
         })
         .collect();
-    (vec!["Date", "Description", "Debit", "Credit", "Balance"], rows)
+    (
+        vec!["Date", "Description", "Debit", "Credit", "Balance"],
+        rows,
+    )
 }
 
 #[cfg(test)]

@@ -26,7 +26,14 @@ pub struct Expense {
 }
 
 impl Expense {
-    pub fn new(company_id: i64, category_id: i64, expense_date: NaiveDate, amount: Decimal, description: impl Into<String>, payment_account_id: i64) -> Self {
+    pub fn new(
+        company_id: i64,
+        category_id: i64,
+        expense_date: NaiveDate,
+        amount: Decimal,
+        description: impl Into<String>,
+        payment_account_id: i64,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -43,10 +50,16 @@ impl Expense {
     /// account. `expense_gl_account_id` comes from the category (a
     /// join the repository does, since this type doesn't hold it).
     pub fn build_transaction(&self, expense_gl_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::Expense, self.expense_date);
+        let mut transaction =
+            Transaction::new(self.company_id, TransactionType::Expense, self.expense_date);
         transaction.description = Some(self.description.clone());
-        transaction.lines.push(TransactionLine::debit(expense_gl_account_id, self.amount));
-        transaction.lines.push(TransactionLine::credit(self.payment_account_id, self.amount));
+        transaction
+            .lines
+            .push(TransactionLine::debit(expense_gl_account_id, self.amount));
+        transaction.lines.push(TransactionLine::credit(
+            self.payment_account_id,
+            self.amount,
+        ));
         transaction
     }
 }
@@ -54,13 +67,19 @@ impl Expense {
 impl Validate for Expense {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("expense must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "expense must reference a valid company".into(),
+            ));
         }
         if self.category_id <= 0 {
-            return Err(AppError::Validation("expense must reference a valid category".into()));
+            return Err(AppError::Validation(
+                "expense must reference a valid category".into(),
+            ));
         }
         if self.payment_account_id <= 0 {
-            return Err(AppError::Validation("expense must reference a valid payment account".into()));
+            return Err(AppError::Validation(
+                "expense must reference a valid payment account".into(),
+            ));
         }
         require_positive("expense amount", self.amount)?;
         require_non_empty("expense description", &self.description)?;
@@ -75,7 +94,14 @@ mod tests {
 
     #[test]
     fn build_transaction_debits_expense_and_credits_payment_account() {
-        let expense = Expense::new(1, 5, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(45), "Taxi fare", 10);
+        let expense = Expense::new(
+            1,
+            5,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(45),
+            "Taxi fare",
+            10,
+        );
         let transaction = expense.build_transaction(50);
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 50);
@@ -86,7 +112,14 @@ mod tests {
 
     #[test]
     fn validate_rejects_non_positive_amount() {
-        let expense = Expense::new(1, 5, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), Decimal::ZERO, "Taxi fare", 10);
+        let expense = Expense::new(
+            1,
+            5,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            Decimal::ZERO,
+            "Taxi fare",
+            10,
+        );
         assert!(expense.validate().is_err());
     }
 }

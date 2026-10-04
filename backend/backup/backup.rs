@@ -18,7 +18,9 @@ pub fn create_backup(db: &Database, destination: &Path) -> AppResult<()> {
         }
     }
 
-    let destination_str = destination.to_str().ok_or_else(|| AppError::Validation("backup destination path is not valid UTF-8".into()))?;
+    let destination_str = destination
+        .to_str()
+        .ok_or_else(|| AppError::Validation("backup destination path is not valid UTF-8".into()))?;
 
     db.with_connection(|conn| {
         conn.execute("VACUUM INTO ?1", [destination_str])?;
@@ -45,7 +47,8 @@ mod tests {
         })
         .unwrap();
 
-        let dir = std::env::temp_dir().join(format!("memonbooks-backup-test-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("memonbooks-backup-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let backup_path = dir.join("backup.sqlite3");
 
@@ -53,7 +56,9 @@ mod tests {
         assert!(backup_path.exists());
 
         let restored = rusqlite::Connection::open(&backup_path).unwrap();
-        let count: i64 = restored.query_row("SELECT COUNT(*) FROM widgets", [], |row| row.get(0)).unwrap();
+        let count: i64 = restored
+            .query_row("SELECT COUNT(*) FROM widgets", [], |row| row.get(0))
+            .unwrap();
         assert_eq!(count, 1);
 
         std::fs::remove_dir_all(&dir).ok();
@@ -68,10 +73,10 @@ mod tests {
     /// original exactly.
     #[test]
     fn a_backup_restores_into_a_fresh_database_with_all_data_intact() {
-        use crate::backend::backup::restore;
         use crate::backend::accounting::accounting_rules::AccountType;
         use crate::backend::accounting::chart_of_accounts::Account;
         use crate::backend::accounting::fiscal_periods::FiscalPeriod;
+        use crate::backend::backup::restore;
         use crate::backend::organization::companies::Company;
         use crate::backend::repositories::accounting_repository::{self, AccountingRepository};
         use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
@@ -81,7 +86,10 @@ mod tests {
         use chrono::NaiveDate;
         use rust_decimal_macros::dec;
 
-        let dir = std::env::temp_dir().join(format!("memonbooks-backup-roundtrip-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "memonbooks-backup-roundtrip-test-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let original_path = dir.join("original.sqlite3");
         let backup_path = dir.join("backup.sqlite3");
@@ -90,19 +98,47 @@ mod tests {
         // Real domain data: a company, a fiscal period, two accounts, and
         // a posted, balanced transaction.
         let db = Database::open(&original_path).unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
         let period_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let period_end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", period_start, period_end)).unwrap();
-        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "January 2026",
+                period_start,
+                period_end,
+            ))
+            .unwrap();
+        let cash = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
         accounting_repo
             .post_transaction(
                 &Transaction::new(company_id, TransactionType::OpeningBalance, period_start)
@@ -125,7 +161,9 @@ mod tests {
         assert_eq!(restored_company.name, "Acme Trading Co");
 
         let restored_accounting_repo = AccountingRepository::new(restored_db);
-        let trial_balance = restored_accounting_repo.trial_balance_as_of(company_id, period_end).unwrap();
+        let trial_balance = restored_accounting_repo
+            .trial_balance_as_of(company_id, period_end)
+            .unwrap();
         assert!(trial_balance.is_balanced());
         assert_eq!(trial_balance.total_debits(), dec!(7500));
 

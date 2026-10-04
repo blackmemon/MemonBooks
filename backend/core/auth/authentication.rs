@@ -20,7 +20,9 @@ pub enum AuthOutcome {
 /// enabled, this succeeds with `TwoFactorRequired` rather than granting
 /// access -- the caller must then call `verify_two_factor`.
 pub fn authenticate(user: Option<&User>, password: &str) -> AppResult<AuthOutcome> {
-    let user = user.filter(|u| u.is_active).ok_or_else(|| AppError::Validation(INVALID_CREDENTIALS.into()))?;
+    let user = user
+        .filter(|u| u.is_active)
+        .ok_or_else(|| AppError::Validation(INVALID_CREDENTIALS.into()))?;
 
     if !verify_password(password, &user.password_hash)? {
         return Err(AppError::Validation(INVALID_CREDENTIALS.into()));

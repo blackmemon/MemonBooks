@@ -28,14 +28,18 @@ pub fn require_max_length(field: &str, value: &str, max: usize) -> AppResult<()>
 
 pub fn require_non_negative(field: &str, value: Decimal) -> AppResult<()> {
     if value.is_sign_negative() {
-        return Err(AppError::Validation(format!("{field} must not be negative")));
+        return Err(AppError::Validation(format!(
+            "{field} must not be negative"
+        )));
     }
     Ok(())
 }
 
 pub fn require_positive(field: &str, value: Decimal) -> AppResult<()> {
     if value <= Decimal::ZERO {
-        return Err(AppError::Validation(format!("{field} must be greater than zero")));
+        return Err(AppError::Validation(format!(
+            "{field} must be greater than zero"
+        )));
     }
     Ok(())
 }

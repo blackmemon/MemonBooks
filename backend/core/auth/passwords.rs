@@ -30,7 +30,9 @@ pub fn hash_password(password: &str) -> AppResult<String> {
 pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
     let parsed = PasswordHash::new(hash)
         .map_err(|err| AppError::Internal(format!("stored password hash is malformed: {err}")))?;
-    Ok(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok())
 }
 
 #[cfg(test)]

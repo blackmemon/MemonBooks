@@ -29,7 +29,14 @@ pub struct TaxTransaction {
 }
 
 impl TaxTransaction {
-    pub fn new(company_id: i64, tax_rate_id: i64, tax_date: NaiveDate, taxable_amount: Decimal, tax_amount: Decimal, direction: TaxDirection) -> Self {
+    pub fn new(
+        company_id: i64,
+        tax_rate_id: i64,
+        tax_date: NaiveDate,
+        taxable_amount: Decimal,
+        tax_amount: Decimal,
+        direction: TaxDirection,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -49,7 +56,11 @@ impl TaxTransaction {
     /// mirror image -- debits the tax account (a reclaimable asset),
     /// credits the offset account (typically AP).
     pub fn build_transaction(&self, tax_gl_account_id: i64, offset_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::ManualJournal, self.tax_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::ManualJournal,
+            self.tax_date,
+        );
         transaction.description = Some(match &self.source_reference {
             Some(reference) => format!("Tax on {reference}"),
             None => "Tax".into(),
@@ -57,12 +68,20 @@ impl TaxTransaction {
 
         match self.direction {
             TaxDirection::Output => {
-                transaction.lines.push(TransactionLine::debit(offset_account_id, self.tax_amount));
-                transaction.lines.push(TransactionLine::credit(tax_gl_account_id, self.tax_amount));
+                transaction
+                    .lines
+                    .push(TransactionLine::debit(offset_account_id, self.tax_amount));
+                transaction
+                    .lines
+                    .push(TransactionLine::credit(tax_gl_account_id, self.tax_amount));
             }
             TaxDirection::Input => {
-                transaction.lines.push(TransactionLine::debit(tax_gl_account_id, self.tax_amount));
-                transaction.lines.push(TransactionLine::credit(offset_account_id, self.tax_amount));
+                transaction
+                    .lines
+                    .push(TransactionLine::debit(tax_gl_account_id, self.tax_amount));
+                transaction
+                    .lines
+                    .push(TransactionLine::credit(offset_account_id, self.tax_amount));
             }
         }
         transaction
@@ -72,10 +91,14 @@ impl TaxTransaction {
 impl Validate for TaxTransaction {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("tax transaction must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "tax transaction must reference a valid company".into(),
+            ));
         }
         if self.tax_rate_id <= 0 {
-            return Err(AppError::Validation("tax transaction must reference a valid tax rate".into()));
+            return Err(AppError::Validation(
+                "tax transaction must reference a valid tax rate".into(),
+            ));
         }
         require_non_negative("taxable amount", self.taxable_amount)?;
         require_positive("tax amount", self.tax_amount)?;
@@ -94,7 +117,14 @@ mod tests {
 
     #[test]
     fn output_tax_debits_offset_and_credits_the_tax_account() {
-        let tax = TaxTransaction::new(1, 1, date(2026, 1, 1), dec!(100), dec!(15), TaxDirection::Output);
+        let tax = TaxTransaction::new(
+            1,
+            1,
+            date(2026, 1, 1),
+            dec!(100),
+            dec!(15),
+            TaxDirection::Output,
+        );
         let transaction = tax.build_transaction(90, 80);
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 80);
@@ -105,7 +135,14 @@ mod tests {
 
     #[test]
     fn input_tax_debits_the_tax_account_and_credits_offset() {
-        let tax = TaxTransaction::new(1, 1, date(2026, 1, 1), dec!(100), dec!(15), TaxDirection::Input);
+        let tax = TaxTransaction::new(
+            1,
+            1,
+            date(2026, 1, 1),
+            dec!(100),
+            dec!(15),
+            TaxDirection::Input,
+        );
         let transaction = tax.build_transaction(90, 80);
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 90);
@@ -116,7 +153,14 @@ mod tests {
 
     #[test]
     fn validate_rejects_non_positive_tax_amount() {
-        let tax = TaxTransaction::new(1, 1, date(2026, 1, 1), dec!(100), Decimal::ZERO, TaxDirection::Output);
+        let tax = TaxTransaction::new(
+            1,
+            1,
+            date(2026, 1, 1),
+            dec!(100),
+            Decimal::ZERO,
+            TaxDirection::Output,
+        );
         assert!(tax.validate().is_err());
     }
 }

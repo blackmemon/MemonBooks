@@ -76,7 +76,8 @@ pub fn list_recent(db: &Database, limit: i64) -> AppResult<Vec<AuditLog>> {
                 detail: row.get(5)?,
             })
         })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(crate::backend::core::errors::AppError::from)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(crate::backend::core::errors::AppError::from)
     })
 }
 
@@ -101,7 +102,8 @@ mod tests {
         let mut role_change = AuditLog::new("roles.updated");
         role_change.entity_type = Some("role".into());
         role_change.entity_id = Some("2".into());
-        db.with_connection(|conn| record(conn, &role_change)).unwrap();
+        db.with_connection(|conn| record(conn, &role_change))
+            .unwrap();
 
         let recent = list_recent(&db, 10).unwrap();
         assert_eq!(recent.len(), 2);
@@ -113,7 +115,8 @@ mod tests {
     fn list_recent_respects_the_limit() {
         let db = db_with_schema();
         for i in 0..5 {
-            db.with_connection(|conn| record(conn, &AuditLog::new(format!("event.{i}")))).unwrap();
+            db.with_connection(|conn| record(conn, &AuditLog::new(format!("event.{i}"))))
+                .unwrap();
         }
         assert_eq!(list_recent(&db, 2).unwrap().len(), 2);
     }

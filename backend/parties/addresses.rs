@@ -46,7 +46,14 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn new(party_type: PartyType, party_id: i64, label: AddressLabel, line1: impl Into<String>, city: impl Into<String>, country: impl Into<String>) -> Self {
+    pub fn new(
+        party_type: PartyType,
+        party_id: i64,
+        label: AddressLabel,
+        line1: impl Into<String>,
+        city: impl Into<String>,
+        country: impl Into<String>,
+    ) -> Self {
         Self {
             id: None,
             party_type,
@@ -65,7 +72,9 @@ impl Address {
 impl Validate for Address {
     fn validate(&self) -> AppResult<()> {
         if self.party_id <= 0 {
-            return Err(AppError::Validation("address must reference a valid party".into()));
+            return Err(AppError::Validation(
+                "address must reference a valid party".into(),
+            ));
         }
         require_non_empty("address line 1", &self.line1)?;
         require_max_length("address line 1", &self.line1, 200)?;
@@ -83,20 +92,38 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_label() {
-        for label in [AddressLabel::Billing, AddressLabel::Shipping, AddressLabel::Other] {
+        for label in [
+            AddressLabel::Billing,
+            AddressLabel::Shipping,
+            AddressLabel::Other,
+        ] {
             assert_eq!(AddressLabel::parse(label.as_str()), Some(label));
         }
     }
 
     #[test]
     fn validate_rejects_blank_required_fields() {
-        let address = Address::new(PartyType::Customer, 1, AddressLabel::Billing, "", "Karachi", "PK");
+        let address = Address::new(
+            PartyType::Customer,
+            1,
+            AddressLabel::Billing,
+            "",
+            "Karachi",
+            "PK",
+        );
         assert!(address.validate().is_err());
     }
 
     #[test]
     fn validate_accepts_a_well_formed_address() {
-        let address = Address::new(PartyType::Customer, 1, AddressLabel::Billing, "123 Main St", "Karachi", "PK");
+        let address = Address::new(
+            PartyType::Customer,
+            1,
+            AddressLabel::Billing,
+            "123 Main St",
+            "Karachi",
+            "PK",
+        );
         assert!(address.validate().is_ok());
     }
 }

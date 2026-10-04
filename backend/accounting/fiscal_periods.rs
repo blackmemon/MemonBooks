@@ -42,7 +42,10 @@ impl FiscalPeriodStatus {
     /// no-op "transitions" to the same state aren't transitions at all.
     pub fn can_transition_to(self, to: FiscalPeriodStatus) -> bool {
         use FiscalPeriodStatus::*;
-        matches!((self, to), (Open, Closed) | (Closed, Open) | (Closed, Locked))
+        matches!(
+            (self, to),
+            (Open, Closed) | (Closed, Open) | (Closed, Locked)
+        )
     }
 }
 
@@ -57,7 +60,12 @@ pub struct FiscalPeriod {
 }
 
 impl FiscalPeriod {
-    pub fn new(company_id: i64, name: impl Into<String>, start_date: NaiveDate, end_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        name: impl Into<String>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -80,7 +88,9 @@ impl FiscalPeriod {
 impl Validate for FiscalPeriod {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("fiscal period must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "fiscal period must reference a valid company".into(),
+            ));
         }
         require_non_empty("fiscal period name", &self.name)?;
         if self.start_date > self.end_date {
@@ -101,7 +111,12 @@ mod tests {
     }
 
     fn january_2026(company_id: i64) -> FiscalPeriod {
-        FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31))
+        FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        )
     }
 
     #[test]
@@ -148,7 +163,11 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_variant() {
-        for status in [FiscalPeriodStatus::Open, FiscalPeriodStatus::Closed, FiscalPeriodStatus::Locked] {
+        for status in [
+            FiscalPeriodStatus::Open,
+            FiscalPeriodStatus::Closed,
+            FiscalPeriodStatus::Locked,
+        ] {
             assert_eq!(FiscalPeriodStatus::parse(status.as_str()), Some(status));
         }
     }

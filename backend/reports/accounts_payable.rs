@@ -19,7 +19,17 @@ pub fn to_rows(payables: &[Payable], as_of: NaiveDate) -> (Vec<&'static str>, Ve
             ]
         })
         .collect();
-    (vec!["Reference", "Due Date", "Amount", "Paid", "Balance", "Overdue"], rows)
+    (
+        vec![
+            "Reference",
+            "Due Date",
+            "Amount",
+            "Paid",
+            "Balance",
+            "Overdue",
+        ],
+        rows,
+    )
 }
 
 #[cfg(test)]
@@ -29,7 +39,13 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_payable() {
-        let payable = Payable::new(1, 1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(), dec!(500));
+        let payable = Payable::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            dec!(500),
+        );
         let (headers, rows) = to_rows(&[payable], NaiveDate::from_ymd_opt(2026, 1, 15).unwrap());
         assert_eq!(headers.len(), 6);
         assert_eq!(rows[0][5], "false"); // not yet overdue

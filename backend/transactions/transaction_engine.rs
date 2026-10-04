@@ -65,7 +65,12 @@ mod tests {
     }
 
     fn open_january(company_id: i64) -> FiscalPeriod {
-        FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31))
+        FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        )
     }
 
     fn balanced_transaction(company_id: i64, on: NaiveDate) -> Transaction {

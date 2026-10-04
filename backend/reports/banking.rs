@@ -23,7 +23,15 @@ pub fn to_rows(summaries: &[BankAccountSummary]) -> (Vec<&'static str>, Vec<Vec<
             ]
         })
         .collect();
-    (vec!["Bank", "Account Number", "Book Balance", "Unreconciled Items"], rows)
+    (
+        vec![
+            "Bank",
+            "Account Number",
+            "Book Balance",
+            "Unreconciled Items",
+        ],
+        rows,
+    )
 }
 
 #[cfg(test)]

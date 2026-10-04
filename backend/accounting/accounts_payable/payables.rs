@@ -24,7 +24,13 @@ pub struct Payable {
 }
 
 impl Payable {
-    pub fn new(company_id: i64, vendor_id: i64, bill_date: NaiveDate, due_date: NaiveDate, amount: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        vendor_id: i64,
+        bill_date: NaiveDate,
+        due_date: NaiveDate,
+        amount: Decimal,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -54,20 +60,30 @@ impl Payable {
 impl Validate for Payable {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("payable must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "payable must reference a valid company".into(),
+            ));
         }
         if self.vendor_id <= 0 {
-            return Err(AppError::Validation("payable must reference a valid vendor".into()));
+            return Err(AppError::Validation(
+                "payable must reference a valid vendor".into(),
+            ));
         }
         require_positive("payable amount", self.amount)?;
         if self.amount_paid < Decimal::ZERO {
-            return Err(AppError::Validation("payable amount_paid must not be negative".into()));
+            return Err(AppError::Validation(
+                "payable amount_paid must not be negative".into(),
+            ));
         }
         if self.amount_paid > self.amount {
-            return Err(AppError::Validation("payable amount_paid must not exceed its amount".into()));
+            return Err(AppError::Validation(
+                "payable amount_paid must not exceed its amount".into(),
+            ));
         }
         if self.due_date < self.bill_date {
-            return Err(AppError::Validation("payable due_date must not be before its bill_date".into()));
+            return Err(AppError::Validation(
+                "payable due_date must not be before its bill_date".into(),
+            ));
         }
         Ok(())
     }

@@ -315,7 +315,11 @@ impl PartyRepository {
         })
     }
 
-    pub fn list_addresses_for_party(&self, party_type: PartyType, party_id: i64) -> AppResult<Vec<Address>> {
+    pub fn list_addresses_for_party(
+        &self,
+        party_type: PartyType,
+        party_id: i64,
+    ) -> AppResult<Vec<Address>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, party_type, party_id, label, line1, line2, city, state, postal_code, country
@@ -354,7 +358,11 @@ impl PartyRepository {
         })
     }
 
-    pub fn list_contacts_for_party(&self, party_type: PartyType, party_id: i64) -> AppResult<Vec<Contact>> {
+    pub fn list_contacts_for_party(
+        &self,
+        party_type: PartyType,
+        party_id: i64,
+    ) -> AppResult<Vec<Contact>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, party_type, party_id, name, email, phone, is_primary
@@ -375,7 +383,9 @@ fn map_customer(row: &Row) -> rusqlite::Result<Customer> {
         email: row.get(3)?,
         phone: row.get(4)?,
         tax_id: row.get(5)?,
-        credit_limit: credit_limit_text.parse().unwrap_or(rust_decimal::Decimal::ZERO),
+        credit_limit: credit_limit_text
+            .parse()
+            .unwrap_or(rust_decimal::Decimal::ZERO),
         payment_terms_days: row.get(7)?,
         is_active: row.get(8)?,
         reference_code: row.get(9)?,
@@ -399,11 +409,19 @@ fn map_vendor(row: &Row) -> rusqlite::Result<Vendor> {
 fn map_address(row: &Row) -> rusqlite::Result<Address> {
     let party_type_text: String = row.get(1)?;
     let party_type = PartyType::parse(&party_type_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, "invalid party_type".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            1,
+            rusqlite::types::Type::Text,
+            "invalid party_type".into(),
+        )
     })?;
     let label_text: String = row.get(3)?;
     let label = AddressLabel::parse(&label_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, "invalid address label".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            3,
+            rusqlite::types::Type::Text,
+            "invalid address label".into(),
+        )
     })?;
     Ok(Address {
         id: Some(row.get(0)?),
@@ -422,7 +440,11 @@ fn map_address(row: &Row) -> rusqlite::Result<Address> {
 fn map_contact(row: &Row) -> rusqlite::Result<Contact> {
     let party_type_text: String = row.get(1)?;
     let party_type = PartyType::parse(&party_type_text).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, "invalid party_type".into())
+        rusqlite::Error::FromSqlConversionFailure(
+            1,
+            rusqlite::types::Type::Text,
+            "invalid party_type".into(),
+        )
     })?;
     Ok(Contact {
         id: Some(row.get(0)?),
@@ -443,11 +465,14 @@ mod tests {
 
     fn repo_with_company() -> (PartyRepository, i64) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap();
+        let company = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap();
 
         (PartyRepository::new(db), company.id.unwrap())
     }
@@ -455,7 +480,9 @@ mod tests {
     #[test]
     fn creates_and_fetches_a_customer() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let created = repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
         let fetched = repo.get_customer(created.id.unwrap()).unwrap();
         assert_eq!(fetched.name, "Acme Retail");
         assert_eq!(fetched.payment_terms_days, 30);
@@ -464,7 +491,9 @@ mod tests {
     #[test]
     fn delete_customer_removes_an_unreferenced_customer() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let created = repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
 
         repo.delete_customer(created.id.unwrap()).unwrap();
 
@@ -481,24 +510,63 @@ mod tests {
         use crate::backend::sales::invoices::{Invoice, InvoiceLine};
 
         let (repo, company_id) = repo_with_company();
-        repo.db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        repo.db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
-        repo.db.run_migrations(sales_repository::MIGRATIONS).unwrap();
+        repo.db
+            .run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        repo.db
+            .run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
+        repo.db
+            .run_migrations(sales_repository::MIGRATIONS)
+            .unwrap();
 
-        let customer = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let customer = repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
 
         let accounting = AccountingRepository::new(repo.db.clone());
         accounting
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
             .unwrap();
-        let ar = accounting.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-        let revenue = accounting.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+        let ar = accounting
+            .create_account(&Account::new(
+                company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let revenue = accounting
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
+            .unwrap();
 
         let sales = SalesRepository::new(repo.db.clone());
-        let mut invoice = Invoice::new(company_id, customer.id.unwrap(), date(2026, 1, 5), date(2026, 2, 4));
-        invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(500)));
+        let mut invoice = Invoice::new(
+            company_id,
+            customer.id.unwrap(),
+            date(2026, 1, 5),
+            date(2026, 2, 4),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            revenue.id.unwrap(),
+            "Consulting",
+            rust_decimal_macros::dec!(1),
+            rust_decimal_macros::dec!(500),
+        ));
         let created_invoice = sales.create_invoice(&invoice).unwrap();
-        sales.post_invoice(created_invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+        sales
+            .post_invoice(created_invoice.id.unwrap(), ar.id.unwrap())
+            .unwrap();
 
         let result = repo.delete_customer(customer.id.unwrap());
 
@@ -514,7 +582,9 @@ mod tests {
     #[test]
     fn creates_and_fetches_a_vendor() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd")).unwrap();
+        let created = repo
+            .create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd"))
+            .unwrap();
         let fetched = repo.get_vendor(created.id.unwrap()).unwrap();
         assert_eq!(fetched.name, "Acme Supplies Ltd");
     }
@@ -522,7 +592,9 @@ mod tests {
     #[test]
     fn delete_vendor_removes_an_unreferenced_vendor() {
         let (repo, company_id) = repo_with_company();
-        let created = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies")).unwrap();
+        let created = repo
+            .create_vendor(&Vendor::new(company_id, "Acme Supplies"))
+            .unwrap();
 
         repo.delete_vendor(created.id.unwrap()).unwrap();
 
@@ -539,24 +611,63 @@ mod tests {
         use crate::backend::repositories::purchase_repository::{self, PurchaseRepository};
 
         let (repo, company_id) = repo_with_company();
-        repo.db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        repo.db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
-        repo.db.run_migrations(purchase_repository::MIGRATIONS).unwrap();
+        repo.db
+            .run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        repo.db
+            .run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
+        repo.db
+            .run_migrations(purchase_repository::MIGRATIONS)
+            .unwrap();
 
-        let vendor = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies")).unwrap();
+        let vendor = repo
+            .create_vendor(&Vendor::new(company_id, "Acme Supplies"))
+            .unwrap();
 
         let accounting = AccountingRepository::new(repo.db.clone());
         accounting
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31)))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
             .unwrap();
-        let ap = accounting.create_account(&Account::new(company_id, "2000", "Accounts Payable", AccountType::Liability)).unwrap();
-        let expense = accounting.create_account(&Account::new(company_id, "6000", "Office Supplies", AccountType::Expense)).unwrap();
+        let ap = accounting
+            .create_account(&Account::new(
+                company_id,
+                "2000",
+                "Accounts Payable",
+                AccountType::Liability,
+            ))
+            .unwrap();
+        let expense = accounting
+            .create_account(&Account::new(
+                company_id,
+                "6000",
+                "Office Supplies",
+                AccountType::Expense,
+            ))
+            .unwrap();
 
         let purchases = PurchaseRepository::new(repo.db.clone());
-        let mut bill = Bill::new(company_id, vendor.id.unwrap(), date(2026, 1, 5), date(2026, 2, 4));
-        bill.lines.push(BillLine::new(expense.id.unwrap(), "Office supplies", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(300)));
+        let mut bill = Bill::new(
+            company_id,
+            vendor.id.unwrap(),
+            date(2026, 1, 5),
+            date(2026, 2, 4),
+        );
+        bill.lines.push(BillLine::new(
+            expense.id.unwrap(),
+            "Office supplies",
+            rust_decimal_macros::dec!(1),
+            rust_decimal_macros::dec!(300),
+        ));
         let created_bill = purchases.create_bill(&bill).unwrap();
-        purchases.post_bill(created_bill.id.unwrap(), ap.id.unwrap()).unwrap();
+        purchases
+            .post_bill(created_bill.id.unwrap(), ap.id.unwrap())
+            .unwrap();
 
         let result = repo.delete_vendor(vendor.id.unwrap());
 
@@ -568,7 +679,9 @@ mod tests {
     #[test]
     fn addresses_round_trip_for_a_customer() {
         let (repo, company_id) = repo_with_company();
-        let customer = repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let customer = repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
         repo.create_address(&Address::new(
             PartyType::Customer,
             customer.id.unwrap(),
@@ -579,7 +692,9 @@ mod tests {
         ))
         .unwrap();
 
-        let addresses = repo.list_addresses_for_party(PartyType::Customer, customer.id.unwrap()).unwrap();
+        let addresses = repo
+            .list_addresses_for_party(PartyType::Customer, customer.id.unwrap())
+            .unwrap();
         assert_eq!(addresses.len(), 1);
         assert_eq!(addresses[0].label, AddressLabel::Billing);
     }
@@ -587,7 +702,9 @@ mod tests {
     #[test]
     fn creating_a_new_primary_contact_demotes_the_previous_one() {
         let (repo, company_id) = repo_with_company();
-        let vendor = repo.create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd")).unwrap();
+        let vendor = repo
+            .create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd"))
+            .unwrap();
 
         let mut first = Contact::new(PartyType::Vendor, vendor.id.unwrap(), "Jane Doe");
         first.is_primary = true;
@@ -597,7 +714,9 @@ mod tests {
         second.is_primary = true;
         repo.create_contact(&second).unwrap();
 
-        let contacts = repo.list_contacts_for_party(PartyType::Vendor, vendor.id.unwrap()).unwrap();
+        let contacts = repo
+            .list_contacts_for_party(PartyType::Vendor, vendor.id.unwrap())
+            .unwrap();
         let refetched_first = contacts.iter().find(|c| c.id == first.id).unwrap();
         assert!(!refetched_first.is_primary);
         let refetched_second = contacts.iter().find(|c| c.name == "John Smith").unwrap();

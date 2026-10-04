@@ -43,13 +43,25 @@ impl ProfitAndLoss {
         let mut rows = Vec::new();
         rows.push(vec!["Revenue".into(), String::new(), String::new()]);
         for line in &self.revenue {
-            rows.push(vec![line.account_code.clone(), line.account_name.clone(), line.amount.to_string()]);
+            rows.push(vec![
+                line.account_code.clone(),
+                line.account_name.clone(),
+                line.amount.to_string(),
+            ]);
         }
         rows.push(vec!["Expenses".into(), String::new(), String::new()]);
         for line in &self.expenses {
-            rows.push(vec![line.account_code.clone(), line.account_name.clone(), line.amount.to_string()]);
+            rows.push(vec![
+                line.account_code.clone(),
+                line.account_name.clone(),
+                line.amount.to_string(),
+            ]);
         }
-        rows.push(vec!["Net Income".into(), String::new(), self.net_income().to_string()]);
+        rows.push(vec![
+            "Net Income".into(),
+            String::new(),
+            self.net_income().to_string(),
+        ]);
         (vec!["Code", "Account", "Amount"], rows)
     }
 }
@@ -57,7 +69,12 @@ impl ProfitAndLoss {
 /// `balances` is each Revenue/Expense account's net movement for the
 /// period (trial-balance convention: positive = debit, negative =
 /// credit -- so a healthy revenue account arrives negative here).
-pub fn build(period_start: NaiveDate, period_end: NaiveDate, accounts: &[(String, String)], balances: &[ClosingBalance]) -> ProfitAndLoss {
+pub fn build(
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    accounts: &[(String, String)],
+    balances: &[ClosingBalance],
+) -> ProfitAndLoss {
     let mut report = ProfitAndLoss {
         period_start,
         period_end,
@@ -104,10 +121,21 @@ mod tests {
     #[test]
     fn net_income_is_revenue_minus_expenses() {
         let balances = vec![
-            ClosingBalance { account_id: 1, account_type: AccountType::Revenue, net_balance: dec!(-5000) },
-            ClosingBalance { account_id: 2, account_type: AccountType::Expense, net_balance: dec!(3000) },
+            ClosingBalance {
+                account_id: 1,
+                account_type: AccountType::Revenue,
+                net_balance: dec!(-5000),
+            },
+            ClosingBalance {
+                account_id: 2,
+                account_type: AccountType::Expense,
+                net_balance: dec!(3000),
+            },
         ];
-        let accounts = vec![("4000".to_string(), "Sales Revenue".to_string()), ("6000".to_string(), "Rent Expense".to_string())];
+        let accounts = vec![
+            ("4000".to_string(), "Sales Revenue".to_string()),
+            ("6000".to_string(), "Rent Expense".to_string()),
+        ];
         let report = build(date(2026, 1, 1), date(2026, 1, 31), &accounts, &balances);
 
         assert_eq!(report.total_revenue(), dec!(5000));

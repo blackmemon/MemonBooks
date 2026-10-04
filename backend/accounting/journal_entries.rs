@@ -29,12 +29,16 @@ impl JournalEntry {
     }
 
     pub fn debit(mut self, account_id: i64, amount: Decimal) -> Self {
-        self.transaction.lines.push(TransactionLine::debit(account_id, amount));
+        self.transaction
+            .lines
+            .push(TransactionLine::debit(account_id, amount));
         self
     }
 
     pub fn credit(mut self, account_id: i64, amount: Decimal) -> Self {
-        self.transaction.lines.push(TransactionLine::credit(account_id, amount));
+        self.transaction
+            .lines
+            .push(TransactionLine::credit(account_id, amount));
         self
     }
 
@@ -64,7 +68,10 @@ mod tests {
             .into_transaction();
 
         assert_eq!(transaction.transaction_type, TransactionType::ManualJournal);
-        assert_eq!(transaction.description.as_deref(), Some("Owner capital contribution"));
+        assert_eq!(
+            transaction.description.as_deref(),
+            Some("Owner capital contribution")
+        );
         assert!(transaction.validate().is_ok());
     }
 }

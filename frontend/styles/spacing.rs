@@ -44,5 +44,15 @@ pub const SPACE_5: f32 = 5.0;
 pub const SPACE_1: f32 = 1.0;
 pub const SPACE_20: f32 = 20.0;
 pub const SPACE_40: f32 = 40.0;
-pub const HEADER_PADDING: Padding = Padding { top: LG, right: LG, bottom: 0.0, left: LG };
-pub const CONTENT_PADDING: Padding = Padding { top: 0.0, right: LG, bottom: LG, left: LG };
+pub const HEADER_PADDING: Padding = Padding {
+    top: LG,
+    right: LG,
+    bottom: 0.0,
+    left: LG,
+};
+pub const CONTENT_PADDING: Padding = Padding {
+    top: 0.0,
+    right: LG,
+    bottom: LG,
+    left: LG,
+};

@@ -24,44 +24,99 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 #[test]
 fn invoice_to_payment_settles_the_receivable_and_keeps_the_ledger_balanced() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(party_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(sales_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+    let company_id = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let party_repo = PartyRepository::new(db.clone());
-    let customer_id = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap().id.unwrap();
+    let customer_id = party_repo
+        .create_customer(&Customer::new(company_id, "Acme Retail"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let accounting_repo = AccountingRepository::new(db.clone());
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
-    let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+    let ar = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
 
     let sales_repo = SalesRepository::new(db);
     let mut invoice = Invoice::new(company_id, customer_id, date(2026, 1, 10), date(2026, 2, 9));
-    invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", dec!(10), dec!(150)));
+    invoice.lines.push(InvoiceLine::new(
+        revenue.id.unwrap(),
+        "Consulting",
+        dec!(10),
+        dec!(150),
+    ));
     let invoice = sales_repo.create_invoice(&invoice).unwrap();
 
-    let (posted_invoice, transaction, receivable) = sales_repo.post_invoice(invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+    let (posted_invoice, transaction, receivable) = sales_repo
+        .post_invoice(invoice.id.unwrap(), ar.id.unwrap())
+        .unwrap();
     assert_eq!(posted_invoice.status, InvoiceStatus::Posted);
     assert!(transaction.is_balanced());
     assert_eq!(receivable.amount, dec!(1500));
 
     let payment = CustomerPayment::new(company_id, customer_id, date(2026, 1, 20), dec!(1500));
-    sales_repo.record_customer_payment(&payment, cash.id.unwrap(), ar.id.unwrap()).unwrap();
+    sales_repo
+        .record_customer_payment(&payment, cash.id.unwrap(), ar.id.unwrap())
+        .unwrap();
 
-    assert!(accounting_repo.list_open_receivables_for_company(company_id).unwrap().is_empty());
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+    assert!(accounting_repo
+        .list_open_receivables_for_company(company_id)
+        .unwrap()
+        .is_empty());
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, date(2026, 1, 31))
+        .unwrap();
     assert!(trial_balance.is_balanced());
 
-    let cash_line = trial_balance.lines.iter().find(|l| l.account_id == cash.id.unwrap()).unwrap();
+    let cash_line = trial_balance
+        .lines
+        .iter()
+        .find(|l| l.account_id == cash.id.unwrap())
+        .unwrap();
     assert_eq!(cash_line.debit, dec!(1500));
 }
 
@@ -75,31 +130,75 @@ fn invoice_to_payment_settles_the_receivable_and_keeps_the_ledger_balanced() {
 #[test]
 fn overpaying_a_receivable_is_rejected_and_posts_nothing() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(party_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(sales_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+    let company_id = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let party_repo = PartyRepository::new(db.clone());
-    let customer_id = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap().id.unwrap();
+    let customer_id = party_repo
+        .create_customer(&Customer::new(company_id, "Acme Retail"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let accounting_repo = AccountingRepository::new(db.clone());
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
-    let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+    let ar = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
 
     let sales_repo = SalesRepository::new(db.clone());
     let mut invoice = Invoice::new(company_id, customer_id, date(2026, 1, 10), date(2026, 2, 9));
-    invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", dec!(1), dec!(1000)));
+    invoice.lines.push(InvoiceLine::new(
+        revenue.id.unwrap(),
+        "Consulting",
+        dec!(1),
+        dec!(1000),
+    ));
     let invoice = sales_repo.create_invoice(&invoice).unwrap();
-    sales_repo.post_invoice(invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+    sales_repo
+        .post_invoice(invoice.id.unwrap(), ar.id.unwrap())
+        .unwrap();
 
     // Customer owes 1000; tries to pay 1500 -- a 500 overpayment.
     let payment = CustomerPayment::new(company_id, customer_id, date(2026, 1, 20), dec!(1500));
@@ -108,18 +207,32 @@ fn overpaying_a_receivable_is_rejected_and_posts_nothing() {
 
     // Nothing posted: the receivable is still open for its full amount,
     // and no payment/transaction was recorded.
-    let open = accounting_repo.list_open_receivables_for_company(company_id).unwrap();
+    let open = accounting_repo
+        .list_open_receivables_for_company(company_id)
+        .unwrap();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].balance(), dec!(1000));
 
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
-    let ar_line = trial_balance.lines.iter().find(|l| l.account_id == ar.id.unwrap()).unwrap();
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, date(2026, 1, 31))
+        .unwrap();
+    let ar_line = trial_balance
+        .lines
+        .iter()
+        .find(|l| l.account_id == ar.id.unwrap())
+        .unwrap();
     assert_eq!(ar_line.debit - ar_line.credit, dec!(1000));
 
     // A payment for exactly the outstanding amount still succeeds.
-    let exact_payment = CustomerPayment::new(company_id, customer_id, date(2026, 1, 21), dec!(1000));
-    sales_repo.record_customer_payment(&exact_payment, cash.id.unwrap(), ar.id.unwrap()).unwrap();
-    assert!(accounting_repo.list_open_receivables_for_company(company_id).unwrap().is_empty());
+    let exact_payment =
+        CustomerPayment::new(company_id, customer_id, date(2026, 1, 21), dec!(1000));
+    sales_repo
+        .record_customer_payment(&exact_payment, cash.id.unwrap(), ar.id.unwrap())
+        .unwrap();
+    assert!(accounting_repo
+        .list_open_receivables_for_company(company_id)
+        .unwrap()
+        .is_empty());
 }
 
 /// A partial payment leaves the receivable open for the remaining
@@ -129,55 +242,121 @@ fn overpaying_a_receivable_is_rejected_and_posts_nothing() {
 #[test]
 fn partial_payment_then_a_credit_note_both_reduce_the_same_receivable() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(party_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(sales_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+    let company_id = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let party_repo = PartyRepository::new(db.clone());
-    let customer_id = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap().id.unwrap();
+    let customer_id = party_repo
+        .create_customer(&Customer::new(company_id, "Acme Retail"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let accounting_repo = AccountingRepository::new(db.clone());
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
-    let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+    let ar = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
 
     let sales_repo = SalesRepository::new(db);
     let mut invoice = Invoice::new(company_id, customer_id, date(2026, 1, 10), date(2026, 2, 9));
-    invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", dec!(1), dec!(1000)));
+    invoice.lines.push(InvoiceLine::new(
+        revenue.id.unwrap(),
+        "Consulting",
+        dec!(1),
+        dec!(1000),
+    ));
     let invoice = sales_repo.create_invoice(&invoice).unwrap();
-    let (_, _, receivable) = sales_repo.post_invoice(invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+    let (_, _, receivable) = sales_repo
+        .post_invoice(invoice.id.unwrap(), ar.id.unwrap())
+        .unwrap();
 
     // Partial payment: 400 of the 1000 owed.
-    let partial_payment = CustomerPayment::new(company_id, customer_id, date(2026, 1, 15), dec!(400));
-    sales_repo.record_customer_payment(&partial_payment, cash.id.unwrap(), ar.id.unwrap()).unwrap();
+    let partial_payment =
+        CustomerPayment::new(company_id, customer_id, date(2026, 1, 15), dec!(400));
+    sales_repo
+        .record_customer_payment(&partial_payment, cash.id.unwrap(), ar.id.unwrap())
+        .unwrap();
 
-    let after_payment = accounting_repo.get_receivable(receivable.id.unwrap()).unwrap();
+    let after_payment = accounting_repo
+        .get_receivable(receivable.id.unwrap())
+        .unwrap();
     assert_eq!(after_payment.balance(), dec!(600));
     assert!(!after_payment.is_settled());
 
     // A credit note for the remaining 600 settles it exactly.
-    let mut credit_note = memonbooks::backend::sales::credit_notes::CreditNote::new(company_id, customer_id, date(2026, 1, 20));
+    let mut credit_note = memonbooks::backend::sales::credit_notes::CreditNote::new(
+        company_id,
+        customer_id,
+        date(2026, 1, 20),
+    );
     credit_note.receivable_id = Some(receivable.id.unwrap());
-    credit_note
-        .lines
-        .push(memonbooks::backend::sales::credit_notes::CreditNoteLine::new(revenue.id.unwrap(), "Goodwill credit", dec!(600)));
+    credit_note.lines.push(
+        memonbooks::backend::sales::credit_notes::CreditNoteLine::new(
+            revenue.id.unwrap(),
+            "Goodwill credit",
+            dec!(600),
+        ),
+    );
     let credit_note = sales_repo.create_credit_note(&credit_note).unwrap();
-    let (_, transaction) = sales_repo.post_credit_note(credit_note.id.unwrap(), ar.id.unwrap()).unwrap();
+    let (_, transaction) = sales_repo
+        .post_credit_note(credit_note.id.unwrap(), ar.id.unwrap())
+        .unwrap();
     assert!(transaction.is_balanced());
 
-    let after_credit = accounting_repo.get_receivable(receivable.id.unwrap()).unwrap();
+    let after_credit = accounting_repo
+        .get_receivable(receivable.id.unwrap())
+        .unwrap();
     assert!(after_credit.is_settled());
-    assert!(accounting_repo.list_open_receivables_for_company(company_id).unwrap().is_empty());
+    assert!(accounting_repo
+        .list_open_receivables_for_company(company_id)
+        .unwrap()
+        .is_empty());
 
-    let trial_balance = accounting_repo.trial_balance_as_of(company_id, date(2026, 1, 31)).unwrap();
+    let trial_balance = accounting_repo
+        .trial_balance_as_of(company_id, date(2026, 1, 31))
+        .unwrap();
     assert!(trial_balance.is_balanced());
 }
 
@@ -189,39 +368,90 @@ fn partial_payment_then_a_credit_note_both_reduce_the_same_receivable() {
 #[test]
 fn a_rejected_payment_after_a_successful_post_leaves_the_receivable_untouched() {
     let db = Database::open_in_memory().unwrap();
-    db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+    db.run_migrations(organization_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(party_repository::MIGRATIONS).unwrap();
-    db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
+    db.run_migrations(accounting_repository::MIGRATIONS)
+        .unwrap();
     db.run_migrations(sales_repository::MIGRATIONS).unwrap();
-    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS).unwrap();
+    db.run_migrations(memonbooks::backend::audit::audit_logs::MIGRATIONS)
+        .unwrap();
 
     let org_repo = OrganizationRepository::new(db.clone());
-    let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+    let company_id = org_repo
+        .create_company(&Company::new("Acme Trading Co", "USD"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let party_repo = PartyRepository::new(db.clone());
-    let customer_id = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap().id.unwrap();
+    let customer_id = party_repo
+        .create_customer(&Customer::new(company_id, "Acme Retail"))
+        .unwrap()
+        .id
+        .unwrap();
 
     let accounting_repo = AccountingRepository::new(db.clone());
     accounting_repo
-        .create_fiscal_period(&FiscalPeriod::new(company_id, "January 2026", date(2026, 1, 1), date(2026, 1, 31)))
+        .create_fiscal_period(&FiscalPeriod::new(
+            company_id,
+            "January 2026",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+        ))
         .unwrap();
-    let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-    let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-    let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
+    let ar = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+        ))
+        .unwrap();
+    let revenue = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+        ))
+        .unwrap();
+    let cash = accounting_repo
+        .create_account(&Account::new(
+            company_id,
+            "1000",
+            "Cash",
+            AccountType::Asset,
+        ))
+        .unwrap();
 
     let sales_repo = SalesRepository::new(db);
     let mut invoice = Invoice::new(company_id, customer_id, date(2026, 1, 10), date(2026, 2, 9));
-    invoice.lines.push(InvoiceLine::new(revenue.id.unwrap(), "Consulting", dec!(1), dec!(800)));
+    invoice.lines.push(InvoiceLine::new(
+        revenue.id.unwrap(),
+        "Consulting",
+        dec!(1),
+        dec!(800),
+    ));
     let invoice = sales_repo.create_invoice(&invoice).unwrap();
-    let (posted_invoice, _, receivable) = sales_repo.post_invoice(invoice.id.unwrap(), ar.id.unwrap()).unwrap();
+    let (posted_invoice, _, receivable) = sales_repo
+        .post_invoice(invoice.id.unwrap(), ar.id.unwrap())
+        .unwrap();
     assert_eq!(posted_invoice.status, InvoiceStatus::Posted);
 
     let bad_payment = CustomerPayment::new(company_id, customer_id, date(2026, 1, 15), dec!(5000));
-    assert!(sales_repo.record_customer_payment(&bad_payment, cash.id.unwrap(), ar.id.unwrap()).is_err());
+    assert!(sales_repo
+        .record_customer_payment(&bad_payment, cash.id.unwrap(), ar.id.unwrap())
+        .is_err());
 
     // The invoice/receivable are exactly as they were right after posting.
-    let unchanged = accounting_repo.get_receivable(receivable.id.unwrap()).unwrap();
+    let unchanged = accounting_repo
+        .get_receivable(receivable.id.unwrap())
+        .unwrap();
     assert_eq!(unchanged.balance(), dec!(800));
     assert_eq!(unchanged.amount_paid, receivable.amount_paid);
-    assert_eq!(sales_repo.get_invoice(invoice.id.unwrap()).unwrap().status, InvoiceStatus::Posted);
+    assert_eq!(
+        sales_repo.get_invoice(invoice.id.unwrap()).unwrap().status,
+        InvoiceStatus::Posted
+    );
 }

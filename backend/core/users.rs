@@ -29,7 +29,12 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(username: impl Into<String>, display_name: impl Into<String>, password_hash: impl Into<String>, role_id: i64) -> Self {
+    pub fn new(
+        username: impl Into<String>,
+        display_name: impl Into<String>,
+        password_hash: impl Into<String>,
+        role_id: i64,
+    ) -> Self {
         Self {
             id: None,
             username: username.into().to_ascii_lowercase(),
@@ -50,13 +55,17 @@ impl Validate for User {
         require_non_empty("username", &self.username)?;
         require_max_length("username", &self.username, 100)?;
         if self.username.chars().any(char::is_whitespace) {
-            return Err(AppError::Validation("username must not contain whitespace".into()));
+            return Err(AppError::Validation(
+                "username must not contain whitespace".into(),
+            ));
         }
         require_non_empty("display name", &self.display_name)?;
         require_max_length("display name", &self.display_name, 200)?;
         require_non_empty("password hash", &self.password_hash)?;
         if self.role_id <= 0 {
-            return Err(AppError::Validation("user must reference a valid role".into()));
+            return Err(AppError::Validation(
+                "user must reference a valid role".into(),
+            ));
         }
         if self.two_factor_enabled && self.two_factor_secret.is_none() {
             return Err(AppError::Validation(

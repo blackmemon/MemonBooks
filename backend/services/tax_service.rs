@@ -18,7 +18,10 @@ pub struct TaxService {
 
 impl TaxService {
     pub fn new(db: Database) -> Self {
-        Self { tax_repo: TaxRepository::new(db.clone()), accounting_repo: AccountingRepository::new(db) }
+        Self {
+            tax_repo: TaxRepository::new(db.clone()),
+            accounting_repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn list_tax_rates(&self, company_id: i64) -> AppResult<Vec<TaxRate>> {

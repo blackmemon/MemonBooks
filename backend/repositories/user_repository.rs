@@ -10,10 +10,11 @@ use crate::backend::core::users::User;
 use crate::backend::core::validation::Validate;
 use crate::database::database::{Database, Migration};
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 400,
-    name: "users_roles_sessions_schema",
-    sql: "
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 400,
+        name: "users_roles_sessions_schema",
+        sql: "
         CREATE TABLE roles (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL UNIQUE,
@@ -47,20 +48,23 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
             revoked_at  TEXT
         );
     ",
-}, Migration {
-    // 401 is already taken by backend::audit::audit_logs -- migration
-    // versions are a single global namespace (schema_migrations' primary
-    // key), not scoped per file, so every new migration anywhere in the
-    // codebase has to be checked against all the others, not just this
-    // file's own.
-    version: 402,
-    name: "users_must_change_password",
-    sql: "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;",
-}, Migration {
-    version: 403,
-    name: "users_is_reset_requested",
-    sql: "ALTER TABLE users ADD COLUMN is_reset_requested INTEGER NOT NULL DEFAULT 0;",
-}];
+    },
+    Migration {
+        // 401 is already taken by backend::audit::audit_logs -- migration
+        // versions are a single global namespace (schema_migrations' primary
+        // key), not scoped per file, so every new migration anywhere in the
+        // codebase has to be checked against all the others, not just this
+        // file's own.
+        version: 402,
+        name: "users_must_change_password",
+        sql: "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;",
+    },
+    Migration {
+        version: 403,
+        name: "users_is_reset_requested",
+        sql: "ALTER TABLE users ADD COLUMN is_reset_requested INTEGER NOT NULL DEFAULT 0;",
+    },
+];
 
 #[derive(Clone)]
 pub struct UserRepository {
@@ -107,7 +111,8 @@ impl UserRepository {
                 .optional()?
                 .ok_or_else(|| AppError::NotFound(format!("role {id} not found")))?;
 
-            let mut stmt = conn.prepare("SELECT permission_key FROM role_permissions WHERE role_id = ?1")?;
+            let mut stmt =
+                conn.prepare("SELECT permission_key FROM role_permissions WHERE role_id = ?1")?;
             let permissions = stmt.query_map(params![id], |row| row.get::<_, String>(0))?;
             role.permissions = permissions.collect::<Result<Vec<_>, _>>()?;
             Ok(role)
@@ -137,7 +142,10 @@ impl UserRepository {
             if affected == 0 {
                 return Err(AppError::NotFound(format!("role {id} not found")));
             }
-            tx.execute("DELETE FROM role_permissions WHERE role_id = ?1", params![id])?;
+            tx.execute(
+                "DELETE FROM role_permissions WHERE role_id = ?1",
+                params![id],
+            )?;
             for permission in &role.permissions {
                 tx.execute(
                     "INSERT INTO role_permissions (role_id, permission_key) VALUES (?1, ?2)",
@@ -281,7 +289,10 @@ impl UserRepository {
     /// Flags (or clears) `user_id`'s pending password-reset request.
     pub fn set_reset_requested(&self, user_id: i64, requested: bool) -> AppResult<()> {
         self.db.with_connection(|conn| {
-            let affected = conn.execute("UPDATE users SET is_reset_requested = ?1 WHERE id = ?2", params![requested, user_id])?;
+            let affected = conn.execute(
+                "UPDATE users SET is_reset_requested = ?1 WHERE id = ?2",
+                params![requested, user_id],
+            )?;
             if affected == 0 {
                 return Err(AppError::NotFound(format!("user {user_id} not found")));
             }
@@ -413,7 +424,10 @@ mod tests {
             .unwrap();
         assert!(user.id.is_some());
 
-        let found = repo.find_user_by_username("ALICE").unwrap().expect("user should exist");
+        let found = repo
+            .find_user_by_username("ALICE")
+            .unwrap()
+            .expect("user should exist");
         assert_eq!(found.id, user.id);
     }
 
@@ -430,7 +444,12 @@ mod tests {
         repo.create_user(&User::new("alice", "Alice Smith", "hash", role.id.unwrap()))
             .unwrap();
 
-        let result = repo.create_user(&User::new("alice", "Someone Else", "hash2", role.id.unwrap()));
+        let result = repo.create_user(&User::new(
+            "alice",
+            "Someone Else",
+            "hash2",
+            role.id.unwrap(),
+        ));
         assert!(matches!(result, Err(AppError::Database(_))));
     }
 
@@ -442,7 +461,8 @@ mod tests {
         user.is_reset_requested = true;
         let created = repo.create_user(&user).unwrap();
 
-        repo.reset_password_by_admin(created.id.unwrap(), "new-hash").unwrap();
+        repo.reset_password_by_admin(created.id.unwrap(), "new-hash")
+            .unwrap();
 
         let reloaded = repo.get_user(created.id.unwrap()).unwrap();
         assert_eq!(reloaded.password_hash, "new-hash");
@@ -454,14 +474,26 @@ mod tests {
     fn set_reset_requested_toggles_the_flag() {
         let repo = repo_with_schema();
         let role = repo.create_role(&admin_role()).unwrap();
-        let created = repo.create_user(&User::new("alice", "Alice Smith", "hash", role.id.unwrap())).unwrap();
+        let created = repo
+            .create_user(&User::new("alice", "Alice Smith", "hash", role.id.unwrap()))
+            .unwrap();
         assert!(!created.is_reset_requested);
 
         repo.set_reset_requested(created.id.unwrap(), true).unwrap();
-        assert!(repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
+        assert!(
+            repo.get_user(created.id.unwrap())
+                .unwrap()
+                .is_reset_requested
+        );
 
-        repo.set_reset_requested(created.id.unwrap(), false).unwrap();
-        assert!(!repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
+        repo.set_reset_requested(created.id.unwrap(), false)
+            .unwrap();
+        assert!(
+            !repo
+                .get_user(created.id.unwrap())
+                .unwrap()
+                .is_reset_requested
+        );
     }
 
     #[test]
@@ -472,7 +504,9 @@ mod tests {
             .create_user(&User::new("alice", "Alice Smith", "hash", role.id.unwrap()))
             .unwrap();
 
-        let session = repo.create_session(&Session::new(user.id.unwrap())).unwrap();
+        let session = repo
+            .create_session(&Session::new(user.id.unwrap()))
+            .unwrap();
         let found = repo
             .find_session_by_token(&session.token)
             .unwrap()

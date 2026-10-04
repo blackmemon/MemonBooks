@@ -32,7 +32,10 @@ mod tests {
     use super::*;
 
     fn temp_path(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("memonbooks_theme_preference_test_{label}_{:?}", std::thread::current().id()))
+        std::env::temp_dir().join(format!(
+            "memonbooks_theme_preference_test_{label}_{:?}",
+            std::thread::current().id()
+        ))
     }
 
     #[test]

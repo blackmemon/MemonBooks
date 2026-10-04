@@ -72,7 +72,12 @@ pub struct PurchaseOrder {
 }
 
 impl PurchaseOrder {
-    pub fn new(company_id: i64, vendor_id: i64, order_date: NaiveDate, expected_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        vendor_id: i64,
+        order_date: NaiveDate,
+        expected_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -92,16 +97,24 @@ impl PurchaseOrder {
 impl Validate for PurchaseOrder {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("purchase order must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "purchase order must reference a valid company".into(),
+            ));
         }
         if self.vendor_id <= 0 {
-            return Err(AppError::Validation("purchase order must reference a valid vendor".into()));
+            return Err(AppError::Validation(
+                "purchase order must reference a valid vendor".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a purchase order must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a purchase order must have at least one line".into(),
+            ));
         }
         if self.expected_date < self.order_date {
-            return Err(AppError::Validation("purchase order expected_date must not be before order_date".into()));
+            return Err(AppError::Validation(
+                "purchase order expected_date must not be before order_date".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("purchase order line description", &line.description)?;
@@ -124,7 +137,8 @@ mod tests {
     #[test]
     fn total_sums_line_amounts() {
         let mut po = PurchaseOrder::new(1, 1, date(2026, 1, 1), date(2026, 1, 15));
-        po.lines.push(PurchaseOrderLine::new("Raw materials", dec!(10), dec!(20)));
+        po.lines
+            .push(PurchaseOrderLine::new("Raw materials", dec!(10), dec!(20)));
         assert_eq!(po.total(), dec!(200));
     }
 

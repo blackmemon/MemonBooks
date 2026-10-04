@@ -43,14 +43,23 @@ impl AssetCategory {
 impl Validate for AssetCategory {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("asset category must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "asset category must reference a valid company".into(),
+            ));
         }
         require_non_empty("asset category name", &self.name)?;
-        if self.asset_gl_account_id <= 0 || self.accumulated_depreciation_gl_account_id <= 0 || self.depreciation_expense_gl_account_id <= 0 {
-            return Err(AppError::Validation("asset category must reference valid GL accounts".into()));
+        if self.asset_gl_account_id <= 0
+            || self.accumulated_depreciation_gl_account_id <= 0
+            || self.depreciation_expense_gl_account_id <= 0
+        {
+            return Err(AppError::Validation(
+                "asset category must reference valid GL accounts".into(),
+            ));
         }
         if self.default_useful_life_years == 0 {
-            return Err(AppError::Validation("default useful life must be at least 1 year".into()));
+            return Err(AppError::Validation(
+                "default useful life must be at least 1 year".into(),
+            ));
         }
         Ok(())
     }

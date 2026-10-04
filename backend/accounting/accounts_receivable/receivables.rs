@@ -26,7 +26,13 @@ pub struct Receivable {
 }
 
 impl Receivable {
-    pub fn new(company_id: i64, customer_id: i64, invoice_date: NaiveDate, due_date: NaiveDate, amount: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        customer_id: i64,
+        invoice_date: NaiveDate,
+        due_date: NaiveDate,
+        amount: Decimal,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -56,20 +62,30 @@ impl Receivable {
 impl Validate for Receivable {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("receivable must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "receivable must reference a valid company".into(),
+            ));
         }
         if self.customer_id <= 0 {
-            return Err(AppError::Validation("receivable must reference a valid customer".into()));
+            return Err(AppError::Validation(
+                "receivable must reference a valid customer".into(),
+            ));
         }
         require_positive("receivable amount", self.amount)?;
         if self.amount_paid < Decimal::ZERO {
-            return Err(AppError::Validation("receivable amount_paid must not be negative".into()));
+            return Err(AppError::Validation(
+                "receivable amount_paid must not be negative".into(),
+            ));
         }
         if self.amount_paid > self.amount {
-            return Err(AppError::Validation("receivable amount_paid must not exceed its amount".into()));
+            return Err(AppError::Validation(
+                "receivable amount_paid must not exceed its amount".into(),
+            ));
         }
         if self.due_date < self.invoice_date {
-            return Err(AppError::Validation("receivable due_date must not be before its invoice_date".into()));
+            return Err(AppError::Validation(
+                "receivable due_date must not be before its invoice_date".into(),
+            ));
         }
         Ok(())
     }

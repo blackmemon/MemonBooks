@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
-use rust_decimal::prelude::ToPrimitive;
-use iced::widget::{button, column, container, pick_list, scrollable, text, text_editor, text_input, vertical_space};
+use iced::widget::{
+    button, column, container, pick_list, scrollable, text, text_editor, text_input, vertical_space,
+};
 use iced::{Element, Length};
+use rust_decimal::prelude::ToPrimitive;
+use std::collections::{HashMap, HashSet};
 
 use crate::backend::accounting::accounting_rules::AccountType;
 use crate::backend::accounting::chart_of_accounts::{Account, STATUS_ACTIVE, STATUS_INACTIVE};
@@ -13,13 +15,13 @@ use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row
 use crate::frontend::components::common::toolbar::{self, StatusFilter};
 use crate::frontend::components::common::{page_header, side_panel};
 use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
+use crate::frontend::styles::fonts;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::fonts;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 const ACCOUNT_TYPES: [AccountType; 5] = [
@@ -30,9 +32,37 @@ const ACCOUNT_TYPES: [AccountType; 5] = [
     AccountType::Expense,
 ];
 
-const COLUMN_LABELS: [&str; 12] = ["S.No", "Account Code", "Account Name", "Account Type", "Parent Account", "Debit", "Credit", "Net Balance", "Status", "Description", "Created", "Modified"];
-const DEFAULT_COLUMN_VISIBLE: [bool; 12] = [true, true, true, true, true, true, true, true, false, false, false, false];
-const EXPORT_COLUMN_LABELS: [&str; 12] = ["S.No", "Account Code", "Account Name", "Account Type", "Parent Account", "Debit", "Credit", "Net Balance", "Status", "Description", "Created", "Modified"];
+const COLUMN_LABELS: [&str; 12] = [
+    "S.No",
+    "Account Code",
+    "Account Name",
+    "Account Type",
+    "Parent Account",
+    "Debit",
+    "Credit",
+    "Net Balance",
+    "Status",
+    "Description",
+    "Created",
+    "Modified",
+];
+const DEFAULT_COLUMN_VISIBLE: [bool; 12] = [
+    true, true, true, true, true, true, true, true, false, false, false, false,
+];
+const EXPORT_COLUMN_LABELS: [&str; 12] = [
+    "S.No",
+    "Account Code",
+    "Account Name",
+    "Account Type",
+    "Parent Account",
+    "Debit",
+    "Credit",
+    "Net Balance",
+    "Status",
+    "Description",
+    "Created",
+    "Modified",
+];
 
 /// One account's debit/credit/net balance as of today, computed from
 /// posted transactions the same way `trial_balance_view` does --
@@ -61,7 +91,10 @@ impl std::fmt::Display for ParentChoice {
 }
 
 fn no_parent_choice() -> ParentChoice {
-    ParentChoice { id: None, label: "No parent (top-level)".to_string() }
+    ParentChoice {
+        id: None,
+        label: "No parent (top-level)".to_string(),
+    }
 }
 
 /// Every account as a possible parent, minus `excluding` (the account
@@ -69,7 +102,15 @@ fn no_parent_choice() -> ParentChoice {
 /// as its own parent.
 fn parent_choices(accounts: &[Account], excluding: Option<i64>) -> Vec<ParentChoice> {
     let mut choices = vec![no_parent_choice()];
-    choices.extend(accounts.iter().filter(|a| a.id != excluding).map(|a| ParentChoice { id: a.id, label: format!("{} - {}", a.account_code, a.account_name) }));
+    choices.extend(
+        accounts
+            .iter()
+            .filter(|a| a.id != excluding)
+            .map(|a| ParentChoice {
+                id: a.id,
+                label: format!("{} - {}", a.account_code, a.account_name),
+            }),
+    );
     choices
 }
 
@@ -89,7 +130,11 @@ impl StatusChoice {
     }
 
     fn from_is_active(is_active: bool) -> Self {
-        if is_active { StatusChoice::Active } else { StatusChoice::Inactive }
+        if is_active {
+            StatusChoice::Active
+        } else {
+            StatusChoice::Inactive
+        }
     }
 }
 
@@ -102,7 +147,9 @@ impl std::fmt::Display for StatusChoice {
 const STATUS_CHOICES: [StatusChoice; 2] = [StatusChoice::Active, StatusChoice::Inactive];
 
 fn format_timestamp(unix_seconds: i64) -> String {
-    chrono::DateTime::from_timestamp(unix_seconds, 0).map(|dt| dt.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default()
+    chrono::DateTime::from_timestamp(unix_seconds, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Default)]
@@ -167,10 +214,19 @@ pub fn load(ctx: &Ctx) -> State {
     let service = AccountingService::new(ctx.db.clone());
     let accounts = match service.list_accounts(ctx.company_id) {
         Ok(accounts) => accounts,
-        Err(err) => return State { error: Some(err.to_string()), ..Default::default() },
+        Err(err) => {
+            return State {
+                error: Some(err.to_string()),
+                ..Default::default()
+            }
+        }
     };
     let balances = account_balances(&service, ctx.company_id);
-    State { accounts, balances, ..Default::default() }
+    State {
+        accounts,
+        balances,
+        ..Default::default()
+    }
 }
 
 /// Every account's current debit/credit/net balance, derived from
@@ -189,7 +245,14 @@ fn account_balances(service: &AccountingService, company_id: i64) -> HashMap<i64
         .map(|line| {
             let debit = line.debit.to_f64().unwrap_or(0.0);
             let credit = line.credit.to_f64().unwrap_or(0.0);
-            (line.account_id, AccountBalance { debit, credit, net_balance: debit - credit })
+            (
+                line.account_id,
+                AccountBalance {
+                    debit,
+                    credit,
+                    net_balance: debit - credit,
+                },
+            )
         })
         .collect()
 }
@@ -206,7 +269,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         }
         Message::DescriptionEdited(action) => {
             state.description_content.perform(action);
-            state.description_input = state.description_content.text().trim_end_matches('\n').to_string();
+            state.description_input = state
+                .description_content
+                .text()
+                .trim_end_matches('\n')
+                .to_string();
         }
         Message::StatusSelected(choice) => state.status_input = choice,
         Message::Create => {
@@ -216,10 +283,18 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state.error = Some("choose an account type".into());
                 return;
             };
-            let parent_account = state.parent_account_input.as_ref().and_then(|choice| choice.id);
+            let parent_account = state
+                .parent_account_input
+                .as_ref()
+                .and_then(|choice| choice.id);
 
             if let Some(id) = state.editing_id {
-                let Some(existing) = state.accounts.iter().find(|a: &&Account| a.id == Some(id)).cloned() else {
+                let Some(existing) = state
+                    .accounts
+                    .iter()
+                    .find(|a: &&Account| a.id == Some(id))
+                    .cloned()
+                else {
                     state.error = Some("that account no longer exists".into());
                     state.editing_id = None;
                     return;
@@ -243,11 +318,16 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         // Mirrors what the repository just stamped
                         // server-side, so the local echo shows the real
                         // modified time without a full reload.
-                        let saved = Account { modified_timestamp: chrono::Utc::now().timestamp(), ..account };
+                        let saved = Account {
+                            modified_timestamp: chrono::Utc::now().timestamp(),
+                            ..account
+                        };
                         if let Some(slot) = state.accounts.iter_mut().find(|a| a.id == Some(id)) {
                             *slot = saved;
                         }
-                        state.accounts.sort_by(|a, b| a.account_code.cmp(&b.account_code));
+                        state
+                            .accounts
+                            .sort_by(|a, b| a.account_code.cmp(&b.account_code));
                         state.editing_id = None;
                         state.code_input.clear();
                         state.name_input.clear();
@@ -263,7 +343,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 return;
             }
 
-            let mut account = Account::new(ctx.company_id, state.code_input.clone(), state.name_input.clone(), account_type);
+            let mut account = Account::new(
+                ctx.company_id,
+                state.code_input.clone(),
+                state.name_input.clone(),
+                account_type,
+            );
             account.parent_account = parent_account;
             account.description = state.description_input.clone();
             account.status = state.status_input.as_str().to_string();
@@ -278,7 +363,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             match service.create_account(&account) {
                 Ok(created) => {
                     state.accounts.push(created);
-                    state.accounts.sort_by(|a, b| a.account_code.cmp(&b.account_code));
+                    state
+                        .accounts
+                        .sort_by(|a, b| a.account_code.cmp(&b.account_code));
                     state.code_input.clear();
                     state.name_input.clear();
                     state.account_type = None;
@@ -336,7 +423,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         .accounts
                         .iter()
                         .find(|p| p.id == account.parent_account)
-                        .map(|p| ParentChoice { id: p.id, label: format!("{} - {}", p.account_code, p.account_name) })
+                        .map(|p| ParentChoice {
+                            id: p.id,
+                            label: format!("{} - {}", p.account_code, p.account_name),
+                        })
                         .unwrap_or_else(no_parent_choice),
                 );
                 state.description_input = account.description.clone();
@@ -390,7 +480,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 }
             }
             if !failures.is_empty() {
-                state.error = Some(format!("Deleted {deleted}; {} could not be deleted -- {}", failures.len(), failures.join("; ")));
+                state.error = Some(format!(
+                    "Deleted {deleted}; {} could not be deleted -- {}",
+                    failures.len(),
+                    failures.join("; ")
+                ));
             } else if deleted > 0 {
                 state.message = Some(format!("Deleted {deleted} account(s)."));
             }
@@ -408,24 +502,50 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
             state.export_column_visible[index] = !state.export_column_visible[index];
         }
-        Message::SelectAllExportColumns => state.export_column_visible = vec![true; EXPORT_COLUMN_LABELS.len()],
-        Message::DeselectAllExportColumns => state.export_column_visible = vec![false; EXPORT_COLUMN_LABELS.len()],
+        Message::SelectAllExportColumns => {
+            state.export_column_visible = vec![true; EXPORT_COLUMN_LABELS.len()]
+        }
+        Message::DeselectAllExportColumns => {
+            state.export_column_visible = vec![false; EXPORT_COLUMN_LABELS.len()]
+        }
         Message::ConfirmExport => {
             state.message = None;
             state.error = None;
             let query = state.search.trim().to_lowercase();
             let selected: Vec<&Account> = if state.selected.is_empty() {
-                state.accounts.iter().filter(|a| matches_filters(a, &query, state.status_filter)).collect()
+                state
+                    .accounts
+                    .iter()
+                    .filter(|a| matches_filters(a, &query, state.status_filter))
+                    .collect()
             } else {
-                state.accounts.iter().filter(|a| state.selected.contains(&a.id.unwrap_or_default())).collect()
+                state
+                    .accounts
+                    .iter()
+                    .filter(|a| state.selected.contains(&a.id.unwrap_or_default()))
+                    .collect()
             };
-            let is_export_visible = |index: usize| state.export_column_visible.get(index).copied().unwrap_or(true);
-            let headers: Vec<&str> = EXPORT_COLUMN_LABELS.iter().enumerate().filter(|(index, _)| is_export_visible(*index)).map(|(_, label)| *label).collect();
+            let is_export_visible = |index: usize| {
+                state
+                    .export_column_visible
+                    .get(index)
+                    .copied()
+                    .unwrap_or(true)
+            };
+            let headers: Vec<&str> = EXPORT_COLUMN_LABELS
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| is_export_visible(*index))
+                .map(|(_, label)| *label)
+                .collect();
             let rows: Vec<Vec<String>> = selected
                 .iter()
                 .enumerate()
                 .map(|(row_index, a)| {
-                    let balance = a.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
+                    let balance =
+                        a.id.and_then(|id| state.balances.get(&id))
+                            .copied()
+                            .unwrap_or_default();
                     let parent_label = account_parent_label(&state.accounts, a);
                     let fields = [
                         (row_index + 1).to_string(),
@@ -436,18 +556,31 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         format!("{:.2}", balance.debit),
                         format!("{:.2}", balance.credit),
                         format!("{:.2}", balance.net_balance),
-                        if a.is_active() { "Active".to_string() } else { "Inactive".to_string() },
+                        if a.is_active() {
+                            "Active".to_string()
+                        } else {
+                            "Inactive".to_string()
+                        },
                         a.description.clone(),
                         format_timestamp(a.create_timestamp),
                         format_timestamp(a.modified_timestamp),
                     ];
-                    fields.into_iter().enumerate().filter(|(index, _)| is_export_visible(*index)).map(|(_, field)| field).collect()
+                    fields
+                        .into_iter()
+                        .enumerate()
+                        .filter(|(index, _)| is_export_visible(*index))
+                        .map(|(_, field)| field)
+                        .collect()
                 })
                 .collect();
             let path = ctx.export_path("chart_of_accounts_export.csv");
             match std::fs::write(&path, csv::export_csv(&headers, &rows)) {
                 Ok(()) => {
-                    state.message = Some(format!("Exported {} account(s) to {}", selected.len(), path.display()));
+                    state.message = Some(format!(
+                        "Exported {} account(s) to {}",
+                        selected.len(),
+                        path.display()
+                    ));
                     state.export_panel_open = false;
                 }
                 Err(err) => state.error = Some(err.to_string()),
@@ -483,7 +616,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 /// `ConfirmExport`'s "no selection -> export everything currently
 /// visible" fallback, so the two can never disagree.
 fn matches_filters(account: &Account, query: &str, status: StatusFilter) -> bool {
-    status.matches(account.is_active()) && (query.is_empty() || account.account_name.to_lowercase().contains(query) || account.account_code.to_lowercase().contains(query))
+    status.matches(account.is_active())
+        && (query.is_empty()
+            || account.account_name.to_lowercase().contains(query)
+            || account.account_code.to_lowercase().contains(query))
 }
 
 /// `account`'s parent, rendered as "Code - Name", or "-" for a
@@ -498,12 +634,35 @@ fn account_parent_label(accounts: &[Account], account: &Account) -> String {
 }
 
 const TITLE: &str = "Chart of Accounts";
-pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(state: &'a State, theme: Theme, switcher: Element<'a, ParentMessage>, wrap: impl Fn(Message) -> ParentMessage + 'a) -> Element<'a, ParentMessage> {
-    let header_label: &str = if state.add_panel_open {"Return" } else {"Add account" };
-    let header_action: Message = if state.add_panel_open { Message::CloseAddPanel } else { Message::OpenAddPanel };
-    let header =
-        container(page_header::view_with_switcher_action_style(theme, TITLE, "", switcher, header_label, wrap(header_action), state.add_panel_open)).padding(spacing::HEADER_PADDING);
-    column![header, body(state, theme).map(wrap)].spacing(spacing::SPACE_4).into()
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    switcher: Element<'a, ParentMessage>,
+    wrap: impl Fn(Message) -> ParentMessage + 'a,
+) -> Element<'a, ParentMessage> {
+    let header_label: &str = if state.add_panel_open {
+        "Return"
+    } else {
+        "Add account"
+    };
+    let header_action: Message = if state.add_panel_open {
+        Message::CloseAddPanel
+    } else {
+        Message::OpenAddPanel
+    };
+    let header = container(page_header::view_with_switcher_action_style(
+        theme,
+        TITLE,
+        "",
+        switcher,
+        header_label,
+        wrap(header_action),
+        state.add_panel_open,
+    ))
+    .padding(spacing::HEADER_PADDING);
+    column![header, body(state, theme).map(wrap)]
+        .spacing(spacing::SPACE_4)
+        .into()
 }
 
 fn body(state: &State, theme: Theme) -> Element<'_, Message> {
@@ -522,7 +681,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&Account> = state.accounts.iter().filter(|account| matches_filters(account, &query, state.status_filter)).collect();
+    let filtered: Vec<&Account> = state
+        .accounts
+        .iter()
+        .filter(|account| matches_filters(account, &query, state.status_filter))
+        .collect();
 
     let columns: Vec<ColumnDef> = COLUMN_LABELS
         .iter()
@@ -543,7 +706,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
                 _ => Length::Fixed(120.0),
             };
             let column = ColumnDef::new(label, width);
-            if index == 1 { column.sorted(SortDirection::Ascending) } else { column }
+            if index == 1 {
+                column.sorted(SortDirection::Ascending)
+            } else {
+                column
+            }
         })
         .collect();
     let table_width = data_table::frozen_header_row_width(&columns, &state.column_visible, true);
@@ -552,7 +719,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         .iter()
         .enumerate()
         .map(|(index, account)| {
-            let balance = account.id.and_then(|id| state.balances.get(&id)).copied().unwrap_or_default();
+            let balance = account
+                .id
+                .and_then(|id| state.balances.get(&id))
+                .copied()
+                .unwrap_or_default();
             Row::new(vec![
                 Cell::text((index + 1).to_string()),
                 Cell::text(account.account_code.clone()),
@@ -562,7 +733,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
                 Cell::text(format!("{:.2}", balance.debit)),
                 Cell::text(format!("{:.2}", balance.credit)),
                 Cell::text(format!("{:.2}", balance.net_balance)),
-                if account.is_active() { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
+                if account.is_active() {
+                    Cell::status("Active", BadgeTone::Positive)
+                } else {
+                    Cell::status("Inactive", BadgeTone::Neutral)
+                },
                 Cell::text(account.description.clone()),
                 Cell::text(format_timestamp(account.create_timestamp)),
                 Cell::text(format_timestamp(account.modified_timestamp)),
@@ -573,7 +748,10 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let row_ids: Vec<i64> = filtered.iter().map(|a| a.id.unwrap_or_default()).collect();
     let select_ids = row_ids.clone();
-    let selected_flags: Vec<bool> = row_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let selected_flags: Vec<bool> = row_ids
+        .iter()
+        .map(|id| state.selected.contains(id))
+        .collect();
     let edit_ids = row_ids.clone();
     let edit_ids_primary = row_ids.clone();
     let table = data_table::view_with_frozen_header(
@@ -591,23 +769,40 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     // compress) when the side panel narrows the space available to it
     // -- `scrollable` then grows a horizontal scrollbar for the part
     // that no longer fits, instead of the table shrinking to match.
-    let primary_view: Element<'_, Message> = scrollable(container(table).width(Length::Fixed(table_width)).height(Length::Shrink))
-        .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into();
+    let primary_view: Element<'_, Message> = scrollable(
+        container(table)
+            .width(Length::Fixed(table_width))
+            .height(Length::Shrink),
+    )
+    .direction(scrollable::Direction::Horizontal(
+        scrollable::Scrollbar::default(),
+    ))
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into();
 
     let panel: Option<Element<'_, Message>> = if state.add_panel_open {
         Some(add_panel(state, theme))
     } else if state.columns_open {
-        Some(data_table::columns_panel(theme, &COLUMN_LABELS, &state.column_visible, Message::ColumnToggled, Message::SelectAllColumns, Message::DeselectAllColumns, Message::ResetColumns))
+        Some(data_table::columns_panel(
+            theme,
+            &COLUMN_LABELS,
+            &state.column_visible,
+            Message::ColumnToggled,
+            Message::SelectAllColumns,
+            Message::DeselectAllColumns,
+            Message::ResetColumns,
+        ))
     } else if state.export_panel_open {
         Some(export_panel(state, theme))
     } else {
         None
     };
 
-    let mut table_content = column![].spacing(spacing::SPACE_20).width(Length::Fill).height(Length::Fill);
+    let mut table_content = column![]
+        .spacing(spacing::SPACE_20)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     if let Some(message) = &state.message {
         table_content = table_content.push(text(message.clone()).color(theme.positive_front()));
@@ -617,7 +812,10 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     }
     table_content = table_content.push(primary_view);
 
-    let table_area: Element<'_, Message> = container(table_content).width(Length::Fill).height(Length::Fill).into();
+    let table_area: Element<'_, Message> = container(table_content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into();
     let below_toolbar: Element<'_, Message> = if let Some(panel) = panel {
         iced::widget::row![table_area, side_panel::card(theme, panel)]
             .spacing(spacing::SPACE_20)
@@ -639,71 +837,127 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
 /// The "Add Account" panel's own content -- opened via
 fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
     let is_editing = state.editing_id.is_some();
-    let code_value = if is_editing { &state.code_input } else { &state.add_reference_code };
-    let cancel_message = if is_editing { Message::CancelEdit } else { Message::CloseAddPanel };
+    let code_value = if is_editing {
+        &state.code_input
+    } else {
+        &state.add_reference_code
+    };
+    let cancel_message = if is_editing {
+        Message::CancelEdit
+    } else {
+        Message::CloseAddPanel
+    };
 
     column![
-
         iced::widget::row![
-            container(text("Account Code").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
-            container(text_input("Account Code", code_value).style(inputs::text(theme)).on_input_maybe(is_editing.then_some(Message::CodeChanged)).width(Length::Fill).padding(spacing::SM)).width(Length::FillPortion(7)),
-        ]
-        .spacing(spacing::SM)
-        .align_y(iced::Alignment::Center),
-
-        iced::widget::row![
-            container(text("Account Name").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
-            container(text_input("Account Name", &state.name_input).style(inputs::text(theme)).on_input(Message::NameChanged).width(Length::Fill).padding(spacing::SM)).width(Length::FillPortion(7)),
-        ]
-        .spacing(spacing::SM)
-        .align_y(iced::Alignment::Center),
-
-        iced::widget::row![
-            container(text("Account Type").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
-                pick_list(ACCOUNT_TYPES,state.account_type,Message::AccountTypeChanged,)
-                    .style(dropdown::style(theme))
-                    .menu_style(dropdown::dropdown_menu(theme))
-                    .placeholder("Account Type")
-                    .width(Length::Fill),
+                text("Account Code")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
+            container(
+                text_input("Account Code", code_value)
+                    .style(inputs::text(theme))
+                    .on_input_maybe(is_editing.then_some(Message::CodeChanged))
+                    .width(Length::Fill)
+                    .padding(spacing::SM)
             )
             .width(Length::FillPortion(7)),
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
-
         iced::widget::row![
-            container(text("Parent Account").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
-                pick_list(parent_choices(&state.accounts,state.editing_id,),
+                text("Account Name")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
+            container(
+                text_input("Account Name", &state.name_input)
+                    .style(inputs::text(theme))
+                    .on_input(Message::NameChanged)
+                    .width(Length::Fill)
+                    .padding(spacing::SM)
+            )
+            .width(Length::FillPortion(7)),
+        ]
+        .spacing(spacing::SM)
+        .align_y(iced::Alignment::Center),
+        iced::widget::row![
+            container(
+                text("Account Type")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
+            container(
+                pick_list(
+                    ACCOUNT_TYPES,
+                    state.account_type,
+                    Message::AccountTypeChanged,
+                )
+                .style(dropdown::style(theme))
+                .menu_style(dropdown::dropdown_menu(theme))
+                .placeholder("Account Type")
+                .width(Length::Fill),
+            )
+            .width(Length::FillPortion(7)),
+        ]
+        .spacing(spacing::SM)
+        .align_y(iced::Alignment::Center),
+        iced::widget::row![
+            container(
+                text("Parent Account")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
+            container(
+                pick_list(
+                    parent_choices(&state.accounts, state.editing_id,),
                     state.parent_account_input.clone(),
-                    Message::ParentAccountSelected,)
-                    .style(dropdown::style(theme))
-                    .menu_style(dropdown::dropdown_menu(theme))
-                    .placeholder("Parent Account")
-                    .width(Length::Fill),
+                    Message::ParentAccountSelected,
+                )
+                .style(dropdown::style(theme))
+                .menu_style(dropdown::dropdown_menu(theme))
+                .placeholder("Parent Account")
+                .width(Length::Fill),
             )
             .width(Length::FillPortion(7)),
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
-
         iced::widget::row![
-            container(text("Status").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
             container(
-                pick_list(STATUS_CHOICES,Some(state.status_input),Message::StatusSelected,)
-                    .style(dropdown::style(theme))
-                    .menu_style(dropdown::dropdown_menu(theme))
-                    .placeholder("Status")
-                    .width(Length::Fill),
+                text("Status")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
+            container(
+                pick_list(
+                    STATUS_CHOICES,
+                    Some(state.status_input),
+                    Message::StatusSelected,
+                )
+                .style(dropdown::style(theme))
+                .menu_style(dropdown::dropdown_menu(theme))
+                .placeholder("Status")
+                .width(Length::Fill),
             )
             .width(Length::FillPortion(7)),
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
-
         iced::widget::row![
-            container(text("Description").size(typography::body()).color(theme.neutral_front())).width(Length::FillPortion(3)),
+            container(
+                text("Description")
+                    .size(typography::body())
+                    .color(theme.neutral_front())
+            )
+            .width(Length::FillPortion(3)),
             container(
                 text_editor(&state.description_content)
                     .style(inputs::text_edit(theme))
@@ -716,18 +970,21 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
         ]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Start),
-
         vertical_space(),
-        iced::widget::row![
-            container(
-                iced::widget::row![
-                    button(text("Save")).style(button_style::primary(theme)).on_press(Message::Create).padding(spacing::SM),
-                    button(text("Cancel").font(fonts::BOLD)).style(button_style::neutral(theme)).on_press(cancel_message).padding(spacing::SM),
-                ]
-                .spacing(spacing::SM),
-            )
-            .width(Length::FillPortion(7)),
-        ]
+        iced::widget::row![container(
+            iced::widget::row![
+                button(text("Save"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::Create)
+                    .padding(spacing::SM),
+                button(text("Cancel").font(fonts::BOLD))
+                    .style(button_style::neutral(theme))
+                    .on_press(cancel_message)
+                    .padding(spacing::SM),
+            ]
+            .spacing(spacing::SM),
+        )
+        .width(Length::FillPortion(7)),]
         .spacing(spacing::SM)
         .align_y(iced::Alignment::Center),
     ]
@@ -738,19 +995,49 @@ fn add_panel(state: &State, theme: Theme) -> Element<'_, Message> {
 
 /// The "Export" panel's own content -- opened via `side_panel::split`
 fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
-    let select_all = button(text("Select All").size(typography::body()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::SelectAllExportColumns);
-    let deselect_all = button(text("Deselect All").size(typography::body()).font(fonts::BOLD)).padding([spacing::SM, spacing::SPACE_14]).style(button_style::neutral(theme)).on_press(Message::DeselectAllExportColumns);
+    let select_all = button(
+        text("Select All")
+            .size(typography::body())
+            .font(fonts::BOLD),
+    )
+    .padding([spacing::SM, spacing::SPACE_14])
+    .style(button_style::neutral(theme))
+    .on_press(Message::SelectAllExportColumns);
+    let deselect_all = button(
+        text("Deselect All")
+            .size(typography::body())
+            .font(fonts::BOLD),
+    )
+    .padding([spacing::SM, spacing::SPACE_14])
+    .style(button_style::neutral(theme))
+    .on_press(Message::DeselectAllExportColumns);
 
     let mut list = column![].spacing(spacing::SPACE_12);
     for (index, label) in EXPORT_COLUMN_LABELS.iter().enumerate() {
-        let is_visible = state.export_column_visible.get(index).copied().unwrap_or(true);
-        list = list.push(iced::widget::checkbox(*label, is_visible).style(crate::frontend::styles::checkbox::style(theme)).on_toggle(move |_| Message::ExportColumnToggled(index)).size(16).text_size(typography::label()));
+        let is_visible = state
+            .export_column_visible
+            .get(index)
+            .copied()
+            .unwrap_or(true);
+        list = list.push(
+            iced::widget::checkbox(*label, is_visible)
+                .style(crate::frontend::styles::checkbox::style(theme))
+                .on_toggle(move |_| Message::ExportColumnToggled(index))
+                .size(16)
+                .text_size(typography::label()),
+        );
     }
 
-    let export_button = button(text("Export").size(typography::label())).padding([spacing::SPACE_10, spacing::MD]).width(Length::Fill).style(button_style::primary(theme)).on_press(Message::ConfirmExport);
+    let export_button = button(text("Export").size(typography::label()))
+        .padding([spacing::SPACE_10, spacing::MD])
+        .width(Length::Fill)
+        .style(button_style::primary(theme))
+        .on_press(Message::ConfirmExport);
 
     column![
-        text("Select Columns to Export").size(typography::panel_title()).color(theme.text_primary()),
+        text("Select Columns to Export")
+            .size(typography::panel_title())
+            .color(theme.text_primary()),
         iced::widget::row![select_all, deselect_all].spacing(spacing::SM),
         scrollable(list).height(Length::Shrink),
         export_button,
@@ -773,10 +1060,16 @@ mod tests {
     #[test]
     fn body_builds_without_panicking_with_and_without_the_side_panel() {
         let account = Account::new(1, "1000", "Assets", AccountType::Asset);
-        let state = State { accounts: vec![account], ..Default::default() };
+        let state = State {
+            accounts: vec![account],
+            ..Default::default()
+        };
         let _: Element<'_, Message> = body(&state, Theme::Light);
 
-        let state_with_panel = State { add_panel_open: true, ..state };
+        let state_with_panel = State {
+            add_panel_open: true,
+            ..state
+        };
         let _: Element<'_, Message> = body(&state_with_panel, Theme::Dark);
     }
 }

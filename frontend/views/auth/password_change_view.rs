@@ -9,11 +9,11 @@ use iced::{Element, Length};
 
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::inputs;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -57,7 +57,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, current_user: &Use
                 return Event::None;
             }
             let service = AuthService::new(ctx.db.clone());
-            match service.change_password(current_user, &state.current_password, &state.new_password) {
+            match service.change_password(
+                current_user,
+                &state.current_password,
+                &state.new_password,
+            ) {
                 Ok(updated_user) => Event::Changed(updated_user),
                 Err(err) => {
                     state.error = Some(err.to_string());
@@ -90,7 +94,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             .on_input(Message::ConfirmPasswordChanged)
             .secure(true)
             .padding(spacing::SM),
-        button(text("Change password")).style(button_style::primary(theme)).on_press(Message::Submit).padding(spacing::SM),
+        button(text("Change password"))
+            .style(button_style::primary(theme))
+            .on_press(Message::Submit)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SPACE_12)
     .max_width(360);
@@ -122,11 +129,22 @@ mod tests {
 
         let repo = UserRepository::new(db.clone());
         let role = repo.create_role(&Role::new("Administrator")).unwrap();
-        let mut user = User::new("admin", "Administrator", hash_password(password).unwrap(), role.id.unwrap());
+        let mut user = User::new(
+            "admin",
+            "Administrator",
+            hash_password(password).unwrap(),
+            role.id.unwrap(),
+        );
         user.must_change_password = must_change_password;
         let user = repo.create_user(&user).unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: user.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
+        let ctx = Ctx {
+            db,
+            company_id: 1,
+            current_user_id: user.id,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
         (ctx, user)
     }
 
@@ -135,9 +153,24 @@ mod tests {
         let (ctx, user) = ctx_with_user("correct horse battery staple", true);
         let mut state = State::default();
 
-        update(&mut state, Message::CurrentPasswordChanged("old".into()), &ctx, &user);
-        update(&mut state, Message::NewPasswordChanged("new-password-123".into()), &ctx, &user);
-        update(&mut state, Message::ConfirmPasswordChanged("new-password-123".into()), &ctx, &user);
+        update(
+            &mut state,
+            Message::CurrentPasswordChanged("old".into()),
+            &ctx,
+            &user,
+        );
+        update(
+            &mut state,
+            Message::NewPasswordChanged("new-password-123".into()),
+            &ctx,
+            &user,
+        );
+        update(
+            &mut state,
+            Message::ConfirmPasswordChanged("new-password-123".into()),
+            &ctx,
+            &user,
+        );
 
         assert_eq!(state.current_password, "old");
         assert_eq!(state.new_password, "new-password-123");
@@ -157,7 +190,10 @@ mod tests {
         let event = update(&mut state, Message::Submit, &ctx, &user);
 
         assert!(matches!(event, Event::None));
-        assert_eq!(state.error.as_deref(), Some("new password and confirmation do not match"));
+        assert_eq!(
+            state.error.as_deref(),
+            Some("new password and confirmation do not match")
+        );
     }
 
     #[test]
@@ -204,11 +240,19 @@ mod tests {
 
         let event = update(&mut state, Message::Submit, &ctx, &user);
 
-        let Event::Changed(updated_user) = event else { panic!("expected Event::Changed") };
+        let Event::Changed(updated_user) = event else {
+            panic!("expected Event::Changed")
+        };
         assert!(!updated_user.must_change_password);
 
-        let refetched = UserRepository::new(ctx.db.clone()).get_user(user.id.unwrap()).unwrap();
+        let refetched = UserRepository::new(ctx.db.clone())
+            .get_user(user.id.unwrap())
+            .unwrap();
         assert!(!refetched.must_change_password);
-        assert!(crate::backend::core::auth::passwords::verify_password("new-password-123", &refetched.password_hash).unwrap());
+        assert!(crate::backend::core::auth::passwords::verify_password(
+            "new-password-123",
+            &refetched.password_hash
+        )
+        .unwrap());
     }
 }

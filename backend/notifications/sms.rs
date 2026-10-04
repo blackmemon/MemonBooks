@@ -5,16 +5,23 @@
 //! and fails clearly, the same pattern as `email.rs`.
 
 use crate::backend::core::errors::{AppError, AppResult};
-use crate::backend::notifications::notifications::{Notification, NotificationChannel, NotificationSender};
+use crate::backend::notifications::notifications::{
+    Notification, NotificationChannel, NotificationSender,
+};
 
 /// Loose E.164-ish check: a leading `+` and 8-15 digits. Real carriers
 /// vary; this catches obvious typos without pretending to fully validate
 /// number-plan rules.
 pub fn validate_phone_number(number: &str) -> AppResult<()> {
     let digits = number.strip_prefix('+').unwrap_or(number);
-    let is_valid = number.starts_with('+') && digits.len() >= 8 && digits.len() <= 15 && digits.chars().all(|c| c.is_ascii_digit());
+    let is_valid = number.starts_with('+')
+        && digits.len() >= 8
+        && digits.len() <= 15
+        && digits.chars().all(|c| c.is_ascii_digit());
     if !is_valid {
-        return Err(AppError::Validation(format!("'{number}' is not a valid phone number (expected E.164, e.g. +14155552671)")));
+        return Err(AppError::Validation(format!(
+            "'{number}' is not a valid phone number (expected E.164, e.g. +14155552671)"
+        )));
     }
     Ok(())
 }
@@ -24,10 +31,14 @@ pub struct UnconfiguredSmsSender;
 impl NotificationSender for UnconfiguredSmsSender {
     fn send(&self, notification: &Notification) -> AppResult<()> {
         if notification.channel != NotificationChannel::Sms {
-            return Err(AppError::Internal("UnconfiguredSmsSender received a non-SMS notification".into()));
+            return Err(AppError::Internal(
+                "UnconfiguredSmsSender received a non-SMS notification".into(),
+            ));
         }
         validate_phone_number(&notification.recipient)?;
-        Err(AppError::Config("no SMS gateway is configured -- set one up in Settings before sending SMS".into()))
+        Err(AppError::Config(
+            "no SMS gateway is configured -- set one up in Settings before sending SMS".into(),
+        ))
     }
 }
 
@@ -53,7 +64,15 @@ mod tests {
     #[test]
     fn unconfigured_sender_fails_clearly() {
         let sender = UnconfiguredSmsSender;
-        let notification = Notification::new(1, NotificationChannel::Sms, "+14155552671", "Your invoice is due");
-        assert!(matches!(sender.send(&notification), Err(AppError::Config(_))));
+        let notification = Notification::new(
+            1,
+            NotificationChannel::Sms,
+            "+14155552671",
+            "Your invoice is due",
+        );
+        assert!(matches!(
+            sender.send(&notification),
+            Err(AppError::Config(_))
+        ));
     }
 }

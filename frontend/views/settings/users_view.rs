@@ -16,13 +16,13 @@ use crate::backend::services::auth_service::AuthService;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::inputs;
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::checkbox as checkbox_style;
+use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::dropdown;
+use crate::frontend::styles::inputs;
+use crate::frontend::styles::spacing;
+use crate::frontend::styles::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,13 +89,30 @@ pub fn load(ctx: &Ctx) -> State {
     let service = AuthService::new(ctx.db.clone());
     let users = service.list_users().unwrap_or_default();
     let roles = service.list_roles().unwrap_or_default();
-    let role_choices = roles.iter().filter_map(|r| r.id.map(|id| RoleChoice { id, label: r.name.clone() })).collect();
+    let role_choices = roles
+        .iter()
+        .filter_map(|r| {
+            r.id.map(|id| RoleChoice {
+                id,
+                label: r.name.clone(),
+            })
+        })
+        .collect();
 
-    State { users, roles, role_choices, ..Default::default() }
+    State {
+        users,
+        roles,
+        role_choices,
+        ..Default::default()
+    }
 }
 
 fn role_name(roles: &[Role], role_id: i64) -> String {
-    roles.iter().find(|r| r.id == Some(role_id)).map(|r| r.name.clone()).unwrap_or_else(|| format!("Role #{role_id}"))
+    roles
+        .iter()
+        .find(|r| r.id == Some(role_id))
+        .map(|r| r.name.clone())
+        .unwrap_or_else(|| format!("Role #{role_id}"))
 }
 
 pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User) {
@@ -111,7 +128,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
                 return;
             };
             let service = AuthService::new(ctx.db.clone());
-            match service.create_user(acting_user, &state.username_input, &state.display_name_input, role.id) {
+            match service.create_user(
+                acting_user,
+                &state.username_input,
+                &state.display_name_input,
+                role.id,
+            ) {
                 Ok((created, password)) => {
                     state.generated_password = Some(password);
                     state.generated_password_for = created.username.clone();
@@ -133,7 +155,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
             state.error = None;
             if let Some(user) = state.users.iter().find(|u| u.id == Some(id)) {
                 state.editing_id = Some(id);
-                state.edit_role_input = state.role_choices.iter().find(|c| c.id == user.role_id).cloned();
+                state.edit_role_input = state
+                    .role_choices
+                    .iter()
+                    .find(|c| c.id == user.role_id)
+                    .cloned();
                 state.edit_is_active = user.is_active;
             }
         }
@@ -152,7 +178,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
                 state.error = Some("choose a role".into());
                 return;
             };
-            let updated = User { role_id: role.id, is_active: state.edit_is_active, ..existing };
+            let updated = User {
+                role_id: role.id,
+                is_active: state.edit_is_active,
+                ..existing
+            };
             let service = AuthService::new(ctx.db.clone());
             match service.update_user(acting_user, &updated) {
                 Ok(()) => {
@@ -175,7 +205,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
             let service = AuthService::new(ctx.db.clone());
             match service.reset_password(acting_user, id) {
                 Ok(password) => {
-                    let username = state.users.iter().find(|u| u.id == Some(id)).map(|u| u.username.clone()).unwrap_or_default();
+                    let username = state
+                        .users
+                        .iter()
+                        .find(|u| u.id == Some(id))
+                        .map(|u| u.username.clone())
+                        .unwrap_or_default();
                     state.generated_password = Some(password);
                     state.generated_password_for = username;
                     if let Some(slot) = state.users.iter_mut().find(|u| u.id == Some(id)) {
@@ -193,12 +228,21 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx, acting_user: &User
         // per-user decision, not something to batch. Wiring real
         // tab/filter/sort behavior is follow-up work, not part of this
         // pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::Noop => {}
+        Message::TabSelected(_)
+        | Message::FiltersClicked
+        | Message::SortClicked
+        | Message::Noop => {}
     }
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header = page_header::view(theme, "Users", "Everyone with access to this installation.", "Create User", Message::CreateUser);
+    let header = page_header::view(
+        theme,
+        "Users",
+        "Everyone with access to this installation.",
+        "Create User",
+        Message::CreateUser,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -214,11 +258,22 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "User list", "Every account, and whether a password reset has been requested.");
+    let heading = section_heading::view(
+        theme,
+        "User list",
+        "Every account, and whether a password reset has been requested.",
+    );
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<&User> =
-        state.users.iter().filter(|user| query.is_empty() || user.display_name.to_lowercase().contains(&query) || user.username.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<&User> = state
+        .users
+        .iter()
+        .filter(|user| {
+            query.is_empty()
+                || user.display_name.to_lowercase().contains(&query)
+                || user.username.to_lowercase().contains(&query)
+        })
+        .collect();
 
     let columns = vec![
         ColumnDef::new("User", Length::FillPortion(3)).sorted(SortDirection::Ascending),
@@ -233,8 +288,16 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             Row::new(vec![
                 Cell::person(user.display_name.clone(), user.username.clone()),
                 Cell::text(role_name(&state.roles, user.role_id)),
-                if user.is_active { Cell::status("Active", BadgeTone::Positive) } else { Cell::status("Inactive", BadgeTone::Neutral) },
-                if user.is_reset_requested { Cell::status("Requested", BadgeTone::Warning) } else { Cell::text("--") },
+                if user.is_active {
+                    Cell::status("Active", BadgeTone::Positive)
+                } else {
+                    Cell::status("Inactive", BadgeTone::Neutral)
+                },
+                if user.is_reset_requested {
+                    Cell::status("Requested", BadgeTone::Warning)
+                } else {
+                    Cell::text("--")
+                },
             ])
             .with_primary_action("Reset Password")
         })
@@ -257,14 +320,34 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let create_form = column![
         text("Create a user").size(typography::label()),
-        text_input("Username", &state.username_input).style(inputs::text(theme)).on_input(Message::UsernameChanged).width(Length::Fill).padding(spacing::SM),
-        text_input("Display name", &state.display_name_input).style(inputs::text(theme)).on_input(Message::DisplayNameChanged).width(Length::Fill).padding(spacing::SM),
-        pick_list(state.role_choices.as_slice(), state.role_input.clone(), Message::RoleSelected).style(dropdown::style(theme)).placeholder("Role"),
-        button(text("Create User")).style(button_style::primary(theme)).on_press(Message::CreateUser).padding(spacing::SM),
+        text_input("Username", &state.username_input)
+            .style(inputs::text(theme))
+            .on_input(Message::UsernameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        text_input("Display name", &state.display_name_input)
+            .style(inputs::text(theme))
+            .on_input(Message::DisplayNameChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        pick_list(
+            state.role_choices.as_slice(),
+            state.role_input.clone(),
+            Message::RoleSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("Role"),
+        button(text("Create User"))
+            .style(button_style::primary(theme))
+            .on_press(Message::CreateUser)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if let Some(password) = &state.generated_password {
         let notice = column![
@@ -275,22 +358,40 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         ]
         .spacing(spacing::SPACE_6)
         .padding(spacing::MD);
-        content = content.push(container(notice).style(move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(theme.positive_bg())),
-            ..iced::widget::container::Style::default()
+        content = content.push(container(notice).style(move |_iced_theme: &iced::Theme| {
+            iced::widget::container::Style {
+                background: Some(iced::Background::Color(theme.positive_bg())),
+                ..iced::widget::container::Style::default()
+            }
         }));
     }
 
     if let Some(id) = state.editing_id {
         let editing_user = state.users.iter().find(|u| u.id == Some(id));
-        let heading_text = editing_user.map(|u| format!("Edit {}", u.display_name)).unwrap_or_else(|| "Edit user".to_string());
+        let heading_text = editing_user
+            .map(|u| format!("Edit {}", u.display_name))
+            .unwrap_or_else(|| "Edit user".to_string());
         let edit_panel = column![
             text(heading_text).size(typography::label()),
-            pick_list(state.role_choices.as_slice(), state.edit_role_input.clone(), Message::EditRoleSelected).style(dropdown::style(theme)).placeholder("Role"),
-            checkbox("Active", state.edit_is_active).style(checkbox_style::style(theme)).on_toggle(Message::EditActiveToggled),
+            pick_list(
+                state.role_choices.as_slice(),
+                state.edit_role_input.clone(),
+                Message::EditRoleSelected
+            )
+            .style(dropdown::style(theme))
+            .placeholder("Role"),
+            checkbox("Active", state.edit_is_active)
+                .style(checkbox_style::style(theme))
+                .on_toggle(Message::EditActiveToggled),
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveEdit).padding(spacing::SM),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+                button(text("Save changes"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::SaveEdit)
+                    .padding(spacing::SM),
+                button(text("Cancel"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::CancelEdit)
+                    .padding(spacing::SM),
             ]
             .spacing(spacing::SM),
         ]
@@ -307,7 +408,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -327,10 +430,30 @@ mod tests {
         admin_role.permissions.push("users.manage".into());
         let admin_role = repo.create_role(&admin_role).unwrap();
         let staff_role = repo.create_role(&Role::new("Staff")).unwrap();
-        let admin = repo.create_user(&User::new("admin", "Admin User", hash_password("correct horse battery staple").unwrap(), admin_role.id.unwrap())).unwrap();
+        let admin = repo
+            .create_user(&User::new(
+                "admin",
+                "Admin User",
+                hash_password("correct horse battery staple").unwrap(),
+                admin_role.id.unwrap(),
+            ))
+            .unwrap();
 
-        let ctx = Ctx { db, company_id: 1, current_user_id: admin.id, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
-        (ctx, admin, RoleChoice { id: staff_role.id.unwrap(), label: staff_role.name })
+        let ctx = Ctx {
+            db,
+            company_id: 1,
+            current_user_id: admin.id,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
+        (
+            ctx,
+            admin,
+            RoleChoice {
+                id: staff_role.id.unwrap(),
+                label: staff_role.name,
+            },
+        )
     }
 
     #[test]
@@ -338,9 +461,24 @@ mod tests {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
         let mut state = State::default();
 
-        update(&mut state, Message::UsernameChanged("carol".into()), &ctx, &admin);
-        update(&mut state, Message::DisplayNameChanged("Carol Smith".into()), &ctx, &admin);
-        update(&mut state, Message::RoleSelected(staff.clone()), &ctx, &admin);
+        update(
+            &mut state,
+            Message::UsernameChanged("carol".into()),
+            &ctx,
+            &admin,
+        );
+        update(
+            &mut state,
+            Message::DisplayNameChanged("Carol Smith".into()),
+            &ctx,
+            &admin,
+        );
+        update(
+            &mut state,
+            Message::RoleSelected(staff.clone()),
+            &ctx,
+            &admin,
+        );
 
         assert_eq!(state.username_input, "carol");
         assert_eq!(state.display_name_input, "Carol Smith");
@@ -350,12 +488,20 @@ mod tests {
     #[test]
     fn creating_a_user_adds_it_to_the_list_shows_the_password_once_and_clears_the_form() {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), role_input: Some(staff), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            role_input: Some(staff),
+            ..load(&ctx)
+        };
 
         update(&mut state, Message::CreateUser, &ctx, &admin);
 
         assert!(state.error.is_none());
-        assert!(state.users.iter().any(|u| u.username == "carol" && u.must_change_password));
+        assert!(state
+            .users
+            .iter()
+            .any(|u| u.username == "carol" && u.must_change_password));
         assert_eq!(state.generated_password.as_ref().map(|p| p.len()), Some(16));
         assert_eq!(state.generated_password_for, "carol");
         assert!(state.username_input.is_empty());
@@ -365,7 +511,11 @@ mod tests {
     #[test]
     fn creating_without_choosing_a_role_sets_an_error_and_creates_nobody() {
         let (ctx, admin, _staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            ..load(&ctx)
+        };
 
         update(&mut state, Message::CreateUser, &ctx, &admin);
 
@@ -376,9 +526,20 @@ mod tests {
     #[test]
     fn edit_row_prefills_the_role_and_active_status_from_the_existing_user() {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), role_input: Some(staff.clone()), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            role_input: Some(staff.clone()),
+            ..load(&ctx)
+        };
         update(&mut state, Message::CreateUser, &ctx, &admin);
-        let id = state.users.iter().find(|u| u.username == "carol").unwrap().id.unwrap();
+        let id = state
+            .users
+            .iter()
+            .find(|u| u.username == "carol")
+            .unwrap()
+            .id
+            .unwrap();
 
         update(&mut state, Message::EditRow(id), &ctx, &admin);
 
@@ -390,9 +551,20 @@ mod tests {
     #[test]
     fn saving_an_edit_changes_the_role_and_deactivates_the_user_in_place() {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), role_input: Some(staff), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            role_input: Some(staff),
+            ..load(&ctx)
+        };
         update(&mut state, Message::CreateUser, &ctx, &admin);
-        let id = state.users.iter().find(|u| u.username == "carol").unwrap().id.unwrap();
+        let id = state
+            .users
+            .iter()
+            .find(|u| u.username == "carol")
+            .unwrap()
+            .id
+            .unwrap();
         update(&mut state, Message::EditRow(id), &ctx, &admin);
 
         update(&mut state, Message::EditActiveToggled(false), &ctx, &admin);
@@ -403,15 +575,29 @@ mod tests {
         assert!(!carol.is_active);
 
         let reloaded = UserRepository::new(ctx.db.clone()).get_user(id).unwrap();
-        assert!(!reloaded.is_active, "a deactivated user is preserved, not deleted");
+        assert!(
+            !reloaded.is_active,
+            "a deactivated user is preserved, not deleted"
+        );
     }
 
     #[test]
     fn deactivated_user_cannot_log_in_but_stays_fully_intact() {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), role_input: Some(staff), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            role_input: Some(staff),
+            ..load(&ctx)
+        };
         update(&mut state, Message::CreateUser, &ctx, &admin);
-        let id = state.users.iter().find(|u| u.username == "carol").unwrap().id.unwrap();
+        let id = state
+            .users
+            .iter()
+            .find(|u| u.username == "carol")
+            .unwrap()
+            .id
+            .unwrap();
         update(&mut state, Message::EditRow(id), &ctx, &admin);
         update(&mut state, Message::EditActiveToggled(false), &ctx, &admin);
         update(&mut state, Message::SaveEdit, &ctx, &admin);
@@ -428,12 +614,30 @@ mod tests {
     #[test]
     fn resetting_a_password_generates_a_new_one_forces_a_change_and_clears_a_pending_request() {
         let (ctx, admin, staff) = ctx_with_admin_and_staff();
-        let mut state = State { username_input: "carol".into(), display_name_input: "Carol Smith".into(), role_input: Some(staff), ..load(&ctx) };
+        let mut state = State {
+            username_input: "carol".into(),
+            display_name_input: "Carol Smith".into(),
+            role_input: Some(staff),
+            ..load(&ctx)
+        };
         update(&mut state, Message::CreateUser, &ctx, &admin);
-        let id = state.users.iter().find(|u| u.username == "carol").unwrap().id.unwrap();
+        let id = state
+            .users
+            .iter()
+            .find(|u| u.username == "carol")
+            .unwrap()
+            .id
+            .unwrap();
         let first_password = state.generated_password.clone().unwrap();
-        UserRepository::new(ctx.db.clone()).set_reset_requested(id, true).unwrap();
-        state.users.iter_mut().find(|u| u.id == Some(id)).unwrap().is_reset_requested = true;
+        UserRepository::new(ctx.db.clone())
+            .set_reset_requested(id, true)
+            .unwrap();
+        state
+            .users
+            .iter_mut()
+            .find(|u| u.id == Some(id))
+            .unwrap()
+            .is_reset_requested = true;
 
         update(&mut state, Message::ResetPasswordForRow(id), &ctx, &admin);
 

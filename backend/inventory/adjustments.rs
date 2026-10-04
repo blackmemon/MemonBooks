@@ -20,7 +20,14 @@ pub struct StockAdjustment {
 }
 
 impl StockAdjustment {
-    pub fn new(company_id: i64, product_id: i64, warehouse_id: i64, adjustment_date: NaiveDate, quantity_delta: Decimal, reason: impl Into<String>) -> Self {
+    pub fn new(
+        company_id: i64,
+        product_id: i64,
+        warehouse_id: i64,
+        adjustment_date: NaiveDate,
+        quantity_delta: Decimal,
+        reason: impl Into<String>,
+    ) -> Self {
         Self {
             company_id,
             product_id,
@@ -34,7 +41,9 @@ impl StockAdjustment {
     pub fn validate(&self) -> AppResult<()> {
         require_non_empty("adjustment reason", &self.reason)?;
         if self.quantity_delta == Decimal::ZERO {
-            return Err(AppError::Validation("adjustment quantity_delta must not be zero".into()));
+            return Err(AppError::Validation(
+                "adjustment quantity_delta must not be zero".into(),
+            ));
         }
         Ok(())
     }
@@ -60,13 +69,27 @@ mod tests {
 
     #[test]
     fn validate_rejects_a_blank_reason() {
-        let adjustment = StockAdjustment::new(1, 1, 1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(-5), "");
+        let adjustment = StockAdjustment::new(
+            1,
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(-5),
+            "",
+        );
         assert!(adjustment.validate().is_err());
     }
 
     #[test]
     fn build_movement_carries_the_reason_as_the_reference() {
-        let adjustment = StockAdjustment::new(1, 1, 1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(-5), "Stocktake shrinkage");
+        let adjustment = StockAdjustment::new(
+            1,
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(-5),
+            "Stocktake shrinkage",
+        );
         let movement = adjustment.build_movement();
         assert_eq!(movement.reference.as_deref(), Some("Stocktake shrinkage"));
         assert_eq!(movement.quantity_delta, dec!(-5));

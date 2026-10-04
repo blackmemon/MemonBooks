@@ -13,7 +13,14 @@ pub struct InventoryLine {
 pub fn to_rows(lines: &[InventoryLine]) -> (Vec<&'static str>, Vec<Vec<String>>) {
     let rows = lines
         .iter()
-        .map(|line| vec![line.product_sku.clone(), line.product_name.clone(), line.warehouse_name.clone(), line.quantity_on_hand.to_string()])
+        .map(|line| {
+            vec![
+                line.product_sku.clone(),
+                line.product_name.clone(),
+                line.warehouse_name.clone(),
+                line.quantity_on_hand.to_string(),
+            ]
+        })
         .collect();
     (vec!["SKU", "Product", "Warehouse", "On Hand"], rows)
 }

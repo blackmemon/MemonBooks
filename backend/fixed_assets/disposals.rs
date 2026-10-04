@@ -33,23 +33,45 @@ impl AssetDisposal {
     /// proceeds against `proceeds_account_id` (typically cash), and
     /// posts the gain/loss to `gain_loss_account_id`. Always balances --
     /// see the module-level reasoning in the repository that calls this.
-    pub fn build_transaction(&self, asset_gl_account_id: i64, accumulated_depreciation_gl_account_id: i64, proceeds_account_id: i64, gain_loss_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::ManualJournal, self.disposal_date);
+    pub fn build_transaction(
+        &self,
+        asset_gl_account_id: i64,
+        accumulated_depreciation_gl_account_id: i64,
+        proceeds_account_id: i64,
+        gain_loss_account_id: i64,
+    ) -> Transaction {
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::ManualJournal,
+            self.disposal_date,
+        );
         transaction.description = Some(format!("Disposal: {}", self.asset_name));
 
         if self.accumulated_depreciation > Decimal::ZERO {
-            transaction.lines.push(TransactionLine::debit(accumulated_depreciation_gl_account_id, self.accumulated_depreciation));
+            transaction.lines.push(TransactionLine::debit(
+                accumulated_depreciation_gl_account_id,
+                self.accumulated_depreciation,
+            ));
         }
         if self.proceeds > Decimal::ZERO {
-            transaction.lines.push(TransactionLine::debit(proceeds_account_id, self.proceeds));
+            transaction
+                .lines
+                .push(TransactionLine::debit(proceeds_account_id, self.proceeds));
         }
-        transaction.lines.push(TransactionLine::credit(asset_gl_account_id, self.acquisition_cost));
+        transaction.lines.push(TransactionLine::credit(
+            asset_gl_account_id,
+            self.acquisition_cost,
+        ));
 
         let gain_or_loss = self.gain_or_loss();
         if gain_or_loss > Decimal::ZERO {
-            transaction.lines.push(TransactionLine::credit(gain_loss_account_id, gain_or_loss));
+            transaction
+                .lines
+                .push(TransactionLine::credit(gain_loss_account_id, gain_or_loss));
         } else if gain_or_loss < Decimal::ZERO {
-            transaction.lines.push(TransactionLine::debit(gain_loss_account_id, -gain_or_loss));
+            transaction
+                .lines
+                .push(TransactionLine::debit(gain_loss_account_id, -gain_or_loss));
         }
 
         transaction

@@ -6,7 +6,10 @@ use chrono::NaiveDate;
 
 use crate::backend::accounting::accounts_receivable::receivables::Receivable;
 
-pub fn to_rows(receivables: &[Receivable], as_of: NaiveDate) -> (Vec<&'static str>, Vec<Vec<String>>) {
+pub fn to_rows(
+    receivables: &[Receivable],
+    as_of: NaiveDate,
+) -> (Vec<&'static str>, Vec<Vec<String>>) {
     let rows = receivables
         .iter()
         .map(|r| {
@@ -20,7 +23,17 @@ pub fn to_rows(receivables: &[Receivable], as_of: NaiveDate) -> (Vec<&'static st
             ]
         })
         .collect();
-    (vec!["Reference", "Due Date", "Amount", "Paid", "Balance", "Overdue"], rows)
+    (
+        vec![
+            "Reference",
+            "Due Date",
+            "Amount",
+            "Paid",
+            "Balance",
+            "Overdue",
+        ],
+        rows,
+    )
 }
 
 #[cfg(test)]
@@ -30,7 +43,13 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_receivable() {
-        let receivable = Receivable::new(1, 1, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(), dec!(1000));
+        let receivable = Receivable::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            dec!(1000),
+        );
         let (headers, rows) = to_rows(&[receivable], NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
         assert_eq!(headers.len(), 6);
         assert_eq!(rows[0][5], "true"); // overdue

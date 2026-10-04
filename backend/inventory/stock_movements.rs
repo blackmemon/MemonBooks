@@ -62,7 +62,14 @@ pub struct StockMovement {
 }
 
 impl StockMovement {
-    pub fn new(company_id: i64, product_id: i64, warehouse_id: i64, movement_date: NaiveDate, movement_type: MovementType, quantity_delta: Decimal) -> Self {
+    pub fn new(
+        company_id: i64,
+        product_id: i64,
+        warehouse_id: i64,
+        movement_date: NaiveDate,
+        movement_type: MovementType,
+        quantity_delta: Decimal,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -80,21 +87,31 @@ impl StockMovement {
 impl Validate for StockMovement {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("stock movement must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "stock movement must reference a valid company".into(),
+            ));
         }
         if self.product_id <= 0 {
-            return Err(AppError::Validation("stock movement must reference a valid product".into()));
+            return Err(AppError::Validation(
+                "stock movement must reference a valid product".into(),
+            ));
         }
         if self.warehouse_id <= 0 {
-            return Err(AppError::Validation("stock movement must reference a valid warehouse".into()));
+            return Err(AppError::Validation(
+                "stock movement must reference a valid warehouse".into(),
+            ));
         }
         if self.quantity_delta == Decimal::ZERO {
-            return Err(AppError::Validation("stock movement quantity_delta must not be zero".into()));
+            return Err(AppError::Validation(
+                "stock movement quantity_delta must not be zero".into(),
+            ));
         }
 
         let sign_matches_type = match self.movement_type {
             MovementType::Sale | MovementType::TransferOut => self.quantity_delta < Decimal::ZERO,
-            MovementType::Purchase | MovementType::TransferIn | MovementType::OpeningStock => self.quantity_delta > Decimal::ZERO,
+            MovementType::Purchase | MovementType::TransferIn | MovementType::OpeningStock => {
+                self.quantity_delta > Decimal::ZERO
+            }
             MovementType::Adjustment => true,
         };
         if !sign_matches_type {
@@ -118,7 +135,14 @@ mod tests {
 
     #[test]
     fn validate_rejects_zero_quantity_delta() {
-        let movement = StockMovement::new(1, 1, 1, date(2026, 1, 1), MovementType::Adjustment, Decimal::ZERO);
+        let movement = StockMovement::new(
+            1,
+            1,
+            1,
+            date(2026, 1, 1),
+            MovementType::Adjustment,
+            Decimal::ZERO,
+        );
         assert!(movement.validate().is_err());
     }
 
@@ -136,8 +160,21 @@ mod tests {
 
     #[test]
     fn validate_accepts_either_sign_for_an_adjustment() {
-        assert!(StockMovement::new(1, 1, 1, date(2026, 1, 1), MovementType::Adjustment, dec!(5)).validate().is_ok());
-        assert!(StockMovement::new(1, 1, 1, date(2026, 1, 1), MovementType::Adjustment, dec!(-5)).validate().is_ok());
+        assert!(
+            StockMovement::new(1, 1, 1, date(2026, 1, 1), MovementType::Adjustment, dec!(5))
+                .validate()
+                .is_ok()
+        );
+        assert!(StockMovement::new(
+            1,
+            1,
+            1,
+            date(2026, 1, 1),
+            MovementType::Adjustment,
+            dec!(-5)
+        )
+        .validate()
+        .is_ok());
     }
 
     #[test]
@@ -150,7 +187,10 @@ mod tests {
             MovementType::TransferIn,
             MovementType::TransferOut,
         ] {
-            assert_eq!(MovementType::parse(movement_type.as_str()), Some(movement_type));
+            assert_eq!(
+                MovementType::parse(movement_type.as_str()),
+                Some(movement_type)
+            );
         }
     }
 }

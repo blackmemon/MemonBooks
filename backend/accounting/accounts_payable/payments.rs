@@ -9,7 +9,10 @@ use crate::backend::accounting::accounts_payable::payables::Payable;
 /// Returns `(payable_id, amount_applied)` pairs.
 pub fn allocate_payment(open_payables: &[Payable], amount: Decimal) -> Vec<(i64, Decimal)> {
     let mut remaining = amount;
-    let mut sorted: Vec<&Payable> = open_payables.iter().filter(|p| !p.is_settled() && p.id.is_some()).collect();
+    let mut sorted: Vec<&Payable> = open_payables
+        .iter()
+        .filter(|p| !p.is_settled() && p.id.is_some())
+        .collect();
     sorted.sort_by_key(|p| p.due_date);
 
     let mut allocations = Vec::new();

@@ -79,7 +79,11 @@ impl SalesService {
         self.sales_repo.delete_invoice(invoice_id)
     }
 
-    pub fn post_invoice(&self, invoice_id: i64, ar_account_id: i64) -> AppResult<(Invoice, Transaction, Receivable)> {
+    pub fn post_invoice(
+        &self,
+        invoice_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<(Invoice, Transaction, Receivable)> {
         self.sales_repo.post_invoice(invoice_id, ar_account_id)
     }
 
@@ -87,16 +91,35 @@ impl SalesService {
     /// single invoice -- see `SalesRepository::record_customer_payment`.
     /// Not currently routed to from any view; kept for a possible future
     /// customer-level "make a payment" action.
-    pub fn record_customer_payment(&self, payment: &CustomerPayment, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
-        self.sales_repo.record_customer_payment(payment, cash_account_id, ar_account_id)
+    pub fn record_customer_payment(
+        &self,
+        payment: &CustomerPayment,
+        cash_account_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<CustomerPayment> {
+        self.sales_repo
+            .record_customer_payment(payment, cash_account_id, ar_account_id)
     }
 
     /// Applies only to the one invoice's own receivable, capped at its
     /// own remaining balance -- see `SalesRepository::
     /// record_payment_for_invoice`. This is what Invoices' row-level
     /// "Record Payment" actually calls.
-    pub fn record_payment_for_invoice(&self, invoice_id: i64, payment_date: chrono::NaiveDate, amount: rust_decimal::Decimal, cash_account_id: i64, ar_account_id: i64) -> AppResult<CustomerPayment> {
-        self.sales_repo.record_payment_for_invoice(invoice_id, payment_date, amount, cash_account_id, ar_account_id)
+    pub fn record_payment_for_invoice(
+        &self,
+        invoice_id: i64,
+        payment_date: chrono::NaiveDate,
+        amount: rust_decimal::Decimal,
+        cash_account_id: i64,
+        ar_account_id: i64,
+    ) -> AppResult<CustomerPayment> {
+        self.sales_repo.record_payment_for_invoice(
+            invoice_id,
+            payment_date,
+            amount,
+            cash_account_id,
+            ar_account_id,
+        )
     }
 
     /// The invoice's own remaining balance -- for prefilling a payment
@@ -127,11 +150,15 @@ impl SalesService {
     ) -> AppResult<(CreditNote, Transaction)> {
         let invoice = self.sales_repo.get_invoice(invoice_id)?;
         let receivable = self.sales_repo.open_receivable_for_invoice(invoice_id)?;
-        let mut credit_note = CreditNote::new(invoice.company_id, invoice.customer_id, credit_note_date);
+        let mut credit_note =
+            CreditNote::new(invoice.company_id, invoice.customer_id, credit_note_date);
         credit_note.receivable_id = receivable.id;
-        credit_note.lines.push(CreditNoteLine::new(revenue_account_id, description, amount));
+        credit_note
+            .lines
+            .push(CreditNoteLine::new(revenue_account_id, description, amount));
         let created = self.sales_repo.create_credit_note(&credit_note)?;
-        self.sales_repo.post_credit_note(created.id.unwrap_or_default(), ar_account_id)
+        self.sales_repo
+            .post_credit_note(created.id.unwrap_or_default(), ar_account_id)
     }
 
     pub fn list_terminals(&self, company_id: i64) -> AppResult<Vec<Terminal>> {
@@ -150,7 +177,11 @@ impl SalesService {
         self.sales_repo.open_session(session)
     }
 
-    pub fn post_pos_sale(&self, sale: &PosSale, payment_accounts: &[(PaymentMethod, i64)]) -> AppResult<(PosSale, Transaction)> {
+    pub fn post_pos_sale(
+        &self,
+        sale: &PosSale,
+        payment_accounts: &[(PaymentMethod, i64)],
+    ) -> AppResult<(PosSale, Transaction)> {
         self.sales_repo.post_pos_sale(sale, payment_accounts)
     }
 }

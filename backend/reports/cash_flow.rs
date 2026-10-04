@@ -23,7 +23,12 @@ impl CashFlowStatement {
 
 /// `opening_cash`/`closing_cash` are the combined balance across every
 /// cash/bank GL account as of the period's start and end.
-pub fn build(period_start: NaiveDate, period_end: NaiveDate, opening_cash: Decimal, closing_cash: Decimal) -> CashFlowStatement {
+pub fn build(
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    opening_cash: Decimal,
+    closing_cash: Decimal,
+) -> CashFlowStatement {
     CashFlowStatement {
         period_start,
         period_end,
@@ -39,7 +44,12 @@ mod tests {
 
     #[test]
     fn net_change_is_closing_minus_opening() {
-        let statement = build(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(), dec!(1000), dec!(1350));
+        let statement = build(
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            dec!(1000),
+            dec!(1350),
+        );
         assert_eq!(statement.net_change(), dec!(350));
     }
 }

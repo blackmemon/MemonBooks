@@ -39,8 +39,14 @@ pub fn load(ctx: &Ctx) -> State {
     let service = ReportService::new(ctx.db.clone());
     let today = Utc::now().date_naive();
     match service.trial_balance_as_of(ctx.company_id, today) {
-        Ok(report) => State { report: Some(report), ..Default::default() },
-        Err(err) => State { error: Some(err.to_string()), ..Default::default() },
+        Ok(report) => State {
+            report: Some(report),
+            ..Default::default()
+        },
+        Err(err) => State {
+            error: Some(err.to_string()),
+            ..Default::default()
+        },
     }
 }
 
@@ -63,17 +69,31 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         // menu has no per-row action -- this is a read-only report, not
         // an editable list. Wiring real tab/filter/sort behavior is
         // follow-up work, not part of this layout pass.
-        Message::TabSelected(_) | Message::FiltersClicked | Message::SortClicked | Message::RowAction(_) => {}
+        Message::TabSelected(_)
+        | Message::FiltersClicked
+        | Message::SortClicked
+        | Message::RowAction(_) => {}
     }
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let Some(report) = &state.report else {
-        let message = state.error.clone().unwrap_or_else(|| "Loading...".to_string());
-        return container(text(message).color(theme.negative_front())).padding(spacing::SPACE_20).into();
+        let message = state
+            .error
+            .clone()
+            .unwrap_or_else(|| "Loading...".to_string());
+        return container(text(message).color(theme.negative_front()))
+            .padding(spacing::SPACE_20)
+            .into();
     };
 
-    let header = page_header::view(theme, "Trial Balance", "Every account's debit and credit balance as of today.", "Export CSV", Message::ExportCsv);
+    let header = page_header::view(
+        theme,
+        "Trial Balance",
+        "Every account's debit and credit balance as of today.",
+        "Export CSV",
+        Message::ExportCsv,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -89,11 +109,23 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let balanced_note = if report.is_balanced() { "Balanced" } else { "Not balanced" };
+    let balanced_note = if report.is_balanced() {
+        "Balanced"
+    } else {
+        "Not balanced"
+    };
     let heading = section_heading::view(theme, "Account balances", balanced_note);
 
     let query = state.search.trim().to_lowercase();
-    let filtered: Vec<_> = report.lines.iter().filter(|line| query.is_empty() || line.account_name.to_lowercase().contains(&query) || line.account_code.to_lowercase().contains(&query)).collect();
+    let filtered: Vec<_> = report
+        .lines
+        .iter()
+        .filter(|line| {
+            query.is_empty()
+                || line.account_name.to_lowercase().contains(&query)
+                || line.account_code.to_lowercase().contains(&query)
+        })
+        .collect();
 
     let columns = vec![
         ColumnDef::new("Code", Length::FillPortion(1)).sorted(SortDirection::Ascending),
@@ -102,18 +134,47 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         ColumnDef::new("Credit", Length::FillPortion(1)),
     ];
 
-    let mut rows: Vec<Row> = filtered.iter().map(|line| Row::new(vec![Cell::text(line.account_code.clone()), Cell::text(line.account_name.clone()), Cell::text(line.debit.to_string()), Cell::text(line.credit.to_string())])).collect();
-    rows.push(Row::new(vec![Cell::text(""), Cell::text("Total"), Cell::text(report.total_debits().to_string()), Cell::text(report.total_credits().to_string())]));
+    let mut rows: Vec<Row> = filtered
+        .iter()
+        .map(|line| {
+            Row::new(vec![
+                Cell::text(line.account_code.clone()),
+                Cell::text(line.account_name.clone()),
+                Cell::text(line.debit.to_string()),
+                Cell::text(line.credit.to_string()),
+            ])
+        })
+        .collect();
+    rows.push(Row::new(vec![
+        Cell::text(""),
+        Cell::text("Total"),
+        Cell::text(report.total_debits().to_string()),
+        Cell::text(report.total_credits().to_string()),
+    ]));
 
-    let table = data_table::view(theme, columns, rows, None, |_index, _checked| Message::RowAction(0), |_checked| Message::RowAction(0), Message::RowAction, Message::RowAction);
+    let table = data_table::view(
+        theme,
+        columns,
+        rows,
+        None,
+        |_index, _checked| Message::RowAction(0),
+        |_checked| Message::RowAction(0),
+        Message::RowAction,
+        Message::RowAction,
+    );
 
-    let mut content = column![header, toolbar, heading, table].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading, table]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if let Some(export_message) = &state.export_message {
         content = content.push(text(export_message.clone()).color(theme.positive_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -138,27 +199,68 @@ mod tests {
 
     fn ctx_with_a_posted_transaction() -> Ctx {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
-        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
-        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
+            .unwrap();
+        let cash = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
         accounting_repo
             .post_transaction(
-                &Transaction::new(company_id, TransactionType::OpeningBalance, date(2026, 1, 1))
-                    .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(1000)))
-                    .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(1000))),
+                &Transaction::new(
+                    company_id,
+                    TransactionType::OpeningBalance,
+                    date(2026, 1, 1),
+                )
+                .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(1000)))
+                .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(1000))),
             )
             .unwrap();
 
-        let export_dir = std::env::temp_dir().join(format!("memonbooks_trial_balance_view_test_{:?}", std::thread::current().id()));
-        Ctx { db, company_id, current_user_id: None, export_dir: export_dir.clone(), uploads_dir: export_dir }
+        let export_dir = std::env::temp_dir().join(format!(
+            "memonbooks_trial_balance_view_test_{:?}",
+            std::thread::current().id()
+        ));
+        Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: export_dir.clone(),
+            uploads_dir: export_dir,
+        }
     }
 
     #[test]

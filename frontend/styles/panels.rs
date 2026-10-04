@@ -10,18 +10,20 @@ use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::{borders, shadows};
 
 pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
-    move |_iced_theme: &IcedTheme| {
-        container::Style {
-            background: Some(Background::Color(theme.surface())),
-            border: borders::card(theme, radius),
-            shadow: shadows::card(theme),
-            ..container::Style::default()
-        }
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.surface())),
+        border: borders::card(theme, radius),
+        shadow: shadows::card(theme),
+        ..container::Style::default()
     }
 }
 
 /// Same card, no shadow -- for panels nested inside an already-shadowed
 /// ancestor (e.g. the profile card at the bottom of the sidebar).
 pub fn flat_card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
-    move |_iced_theme: &IcedTheme| container::Style { background: Some(Background::Color(theme.surface())), border: borders::card(theme, radius), ..container::Style::default() }
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.surface())),
+        border: borders::card(theme, radius),
+        ..container::Style::default()
+    }
 }

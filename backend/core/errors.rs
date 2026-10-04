@@ -87,23 +87,37 @@ mod tests {
     #[test]
     fn io_error_display_includes_the_path_and_preserves_the_source_for_the_error_chain() {
         let source = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
-        let err = AppError::Io { path: PathBuf::from("/tmp/backup.db"), source };
+        let err = AppError::Io {
+            path: PathBuf::from("/tmp/backup.db"),
+            source,
+        };
 
-        assert_eq!(err.to_string(), "I/O error at /tmp/backup.db: file not found");
-        let chained_source = err.source().expect("Io variant must preserve its source for the error chain");
+        assert_eq!(
+            err.to_string(),
+            "I/O error at /tmp/backup.db: file not found"
+        );
+        let chained_source = err
+            .source()
+            .expect("Io variant must preserve its source for the error chain");
         assert_eq!(chained_source.to_string(), "file not found");
     }
 
     #[test]
     fn config_error_display_wraps_the_message() {
         let err = AppError::Config("missing DATABASE_PATH".into());
-        assert_eq!(err.to_string(), "configuration error: missing DATABASE_PATH");
+        assert_eq!(
+            err.to_string(),
+            "configuration error: missing DATABASE_PATH"
+        );
     }
 
     #[test]
     fn validation_error_display_wraps_the_message() {
         let err = AppError::Validation("amount must be greater than zero".into());
-        assert_eq!(err.to_string(), "validation error: amount must be greater than zero");
+        assert_eq!(
+            err.to_string(),
+            "validation error: amount must be greater than zero"
+        );
     }
 
     #[test]
@@ -115,7 +129,10 @@ mod tests {
     #[test]
     fn internal_error_display_wraps_the_message() {
         let err = AppError::Internal("unreachable branch reached".into());
-        assert_eq!(err.to_string(), "internal error: unreachable branch reached");
+        assert_eq!(
+            err.to_string(),
+            "internal error: unreachable branch reached"
+        );
     }
 
     #[test]
@@ -136,7 +153,9 @@ mod tests {
         )
         .unwrap();
 
-        let rusqlite_err = conn.execute("DELETE FROM parents WHERE id = 1", []).unwrap_err();
+        let rusqlite_err = conn
+            .execute("DELETE FROM parents WHERE id = 1", [])
+            .unwrap_err();
         let err = AppError::Database(rusqlite_err);
 
         assert!(err.is_constraint_violation());

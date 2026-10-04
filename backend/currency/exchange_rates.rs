@@ -18,7 +18,12 @@ pub struct ExchangeRate {
 }
 
 impl ExchangeRate {
-    pub fn new(from_currency: impl Into<String>, to_currency: impl Into<String>, rate: Decimal, as_of: NaiveDate) -> Self {
+    pub fn new(
+        from_currency: impl Into<String>,
+        to_currency: impl Into<String>,
+        rate: Decimal,
+        as_of: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             from_currency: from_currency.into().to_ascii_uppercase(),

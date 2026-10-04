@@ -23,7 +23,13 @@ pub struct PosSaleLine {
 }
 
 impl PosSaleLine {
-    pub fn new(product_id: i64, revenue_account_id: i64, description: impl Into<String>, quantity: Decimal, unit_price: Decimal) -> Self {
+    pub fn new(
+        product_id: i64,
+        revenue_account_id: i64,
+        description: impl Into<String>,
+        quantity: Decimal,
+        unit_price: Decimal,
+    ) -> Self {
         Self {
             product_id,
             revenue_account_id,
@@ -76,8 +82,12 @@ impl PosSale {
     /// each line's revenue account. `payment_accounts` maps a payment
     /// method to the GL account it clears into (a cash drawer account for
     /// `Cash`, a card clearing account for `Card`, ...).
-    pub fn build_transaction(&self, payment_accounts: &[(PaymentMethod, i64)]) -> AppResult<Transaction> {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::PosSale, self.sale_date);
+    pub fn build_transaction(
+        &self,
+        payment_accounts: &[(PaymentMethod, i64)],
+    ) -> AppResult<Transaction> {
+        let mut transaction =
+            Transaction::new(self.company_id, TransactionType::PosSale, self.sale_date);
         transaction.description = Some(format!("POS sale, terminal #{}", self.terminal_id));
 
         for payment in &self.payments {
@@ -85,8 +95,15 @@ impl PosSale {
                 .iter()
                 .find(|(method, _)| *method == payment.method)
                 .map(|(_, account_id)| *account_id)
-                .ok_or_else(|| AppError::Validation(format!("no GL account configured for payment method {}", payment.method.as_str())))?;
-            transaction.lines.push(TransactionLine::debit(account_id, payment.amount));
+                .ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "no GL account configured for payment method {}",
+                        payment.method.as_str()
+                    ))
+                })?;
+            transaction
+                .lines
+                .push(TransactionLine::debit(account_id, payment.amount));
         }
         for line in &self.lines {
             transaction.lines.push(TransactionLine {
@@ -102,16 +119,24 @@ impl PosSale {
 impl Validate for PosSale {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("POS sale must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "POS sale must reference a valid company".into(),
+            ));
         }
         if self.terminal_id <= 0 {
-            return Err(AppError::Validation("POS sale must reference a valid terminal".into()));
+            return Err(AppError::Validation(
+                "POS sale must reference a valid terminal".into(),
+            ));
         }
         if self.session_id <= 0 {
-            return Err(AppError::Validation("POS sale must reference a valid session".into()));
+            return Err(AppError::Validation(
+                "POS sale must reference a valid session".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a POS sale must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a POS sale must have at least one line".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("POS sale line description", &line.description)?;
@@ -119,7 +144,9 @@ impl Validate for PosSale {
             require_positive("POS sale line unit price", line.unit_price)?;
         }
         if self.payments.is_empty() {
-            return Err(AppError::Validation("a POS sale must have at least one payment".into()));
+            return Err(AppError::Validation(
+                "a POS sale must have at least one payment".into(),
+            ));
         }
         for payment in &self.payments {
             payment.validate()?;
@@ -146,15 +173,19 @@ mod tests {
 
     fn sale_with_line_and_payment() -> PosSale {
         let mut sale = PosSale::new(1, 1, 1, date());
-        sale.lines.push(PosSaleLine::new(10, 40, "Widget", dec!(2), dec!(50)));
-        sale.payments.push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
+        sale.lines
+            .push(PosSaleLine::new(10, 40, "Widget", dec!(2), dec!(50)));
+        sale.payments
+            .push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
         sale
     }
 
     #[test]
     fn build_transaction_debits_payment_account_and_credits_revenue() {
         let sale = sale_with_line_and_payment();
-        let transaction = sale.build_transaction(&[(PaymentMethod::Cash, 20)]).unwrap();
+        let transaction = sale
+            .build_transaction(&[(PaymentMethod::Cash, 20)])
+            .unwrap();
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 20);
         assert_eq!(transaction.lines[0].debit, dec!(100));
@@ -165,7 +196,9 @@ mod tests {
     #[test]
     fn build_transaction_fails_without_a_configured_account_for_the_payment_method() {
         let sale = sale_with_line_and_payment();
-        assert!(sale.build_transaction(&[(PaymentMethod::Card, 30)]).is_err());
+        assert!(sale
+            .build_transaction(&[(PaymentMethod::Card, 30)])
+            .is_err());
     }
 
     #[test]
@@ -179,7 +212,8 @@ mod tests {
     fn validate_accepts_a_well_formed_split_payment_sale() {
         let mut sale = sale_with_line_and_payment();
         sale.payments[0].amount = dec!(60);
-        sale.payments.push(PosPayment::new(PaymentMethod::Card, dec!(40)));
+        sale.payments
+            .push(PosPayment::new(PaymentMethod::Card, dec!(40)));
         assert!(sale.validate().is_ok());
     }
 }

@@ -57,9 +57,15 @@ impl DebitNote {
     }
 
     pub fn build_transaction(&self, ap_account_id: i64) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::PurchaseBill, self.debit_note_date);
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::PurchaseBill,
+            self.debit_note_date,
+        );
         transaction.description = Some(format!("Debit note for vendor #{}", self.vendor_id));
-        transaction.lines.push(TransactionLine::debit(ap_account_id, self.total()));
+        transaction
+            .lines
+            .push(TransactionLine::debit(ap_account_id, self.total()));
         for line in &self.lines {
             transaction.lines.push(TransactionLine {
                 description: Some(line.description.clone()),
@@ -73,13 +79,19 @@ impl DebitNote {
 impl Validate for DebitNote {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("debit note must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "debit note must reference a valid company".into(),
+            ));
         }
         if self.vendor_id <= 0 {
-            return Err(AppError::Validation("debit note must reference a valid vendor".into()));
+            return Err(AppError::Validation(
+                "debit note must reference a valid vendor".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a debit note must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a debit note must have at least one line".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("debit note line description", &line.description)?;
@@ -97,7 +109,9 @@ mod tests {
     #[test]
     fn build_transaction_debits_ap_and_credits_the_expense_account() {
         let mut debit_note = DebitNote::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
-        debit_note.lines.push(DebitNoteLine::new(50, "Damaged goods return", dec!(150)));
+        debit_note
+            .lines
+            .push(DebitNoteLine::new(50, "Damaged goods return", dec!(150)));
 
         let transaction = debit_note.build_transaction(99);
         assert!(transaction.is_balanced());

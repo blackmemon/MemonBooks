@@ -59,7 +59,12 @@ pub struct Account {
 }
 
 impl Account {
-    pub fn new(company_id: i64, account_code: impl Into<String>, account_name: impl Into<String>, account_type: AccountType) -> Self {
+    pub fn new(
+        company_id: i64,
+        account_code: impl Into<String>,
+        account_name: impl Into<String>,
+        account_type: AccountType,
+    ) -> Self {
         let now = chrono::Utc::now().timestamp();
         Self {
             id: None,
@@ -90,14 +95,21 @@ impl Account {
     }
 
     pub fn set_active(&mut self, active: bool) {
-        self.status = if active { STATUS_ACTIVE } else { STATUS_INACTIVE }.to_string();
+        self.status = if active {
+            STATUS_ACTIVE
+        } else {
+            STATUS_INACTIVE
+        }
+        .to_string();
     }
 }
 
 impl Validate for Account {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("account must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "account must reference a valid company".into(),
+            ));
         }
         require_non_empty("account code", &self.account_code)?;
         require_max_length("account code", &self.account_code, 20)?;
@@ -110,7 +122,9 @@ impl Validate for Account {
             ));
         }
         if self.parent_account == self.id && self.id.is_some() {
-            return Err(AppError::Validation("an account cannot be its own parent".into()));
+            return Err(AppError::Validation(
+                "an account cannot be its own parent".into(),
+            ));
         }
         Ok(())
     }
@@ -150,13 +164,19 @@ mod tests {
 
     #[test]
     fn validate_rejects_blank_code_or_name() {
-        assert!(Account::new(1, "", "Cash", AccountType::Asset).validate().is_err());
-        assert!(Account::new(1, "1000", "", AccountType::Asset).validate().is_err());
+        assert!(Account::new(1, "", "Cash", AccountType::Asset)
+            .validate()
+            .is_err());
+        assert!(Account::new(1, "1000", "", AccountType::Asset)
+            .validate()
+            .is_err());
     }
 
     #[test]
     fn validate_rejects_non_positive_company_id() {
-        assert!(Account::new(0, "1000", "Cash", AccountType::Asset).validate().is_err());
+        assert!(Account::new(0, "1000", "Cash", AccountType::Asset)
+            .validate()
+            .is_err());
     }
 
     #[test]

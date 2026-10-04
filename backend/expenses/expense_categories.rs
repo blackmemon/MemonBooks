@@ -25,12 +25,16 @@ impl ExpenseCategory {
 impl Validate for ExpenseCategory {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("expense category must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "expense category must reference a valid company".into(),
+            ));
         }
         require_non_empty("expense category name", &self.name)?;
         require_max_length("expense category name", &self.name, 200)?;
         if self.gl_account_id <= 0 {
-            return Err(AppError::Validation("expense category must reference a valid GL account".into()));
+            return Err(AppError::Validation(
+                "expense category must reference a valid GL account".into(),
+            ));
         }
         Ok(())
     }

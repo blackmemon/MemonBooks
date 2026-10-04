@@ -17,7 +17,17 @@ pub fn to_rows(assets: &[Asset]) -> (Vec<&'static str>, Vec<Vec<String>>) {
             ]
         })
         .collect();
-    (vec!["Asset", "Acquired", "Cost", "Accum. Depreciation", "Book Value", "Disposed"], rows)
+    (
+        vec![
+            "Asset",
+            "Acquired",
+            "Cost",
+            "Accum. Depreciation",
+            "Book Value",
+            "Disposed",
+        ],
+        rows,
+    )
 }
 
 #[cfg(test)]
@@ -28,7 +38,15 @@ mod tests {
 
     #[test]
     fn to_rows_shapes_one_row_per_asset() {
-        let mut asset = Asset::new(1, 1, "Office Laptop", NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), dec!(2000), dec!(200), 5);
+        let mut asset = Asset::new(
+            1,
+            1,
+            "Office Laptop",
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            dec!(2000),
+            dec!(200),
+            5,
+        );
         asset.accumulated_depreciation = dec!(360);
         let (headers, rows) = to_rows(&[asset]);
         assert_eq!(headers.len(), 6);

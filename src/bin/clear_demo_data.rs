@@ -34,7 +34,11 @@ fn run() -> memonbooks::backend::core::errors::AppResult<()> {
         println!(
             "Removed {} demo compan{}, {} demo user{}, {} demo role{} (and everything under them).",
             summary.companies_removed,
-            if summary.companies_removed == 1 { "y" } else { "ies" },
+            if summary.companies_removed == 1 {
+                "y"
+            } else {
+                "ies"
+            },
             summary.users_removed,
             if summary.users_removed == 1 { "" } else { "s" },
             summary.roles_removed,

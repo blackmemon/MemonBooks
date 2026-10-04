@@ -5,7 +5,9 @@ use rust_decimal::Decimal;
 
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::reference_code;
-use crate::backend::core::validation::{require_max_length, require_non_empty, require_non_negative, Validate};
+use crate::backend::core::validation::{
+    require_max_length, require_non_empty, require_non_negative, Validate,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Customer {
@@ -46,17 +48,23 @@ impl Customer {
 impl Validate for Customer {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("customer must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "customer must reference a valid company".into(),
+            ));
         }
         require_non_empty("customer name", &self.name)?;
         require_max_length("customer name", &self.name, 200)?;
         require_non_negative("credit limit", self.credit_limit)?;
         if self.payment_terms_days < 0 {
-            return Err(AppError::Validation("payment terms (days) must not be negative".into()));
+            return Err(AppError::Validation(
+                "payment terms (days) must not be negative".into(),
+            ));
         }
         if let Some(email) = &self.email {
             if !email.contains('@') {
-                return Err(AppError::Validation("customer email is not a valid email address".into()));
+                return Err(AppError::Validation(
+                    "customer email is not a valid email address".into(),
+                ));
             }
         }
         Ok(())

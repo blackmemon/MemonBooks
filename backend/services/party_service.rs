@@ -14,7 +14,9 @@ pub struct PartyService {
 
 impl PartyService {
     pub fn new(db: Database) -> Self {
-        Self { repo: PartyRepository::new(db) }
+        Self {
+            repo: PartyRepository::new(db),
+        }
     }
 
     pub fn list_customers(&self, company_id: i64) -> AppResult<Vec<Customer>> {

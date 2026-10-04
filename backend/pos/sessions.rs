@@ -62,13 +62,19 @@ impl PosSession {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.terminal_id <= 0 {
-            return Err(AppError::Validation("POS session must reference a valid terminal".into()));
+            return Err(AppError::Validation(
+                "POS session must reference a valid terminal".into(),
+            ));
         }
         if self.cashier_user_id <= 0 {
-            return Err(AppError::Validation("POS session must reference a valid cashier".into()));
+            return Err(AppError::Validation(
+                "POS session must reference a valid cashier".into(),
+            ));
         }
         if self.opening_cash < Decimal::ZERO {
-            return Err(AppError::Validation("opening cash must not be negative".into()));
+            return Err(AppError::Validation(
+                "opening cash must not be negative".into(),
+            ));
         }
         Ok(())
     }

@@ -19,7 +19,12 @@ pub struct Template {
 }
 
 impl Template {
-    pub fn new(company_id: i64, name: impl Into<String>, channel: NotificationChannel, body: impl Into<String>) -> Self {
+    pub fn new(
+        company_id: i64,
+        name: impl Into<String>,
+        channel: NotificationChannel,
+        body: impl Into<String>,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -34,7 +39,9 @@ impl Template {
 impl Validate for Template {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("template must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "template must reference a valid company".into(),
+            ));
         }
         require_non_empty("template name", &self.name)?;
         require_non_empty("template body", &self.body)?;

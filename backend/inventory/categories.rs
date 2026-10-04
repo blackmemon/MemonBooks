@@ -25,15 +25,21 @@ impl Category {
 impl Validate for Category {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("category must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "category must reference a valid company".into(),
+            ));
         }
         require_non_empty("category name", &self.name)?;
         require_max_length("category name", &self.name, 200)?;
         if matches!(self.parent_id, Some(id) if id <= 0) {
-            return Err(AppError::Validation("category's parent_id, when set, must be a valid category".into()));
+            return Err(AppError::Validation(
+                "category's parent_id, when set, must be a valid category".into(),
+            ));
         }
         if self.parent_id == self.id && self.id.is_some() {
-            return Err(AppError::Validation("a category cannot be its own parent".into()));
+            return Err(AppError::Validation(
+                "a category cannot be its own parent".into(),
+            ));
         }
         Ok(())
     }

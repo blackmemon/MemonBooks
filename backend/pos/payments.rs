@@ -59,7 +59,10 @@ mod tests {
 
     #[test]
     fn total_tendered_sums_every_payment() {
-        let payments = vec![PosPayment::new(PaymentMethod::Cash, dec!(20)), PosPayment::new(PaymentMethod::Card, dec!(80))];
+        let payments = vec![
+            PosPayment::new(PaymentMethod::Cash, dec!(20)),
+            PosPayment::new(PaymentMethod::Card, dec!(80)),
+        ];
         assert_eq!(total_tendered(&payments), dec!(100));
     }
 
@@ -71,7 +74,11 @@ mod tests {
 
     #[test]
     fn as_str_and_parse_round_trip_for_every_method() {
-        for method in [PaymentMethod::Cash, PaymentMethod::Card, PaymentMethod::Other] {
+        for method in [
+            PaymentMethod::Cash,
+            PaymentMethod::Card,
+            PaymentMethod::Other,
+        ] {
             assert_eq!(PaymentMethod::parse(method.as_str()), Some(method));
         }
     }

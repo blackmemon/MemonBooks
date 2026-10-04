@@ -22,7 +22,10 @@ use crate::frontend::styles::states;
 pub fn header_row(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
     move |_iced_theme: &IcedTheme| container::Style {
         background: Some(Background::Color(theme.neutral_bg())),
-        border: Border { radius: iced::border::top(radius), ..Border::default() },
+        border: Border {
+            radius: iced::border::top(radius),
+            ..Border::default()
+        },
         ..container::Style::default()
     }
 }
@@ -33,17 +36,33 @@ pub fn header_row(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container
 /// tinted background on (e.g. the row currently being edited) instead
 /// of only tinting while the mouse hovers it, mirroring `nav_item`'s
 /// `active` flag.
-pub fn row(theme: Theme, highlighted: bool) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
+pub fn row(
+    theme: Theme,
+    highlighted: bool,
+) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
     move |_iced_theme: &IcedTheme, status: button::Status| {
         let background = if highlighted {
-            Some(Background::Color(Color { a: states::SELECTED_ALPHA, ..theme.primary() }))
+            Some(Background::Color(Color {
+                a: states::SELECTED_ALPHA,
+                ..theme.primary()
+            }))
         } else {
             match status {
-                button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color { a: states::TABLE_ROW_HOVER_ALPHA, ..theme.neutral_bg() })),
+                button::Status::Hovered | button::Status::Pressed => {
+                    Some(Background::Color(Color {
+                        a: states::TABLE_ROW_HOVER_ALPHA,
+                        ..theme.neutral_bg()
+                    }))
+                }
                 _ => None,
             }
         };
-        button::Style { background, text_color: theme.text_primary(), border: Border::default(), shadow: iced::Shadow::default() }
+        button::Style {
+            background,
+            text_color: theme.text_primary(),
+            border: Border::default(),
+            shadow: iced::Shadow::default(),
+        }
     }
 }
 

@@ -14,7 +14,9 @@ pub struct InventoryService {
 
 impl InventoryService {
     pub fn new(db: Database) -> Self {
-        Self { repo: InventoryRepository::new(db) }
+        Self {
+            repo: InventoryRepository::new(db),
+        }
     }
 
     pub fn list_products(&self, company_id: i64) -> AppResult<Vec<Product>> {

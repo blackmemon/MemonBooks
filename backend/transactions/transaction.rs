@@ -30,7 +30,11 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(company_id: i64, transaction_type: TransactionType, transaction_date: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        transaction_type: TransactionType,
+        transaction_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -66,9 +70,9 @@ impl Transaction {
     /// `reversal_date`, linked back to this transaction. Does not post it
     /// -- that's `transaction_engine`'s job.
     pub fn build_reversal(&self, reversal_date: NaiveDate) -> AppResult<Self> {
-        let original_id = self
-            .id
-            .ok_or_else(|| AppError::Validation("cannot reverse a transaction that hasn't been posted".into()))?;
+        let original_id = self.id.ok_or_else(|| {
+            AppError::Validation("cannot reverse a transaction that hasn't been posted".into())
+        })?;
         if self.status != TransactionStatus::Posted {
             return Err(AppError::Validation(
                 "only a posted transaction can be reversed".into(),
@@ -82,7 +86,10 @@ impl Transaction {
             transaction_date: reversal_date,
             description: Some(format!(
                 "Reversal of transaction #{original_id}{}",
-                self.description.as_deref().map(|d| format!(": {d}")).unwrap_or_default()
+                self.description
+                    .as_deref()
+                    .map(|d| format!(": {d}"))
+                    .unwrap_or_default()
             )),
             status: TransactionStatus::Draft,
             lines: self.lines.iter().map(TransactionLine::flipped).collect(),
@@ -96,10 +103,14 @@ impl Transaction {
 impl Validate for Transaction {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("transaction must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "transaction must reference a valid company".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a transaction must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a transaction must have at least one line".into(),
+            ));
         }
         for line in &self.lines {
             line.validate()?;

@@ -34,19 +34,27 @@ impl VendorPayment {
     }
 
     pub fn build_transaction(&self, ap_account_id: i64, cash_account_id: i64) -> Transaction {
-        Transaction::new(self.company_id, TransactionType::VendorPayment, self.payment_date)
-            .with_line(TransactionLine::debit(ap_account_id, self.amount))
-            .with_line(TransactionLine::credit(cash_account_id, self.amount))
+        Transaction::new(
+            self.company_id,
+            TransactionType::VendorPayment,
+            self.payment_date,
+        )
+        .with_line(TransactionLine::debit(ap_account_id, self.amount))
+        .with_line(TransactionLine::credit(cash_account_id, self.amount))
     }
 }
 
 impl Validate for VendorPayment {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("payment must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "payment must reference a valid company".into(),
+            ));
         }
         if self.vendor_id <= 0 {
-            return Err(AppError::Validation("payment must reference a valid vendor".into()));
+            return Err(AppError::Validation(
+                "payment must reference a valid vendor".into(),
+            ));
         }
         require_positive("payment amount", self.amount)?;
         Ok(())
@@ -60,7 +68,12 @@ mod tests {
 
     #[test]
     fn build_transaction_debits_ap_and_credits_cash() {
-        let payment = VendorPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(500));
+        let payment = VendorPayment::new(
+            1,
+            1,
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            dec!(500),
+        );
         let transaction = payment.build_transaction(20, 10);
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].account_id, 20);
@@ -71,7 +84,8 @@ mod tests {
 
     #[test]
     fn validate_rejects_non_positive_amount() {
-        let payment = VendorPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(0));
+        let payment =
+            VendorPayment::new(1, 1, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(), dec!(0));
         assert!(payment.validate().is_err());
     }
 }

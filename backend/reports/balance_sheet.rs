@@ -46,13 +46,25 @@ impl BalanceSheet {
 
     pub fn to_rows(&self) -> (Vec<&'static str>, Vec<Vec<String>>) {
         let mut rows = Vec::new();
-        for (heading, lines) in [("Assets", &self.assets), ("Liabilities", &self.liabilities), ("Equity", &self.equity)] {
+        for (heading, lines) in [
+            ("Assets", &self.assets),
+            ("Liabilities", &self.liabilities),
+            ("Equity", &self.equity),
+        ] {
             rows.push(vec![heading.to_string(), String::new(), String::new()]);
             for line in lines {
-                rows.push(vec![line.account_code.clone(), line.account_name.clone(), line.balance.to_string()]);
+                rows.push(vec![
+                    line.account_code.clone(),
+                    line.account_name.clone(),
+                    line.balance.to_string(),
+                ]);
             }
         }
-        rows.push(vec!["Equity".into(), "Current Year Earnings".into(), self.current_year_earnings.to_string()]);
+        rows.push(vec![
+            "Equity".into(),
+            "Current Year Earnings".into(),
+            self.current_year_earnings.to_string(),
+        ]);
         (vec!["Code", "Account", "Balance"], rows)
     }
 }
@@ -60,7 +72,11 @@ impl BalanceSheet {
 /// `balances` is (account_id, code, name, account_type, trial-balance-style
 /// net movement: positive = debit, negative = credit) for every Asset,
 /// Liability, and Equity account as of `as_of`.
-pub fn build(as_of: NaiveDate, balances: &[(i64, String, String, AccountType, Decimal)], current_year_earnings: Decimal) -> BalanceSheet {
+pub fn build(
+    as_of: NaiveDate,
+    balances: &[(i64, String, String, AccountType, Decimal)],
+    current_year_earnings: Decimal,
+) -> BalanceSheet {
     let mut sheet = BalanceSheet {
         as_of,
         assets: Vec::new(),
@@ -103,9 +119,27 @@ mod tests {
     #[test]
     fn balances_when_assets_equal_liabilities_plus_equity_plus_earnings() {
         let balances = vec![
-            (1, "1000".to_string(), "Cash".to_string(), AccountType::Asset, dec!(15000)),
-            (2, "2000".to_string(), "Accounts Payable".to_string(), AccountType::Liability, dec!(-3000)),
-            (3, "3000".to_string(), "Owner's Capital".to_string(), AccountType::Equity, dec!(-10000)),
+            (
+                1,
+                "1000".to_string(),
+                "Cash".to_string(),
+                AccountType::Asset,
+                dec!(15000),
+            ),
+            (
+                2,
+                "2000".to_string(),
+                "Accounts Payable".to_string(),
+                AccountType::Liability,
+                dec!(-3000),
+            ),
+            (
+                3,
+                "3000".to_string(),
+                "Owner's Capital".to_string(),
+                AccountType::Equity,
+                dec!(-10000),
+            ),
         ];
         let sheet = build(date(), &balances, dec!(2000));
 
@@ -118,8 +152,20 @@ mod tests {
     #[test]
     fn revenue_and_expense_accounts_are_excluded() {
         let balances = vec![
-            (1, "1000".to_string(), "Cash".to_string(), AccountType::Asset, dec!(1000)),
-            (4, "4000".to_string(), "Sales Revenue".to_string(), AccountType::Revenue, dec!(-5000)),
+            (
+                1,
+                "1000".to_string(),
+                "Cash".to_string(),
+                AccountType::Asset,
+                dec!(1000),
+            ),
+            (
+                4,
+                "4000".to_string(),
+                "Sales Revenue".to_string(),
+                AccountType::Revenue,
+                dec!(-5000),
+            ),
         ];
         let sheet = build(date(), &balances, Decimal::ZERO);
         assert!(sheet.assets.iter().all(|l| l.account_id != 4));

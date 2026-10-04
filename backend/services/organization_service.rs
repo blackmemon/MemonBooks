@@ -26,7 +26,10 @@ pub struct OrganizationService {
 
 impl OrganizationService {
     pub fn new(db: Database) -> Self {
-        Self { repo: OrganizationRepository::new(db.clone()), accounting_repo: AccountingRepository::new(db) }
+        Self {
+            repo: OrganizationRepository::new(db.clone()),
+            accounting_repo: AccountingRepository::new(db),
+        }
     }
 
     pub fn get_company(&self, company_id: i64) -> AppResult<Company> {
@@ -46,15 +49,26 @@ impl OrganizationService {
     /// immediately -- the same thing `src/main.rs`'s
     /// `ensure_default_company` does for the bootstrap company, just
     /// reachable from the UI for every company after the first.
-    pub fn create_company(&self, name: impl Into<String>, base_currency_code: impl Into<String>) -> AppResult<Company> {
-        let company = self.repo.create_company(&Company::new(name, base_currency_code))?;
+    pub fn create_company(
+        &self,
+        name: impl Into<String>,
+        base_currency_code: impl Into<String>,
+    ) -> AppResult<Company> {
+        let company = self
+            .repo
+            .create_company(&Company::new(name, base_currency_code))?;
         let company_id = company.id.expect("just-created company must have an id");
 
         let today = Utc::now().date_naive();
         let year_start = chrono::NaiveDate::from_ymd_opt(today.year(), 1, 1).unwrap_or(today);
         let year_end = chrono::NaiveDate::from_ymd_opt(today.year(), 12, 31).unwrap_or(today);
         self.accounting_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, format!("FY{}", today.year()), year_start, year_end))?;
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                format!("FY{}", today.year()),
+                year_start,
+                year_end,
+            ))?;
 
         Ok(company)
     }
@@ -75,11 +89,18 @@ impl OrganizationService {
         self.repo.delete_employee(id)
     }
 
-    pub fn create_salary_structure(&self, structure: &SalaryStructure) -> AppResult<SalaryStructure> {
+    pub fn create_salary_structure(
+        &self,
+        structure: &SalaryStructure,
+    ) -> AppResult<SalaryStructure> {
         self.repo.create_salary_structure(structure)
     }
 
-    pub fn current_salary_structure(&self, employee_id: i64, as_of: NaiveDate) -> AppResult<Option<SalaryStructure>> {
+    pub fn current_salary_structure(
+        &self,
+        employee_id: i64,
+        as_of: NaiveDate,
+    ) -> AppResult<Option<SalaryStructure>> {
         self.repo.current_salary_structure(employee_id, as_of)
     }
 
@@ -90,6 +111,11 @@ impl OrganizationService {
         deductions_payable_account_id: i64,
         net_pay_account_id: i64,
     ) -> AppResult<(PayrollRun, Transaction)> {
-        self.repo.post_payroll_run(run, salary_expense_account_id, deductions_payable_account_id, net_pay_account_id)
+        self.repo.post_payroll_run(
+            run,
+            salary_expense_account_id,
+            deductions_payable_account_id,
+            net_pay_account_id,
+        )
     }
 }

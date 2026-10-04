@@ -19,7 +19,12 @@ impl RetainedEarningsStatement {
     }
 }
 
-pub fn build(period_start: NaiveDate, period_end: NaiveDate, opening_balance: Decimal, net_income: Decimal) -> RetainedEarningsStatement {
+pub fn build(
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    opening_balance: Decimal,
+    net_income: Decimal,
+) -> RetainedEarningsStatement {
     RetainedEarningsStatement {
         period_start,
         period_end,
@@ -35,13 +40,23 @@ mod tests {
 
     #[test]
     fn closing_balance_adds_net_income_to_opening() {
-        let statement = build(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(), dec!(10000), dec!(2500));
+        let statement = build(
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+            dec!(10000),
+            dec!(2500),
+        );
         assert_eq!(statement.closing_balance(), dec!(12500));
     }
 
     #[test]
     fn a_net_loss_reduces_the_closing_balance() {
-        let statement = build(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(), dec!(10000), dec!(-1500));
+        let statement = build(
+            NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+            dec!(10000),
+            dec!(-1500),
+        );
         assert_eq!(statement.closing_balance(), dec!(8500));
     }
 }

@@ -39,7 +39,10 @@ impl CashDrawerEventType {
     /// Whether this event type adds cash to the drawer (true) or removes
     /// it (false).
     fn increases_drawer(self) -> bool {
-        matches!(self, CashDrawerEventType::CashSale | CashDrawerEventType::PaidIn)
+        matches!(
+            self,
+            CashDrawerEventType::CashSale | CashDrawerEventType::PaidIn
+        )
     }
 }
 
@@ -67,10 +70,14 @@ impl CashDrawerEvent {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.session_id <= 0 {
-            return Err(AppError::Validation("cash drawer event must reference a valid session".into()));
+            return Err(AppError::Validation(
+                "cash drawer event must reference a valid session".into(),
+            ));
         }
         if self.amount <= Decimal::ZERO {
-            return Err(AppError::Validation("cash drawer event amount must be positive".into()));
+            return Err(AppError::Validation(
+                "cash drawer event amount must be positive".into(),
+            ));
         }
         Ok(())
     }
@@ -87,7 +94,11 @@ impl CashDrawerEvent {
 /// What the drawer should hold at close: opening float plus every
 /// event's signed effect.
 pub fn expected_closing_cash(opening_cash: Decimal, events: &[CashDrawerEvent]) -> Decimal {
-    opening_cash + events.iter().map(CashDrawerEvent::signed_amount).sum::<Decimal>()
+    opening_cash
+        + events
+            .iter()
+            .map(CashDrawerEvent::signed_amount)
+            .sum::<Decimal>()
 }
 
 /// Positive means the drawer has more than expected (over), negative

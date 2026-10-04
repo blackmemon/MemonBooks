@@ -26,7 +26,11 @@ const USERS_MANAGE: &str = "users.manage";
 /// (the caller gets it back as plaintext right after this call) since
 /// only the hash is ever persisted.
 fn generate_temporary_password() -> String {
-    rand::thread_rng().sample_iter(rand::distributions::Alphanumeric).take(16).map(char::from).collect()
+    rand::thread_rng()
+        .sample_iter(rand::distributions::Alphanumeric)
+        .take(16)
+        .map(char::from)
+        .collect()
 }
 
 #[derive(Clone)]
@@ -36,7 +40,9 @@ pub struct AuthService {
 
 impl AuthService {
     pub fn new(db: Database) -> Self {
-        Self { repo: UserRepository::new(db) }
+        Self {
+            repo: UserRepository::new(db),
+        }
     }
 
     /// Every other active account, for the basic user-switcher --
@@ -72,8 +78,15 @@ impl AuthService {
     /// own password. Requiring the current password even on the forced
     /// first-login change catches a mistyped assumption about what the
     /// temporary password was, not just a rubber-stamp confirmation.
-    pub fn change_password(&self, user: &User, current_password: &str, new_password: &str) -> AppResult<User> {
-        let user_id = user.id.ok_or_else(|| AppError::Validation("cannot change the password of a user without an id".into()))?;
+    pub fn change_password(
+        &self,
+        user: &User,
+        current_password: &str,
+        new_password: &str,
+    ) -> AppResult<User> {
+        let user_id = user.id.ok_or_else(|| {
+            AppError::Validation("cannot change the password of a user without an id".into())
+        })?;
         if !verify_password(current_password, &user.password_hash)? {
             return Err(AppError::Validation("current password is incorrect".into()));
         }
@@ -91,11 +104,18 @@ impl AuthService {
         Ok(self.repo.get_role(user.role_id)?.has_permission(permission))
     }
 
-    fn require_permission(&self, acting_user: &User, permission: &str, action: &str) -> AppResult<()> {
+    fn require_permission(
+        &self,
+        acting_user: &User,
+        permission: &str,
+        action: &str,
+    ) -> AppResult<()> {
         if self.has_permission(acting_user, permission)? {
             Ok(())
         } else {
-            Err(AppError::Validation(format!("only an administrator can {action}")))
+            Err(AppError::Validation(format!(
+                "only an administrator can {action}"
+            )))
         }
     }
 
@@ -118,7 +138,13 @@ impl AuthService {
     /// Returns the plaintext password once: only its hash is ever
     /// stored, so this is the one and only chance to hand it to the new
     /// user. Requires `acting_user` to have `users.manage`.
-    pub fn create_user(&self, acting_user: &User, username: &str, display_name: &str, role_id: i64) -> AppResult<(User, String)> {
+    pub fn create_user(
+        &self,
+        acting_user: &User,
+        username: &str,
+        display_name: &str,
+        role_id: i64,
+    ) -> AppResult<(User, String)> {
         self.require_permission(acting_user, USERS_MANAGE, "create users")?;
 
         let password = generate_temporary_password();
@@ -146,7 +172,8 @@ impl AuthService {
 
         let password = generate_temporary_password();
         let password_hash = hash_password(&password)?;
-        self.repo.reset_password_by_admin(target_user_id, &password_hash)?;
+        self.repo
+            .reset_password_by_admin(target_user_id, &password_hash)?;
         Ok(password)
     }
 
@@ -160,7 +187,8 @@ impl AuthService {
     /// username or password" error.
     pub fn request_password_reset(&self, username: &str) -> AppResult<()> {
         if let Some(user) = self.repo.find_user_by_username(username)? {
-            self.repo.set_reset_requested(user.id.unwrap_or_default(), true)?;
+            self.repo
+                .set_reset_requested(user.id.unwrap_or_default(), true)?;
         }
         Ok(())
     }
@@ -173,7 +201,8 @@ mod tests {
 
     fn service_with_admin_and_staff_roles() -> (AuthService, User, Role) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS)
+            .unwrap();
 
         let service = AuthService::new(db);
         let mut admin_role = Role::new("Administrator");
@@ -181,7 +210,15 @@ mod tests {
         let admin_role = service.repo.create_role(&admin_role).unwrap();
         let staff_role = service.repo.create_role(&Role::new("Staff")).unwrap();
 
-        let admin = service.repo.create_user(&User::new("admin", "Admin User", hash_password("correct horse battery staple").unwrap(), admin_role.id.unwrap())).unwrap();
+        let admin = service
+            .repo
+            .create_user(&User::new(
+                "admin",
+                "Admin User",
+                hash_password("correct horse battery staple").unwrap(),
+                admin_role.id.unwrap(),
+            ))
+            .unwrap();
 
         (service, admin, staff_role)
     }
@@ -209,11 +246,16 @@ mod tests {
     fn create_user_generates_a_random_password_that_actually_logs_in_and_forces_a_change() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
 
-        let (created, password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
 
         assert_eq!(password.len(), 16);
         assert!(created.must_change_password);
-        assert_ne!(created.password_hash, password, "the stored hash must never equal the plaintext password");
+        assert_ne!(
+            created.password_hash, password,
+            "the stored hash must never equal the plaintext password"
+        );
 
         // Proves the generated password is real and actually usable to
         // log in, not just a string that looks plausible.
@@ -224,10 +266,18 @@ mod tests {
     #[test]
     fn update_user_is_rejected_for_an_acting_user_without_users_manage() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, _password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, _password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
         let non_admin = User::new("bob", "Bob Jones", "hash", staff_role.id.unwrap());
 
-        let result = service.update_user(&non_admin, &User { display_name: "Carol Renamed".into(), ..created });
+        let result = service.update_user(
+            &non_admin,
+            &User {
+                display_name: "Carol Renamed".into(),
+                ..created
+            },
+        );
 
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
@@ -235,10 +285,21 @@ mod tests {
     #[test]
     fn update_user_can_change_role_and_deactivate() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, _password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, _password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
         let another_role = service.repo.create_role(&Role::new("Manager")).unwrap();
 
-        service.update_user(&admin, &User { role_id: another_role.id.unwrap(), is_active: false, ..created.clone() }).unwrap();
+        service
+            .update_user(
+                &admin,
+                &User {
+                    role_id: another_role.id.unwrap(),
+                    is_active: false,
+                    ..created.clone()
+                },
+            )
+            .unwrap();
 
         let reloaded = service.repo.get_user(created.id.unwrap()).unwrap();
         assert_eq!(reloaded.role_id, another_role.id.unwrap());
@@ -248,8 +309,18 @@ mod tests {
     #[test]
     fn a_deactivated_user_cannot_log_in() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
-        service.update_user(&admin, &User { is_active: false, ..created }).unwrap();
+        let (created, password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
+        service
+            .update_user(
+                &admin,
+                &User {
+                    is_active: false,
+                    ..created
+                },
+            )
+            .unwrap();
 
         let result = service.login_with_credentials("carol", &password);
 
@@ -259,7 +330,9 @@ mod tests {
     #[test]
     fn reset_password_is_rejected_for_an_acting_user_without_users_manage() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, _password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, _password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
         let non_admin = User::new("bob", "Bob Jones", "hash", staff_role.id.unwrap());
 
         let result = service.reset_password(&non_admin, created.id.unwrap());
@@ -270,18 +343,34 @@ mod tests {
     #[test]
     fn reset_password_generates_a_new_password_that_logs_in_and_clears_a_pending_request() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, old_password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, old_password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
         // Simulate carol changing her own password and then requesting
         // a reset, so there's a real pending flag to prove gets cleared.
-        service.repo.set_password(created.id.unwrap(), &hash_password(&old_password).unwrap()).unwrap();
+        service
+            .repo
+            .set_password(created.id.unwrap(), &hash_password(&old_password).unwrap())
+            .unwrap();
         service.request_password_reset("carol").unwrap();
-        assert!(service.repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
+        assert!(
+            service
+                .repo
+                .get_user(created.id.unwrap())
+                .unwrap()
+                .is_reset_requested
+        );
 
         let new_password = service.reset_password(&admin, created.id.unwrap()).unwrap();
 
         assert_ne!(new_password, old_password);
-        let outcome = service.login_with_credentials("carol", &new_password).unwrap();
-        assert!(matches!(outcome, AuthOutcome::Authenticated(_) | AuthOutcome::TwoFactorRequired(_)));
+        let outcome = service
+            .login_with_credentials("carol", &new_password)
+            .unwrap();
+        assert!(matches!(
+            outcome,
+            AuthOutcome::Authenticated(_) | AuthOutcome::TwoFactorRequired(_)
+        ));
         let reloaded = service.repo.get_user(created.id.unwrap()).unwrap();
         assert!(reloaded.must_change_password);
         assert!(!reloaded.is_reset_requested);
@@ -290,11 +379,19 @@ mod tests {
     #[test]
     fn request_password_reset_flags_a_known_username() {
         let (service, admin, staff_role) = service_with_admin_and_staff_roles();
-        let (created, _password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (created, _password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
 
         service.request_password_reset("CAROL").unwrap();
 
-        assert!(service.repo.get_user(created.id.unwrap()).unwrap().is_reset_requested);
+        assert!(
+            service
+                .repo
+                .get_user(created.id.unwrap())
+                .unwrap()
+                .is_reset_requested
+        );
     }
 
     #[test]
@@ -330,41 +427,93 @@ mod tests {
         use rust_decimal_macros::dec;
 
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS).unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(crate::backend::repositories::user_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
 
         let service = AuthService::new(db.clone());
         let mut admin_role = Role::new("Administrator");
         admin_role.permissions.push(USERS_MANAGE.into());
         let admin_role = service.repo.create_role(&admin_role).unwrap();
         let staff_role = service.repo.create_role(&Role::new("Staff")).unwrap();
-        let admin = service.repo.create_user(&User::new("admin", "Admin User", hash_password("correct horse battery staple").unwrap(), admin_role.id.unwrap())).unwrap();
+        let admin = service
+            .repo
+            .create_user(&User::new(
+                "admin",
+                "Admin User",
+                hash_password("correct horse battery staple").unwrap(),
+                admin_role.id.unwrap(),
+            ))
+            .unwrap();
 
-        let (carol, _password) = service.create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap()).unwrap();
+        let (carol, _password) = service
+            .create_user(&admin, "carol", "Carol Smith", staff_role.id.unwrap())
+            .unwrap();
         let carol_id = carol.id.unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
         let accounting_repo = AccountingRepository::new(db.clone());
         accounting_repo
-            .create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()))
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+            ))
             .unwrap();
-        let cash = accounting_repo.create_account(&Account::new(company_id, "1000", "Cash", AccountType::Asset)).unwrap();
-        let capital = accounting_repo.create_account(&Account::new(company_id, "3000", "Owner's Capital", AccountType::Equity)).unwrap();
+        let cash = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1000",
+                "Cash",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let capital = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "3000",
+                "Owner's Capital",
+                AccountType::Equity,
+            ))
+            .unwrap();
 
-        let mut transaction = Transaction::new(company_id, TransactionType::ManualJournal, NaiveDate::from_ymd_opt(2026, 3, 1).unwrap())
-            .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(500)))
-            .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(500)));
+        let mut transaction = Transaction::new(
+            company_id,
+            TransactionType::ManualJournal,
+            NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+        )
+        .with_line(TransactionLine::debit(cash.id.unwrap(), dec!(500)))
+        .with_line(TransactionLine::credit(capital.id.unwrap(), dec!(500)));
         transaction.posted_by_user_id = Some(carol_id);
         let posted = accounting_repo.post_transaction(&transaction).unwrap();
         let transaction_id = posted.id.unwrap();
 
-        service.update_user(&admin, &User { is_active: false, ..carol }).unwrap();
+        service
+            .update_user(
+                &admin,
+                &User {
+                    is_active: false,
+                    ..carol
+                },
+            )
+            .unwrap();
 
         let reloaded_user = service.repo.get_user(carol_id).unwrap();
-        assert!(!reloaded_user.is_active, "the account is deactivated, not deleted");
+        assert!(
+            !reloaded_user.is_active,
+            "the account is deactivated, not deleted"
+        );
 
         let reloaded_transaction = accounting_repo.get_transaction(transaction_id).unwrap();
         assert_eq!(reloaded_transaction.status, TransactionStatus::Posted);

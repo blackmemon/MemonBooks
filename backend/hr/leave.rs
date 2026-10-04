@@ -59,7 +59,11 @@ impl LeaveStatus {
     }
 
     pub fn can_transition_to(self, to: LeaveStatus) -> bool {
-        matches!((self, to), (LeaveStatus::Requested, LeaveStatus::Approved) | (LeaveStatus::Requested, LeaveStatus::Rejected))
+        matches!(
+            (self, to),
+            (LeaveStatus::Requested, LeaveStatus::Approved)
+                | (LeaveStatus::Requested, LeaveStatus::Rejected)
+        )
     }
 }
 
@@ -74,7 +78,12 @@ pub struct LeaveRequest {
 }
 
 impl LeaveRequest {
-    pub fn new(employee_id: i64, leave_type: LeaveType, start_date: NaiveDate, end_date: NaiveDate) -> Self {
+    pub fn new(
+        employee_id: i64,
+        leave_type: LeaveType,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             employee_id,
@@ -92,10 +101,14 @@ impl LeaveRequest {
 
     pub fn validate(&self) -> AppResult<()> {
         if self.employee_id <= 0 {
-            return Err(AppError::Validation("leave request must reference a valid employee".into()));
+            return Err(AppError::Validation(
+                "leave request must reference a valid employee".into(),
+            ));
         }
         if self.end_date < self.start_date {
-            return Err(AppError::Validation("leave request end_date must not be before start_date".into()));
+            return Err(AppError::Validation(
+                "leave request end_date must not be before start_date".into(),
+            ));
         }
         Ok(())
     }

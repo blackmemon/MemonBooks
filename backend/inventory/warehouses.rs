@@ -29,7 +29,9 @@ impl Warehouse {
 impl Validate for Warehouse {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("warehouse must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "warehouse must reference a valid company".into(),
+            ));
         }
         require_non_empty("warehouse name", &self.name)?;
         require_max_length("warehouse name", &self.name, 200)?;

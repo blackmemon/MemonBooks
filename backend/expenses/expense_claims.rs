@@ -45,7 +45,10 @@ impl ExpenseClaimStatus {
     /// and Reimbursed are terminal.
     pub fn can_transition_to(self, to: ExpenseClaimStatus) -> bool {
         use ExpenseClaimStatus::*;
-        matches!((self, to), (Submitted, Approved) | (Submitted, Rejected) | (Approved, Reimbursed))
+        matches!(
+            (self, to),
+            (Submitted, Approved) | (Submitted, Rejected) | (Approved, Reimbursed)
+        )
     }
 }
 
@@ -63,7 +66,14 @@ pub struct ExpenseClaim {
 }
 
 impl ExpenseClaim {
-    pub fn new(company_id: i64, claimant_name: impl Into<String>, category_id: i64, claim_date: NaiveDate, amount: Decimal, description: impl Into<String>) -> Self {
+    pub fn new(
+        company_id: i64,
+        claimant_name: impl Into<String>,
+        category_id: i64,
+        claim_date: NaiveDate,
+        amount: Decimal,
+        description: impl Into<String>,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -79,11 +89,27 @@ impl ExpenseClaim {
 
     /// Reimbursing an approved claim: debits the category's expense
     /// account, credits the account reimbursement was paid from.
-    pub fn build_reimbursement_transaction(&self, expense_gl_account_id: i64, payment_account_id: i64, reimbursement_date: NaiveDate) -> Transaction {
-        let mut transaction = Transaction::new(self.company_id, TransactionType::Expense, reimbursement_date);
-        transaction.description = Some(format!("Reimbursement to {}: {}", self.claimant_name, self.description));
-        transaction.lines.push(TransactionLine::debit(expense_gl_account_id, self.amount));
-        transaction.lines.push(TransactionLine::credit(payment_account_id, self.amount));
+    pub fn build_reimbursement_transaction(
+        &self,
+        expense_gl_account_id: i64,
+        payment_account_id: i64,
+        reimbursement_date: NaiveDate,
+    ) -> Transaction {
+        let mut transaction = Transaction::new(
+            self.company_id,
+            TransactionType::Expense,
+            reimbursement_date,
+        );
+        transaction.description = Some(format!(
+            "Reimbursement to {}: {}",
+            self.claimant_name, self.description
+        ));
+        transaction
+            .lines
+            .push(TransactionLine::debit(expense_gl_account_id, self.amount));
+        transaction
+            .lines
+            .push(TransactionLine::credit(payment_account_id, self.amount));
         transaction
     }
 }
@@ -91,11 +117,15 @@ impl ExpenseClaim {
 impl Validate for ExpenseClaim {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("expense claim must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "expense claim must reference a valid company".into(),
+            ));
         }
         require_non_empty("claimant name", &self.claimant_name)?;
         if self.category_id <= 0 {
-            return Err(AppError::Validation("expense claim must reference a valid category".into()));
+            return Err(AppError::Validation(
+                "expense claim must reference a valid category".into(),
+            ));
         }
         require_positive("expense claim amount", self.amount)?;
         require_non_empty("expense claim description", &self.description)?;
@@ -127,7 +157,14 @@ mod tests {
 
     #[test]
     fn build_reimbursement_transaction_is_balanced() {
-        let claim = ExpenseClaim::new(1, "Jane Doe", 5, date(2026, 1, 1), dec!(80), "Client dinner");
+        let claim = ExpenseClaim::new(
+            1,
+            "Jane Doe",
+            5,
+            date(2026, 1, 1),
+            dec!(80),
+            "Client dinner",
+        );
         let transaction = claim.build_reimbursement_transaction(50, 10, date(2026, 1, 5));
         assert!(transaction.is_balanced());
         assert_eq!(transaction.lines[0].debit, dec!(80));

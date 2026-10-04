@@ -50,11 +50,23 @@ mod tests {
 
     #[test]
     fn recognizes_explicit_values() {
-        assert_eq!(Environment::from_env_value(Some("production")), Environment::Production);
-        assert_eq!(Environment::from_env_value(Some("Prod")), Environment::Production);
+        assert_eq!(
+            Environment::from_env_value(Some("production")),
+            Environment::Production
+        );
+        assert_eq!(
+            Environment::from_env_value(Some("Prod")),
+            Environment::Production
+        );
         assert_eq!(Environment::from_env_value(Some("TEST")), Environment::Test);
-        assert_eq!(Environment::from_env_value(Some("development")), Environment::Development);
-        assert_eq!(Environment::from_env_value(Some("dev")), Environment::Development);
+        assert_eq!(
+            Environment::from_env_value(Some("development")),
+            Environment::Development
+        );
+        assert_eq!(
+            Environment::from_env_value(Some("dev")),
+            Environment::Development
+        );
     }
 
     #[test]

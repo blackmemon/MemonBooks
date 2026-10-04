@@ -9,14 +9,20 @@ fn line_of(ch: char) -> String {
 }
 
 fn justify(left: &str, right: &str) -> String {
-    let padding = RECEIPT_WIDTH.saturating_sub(left.len() + right.len()).max(1);
+    let padding = RECEIPT_WIDTH
+        .saturating_sub(left.len() + right.len())
+        .max(1);
     format!("{left}{}{right}", " ".repeat(padding))
 }
 
 /// `company_name` and `payment_method_labels` are supplied by the caller
 /// so this module stays free of any dependency on the party/organization
 /// or payments modules' exact enum shapes.
-pub fn render_receipt(company_name: &str, sale: &PosSale, payment_method_labels: &[(&str, String)]) -> String {
+pub fn render_receipt(
+    company_name: &str,
+    sale: &PosSale,
+    payment_method_labels: &[(&str, String)],
+) -> String {
     let mut out = String::new();
     out.push_str(company_name);
     out.push('\n');
@@ -59,8 +65,10 @@ mod tests {
     #[test]
     fn render_receipt_includes_every_line_item_and_the_total() {
         let mut sale = PosSale::new(1, 1, 1, NaiveDate::from_ymd_opt(2026, 1, 15).unwrap());
-        sale.lines.push(PosSaleLine::new(10, 40, "Widget", dec!(2), dec!(50)));
-        sale.payments.push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
+        sale.lines
+            .push(PosSaleLine::new(10, 40, "Widget", dec!(2), dec!(50)));
+        sale.payments
+            .push(PosPayment::new(PaymentMethod::Cash, dec!(100)));
 
         let receipt = render_receipt("Acme Retail", &sale, &[("cash", "Cash".to_string())]);
         assert!(receipt.contains("Widget"));

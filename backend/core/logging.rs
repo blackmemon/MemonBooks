@@ -2,7 +2,9 @@
 //! log file under the app's data directory. Call `init` once, at startup,
 //! before anything else logs.
 
-use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger};
+use simplelog::{
+    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+};
 
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::configs::app::AppConfig;
@@ -13,7 +15,15 @@ use crate::configs::environment::Environment;
 /// compilation, window-system chatter) is noisy enough to grow the log
 /// file into the megabytes within seconds -- ignored here so DEBUG level
 /// stays useful for our own code.
-const NOISY_DEBUG_TARGETS: &[&str] = &["wgpu", "naga", "iced_wgpu", "iced_winit", "iced_graphics", "winit", "cosmic_text"];
+const NOISY_DEBUG_TARGETS: &[&str] = &[
+    "wgpu",
+    "naga",
+    "iced_wgpu",
+    "iced_winit",
+    "iced_graphics",
+    "winit",
+    "cosmic_text",
+];
 
 fn level_for(environment: Environment) -> LevelFilter {
     match environment {
@@ -50,7 +60,12 @@ pub fn init(config: &AppConfig) -> AppResult<()> {
     let log_config = builder.build();
 
     CombinedLogger::init(vec![
-        TermLogger::new(level, log_config.clone(), TerminalMode::Mixed, ColorChoice::Auto),
+        TermLogger::new(
+            level,
+            log_config.clone(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
         WriteLogger::new(level, log_config, log_file),
     ])
     .map_err(|err| AppError::Config(format!("failed to initialize logging: {err}")))

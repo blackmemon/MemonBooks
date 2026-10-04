@@ -90,9 +90,10 @@ impl Database {
             }
         }
 
-        let mut conn = self.conn.lock().map_err(|_| {
-            AppError::Internal("database connection mutex was poisoned".into())
-        })?;
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| AppError::Internal("database connection mutex was poisoned".into()))?;
 
         for migration in sorted {
             let existing_name: Option<String> = conn
@@ -133,10 +134,14 @@ impl Database {
 
     /// Runs `f` with exclusive access to the underlying connection.
     /// Repositories use this instead of holding the lock themselves.
-    pub fn with_connection<T>(&self, f: impl FnOnce(&mut Connection) -> AppResult<T>) -> AppResult<T> {
-        let mut conn = self.conn.lock().map_err(|_| {
-            AppError::Internal("database connection mutex was poisoned".into())
-        })?;
+    pub fn with_connection<T>(
+        &self,
+        f: impl FnOnce(&mut Connection) -> AppResult<T>,
+    ) -> AppResult<T> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| AppError::Internal("database connection mutex was poisoned".into()))?;
         f(&mut conn)
     }
 
@@ -145,7 +150,10 @@ impl Database {
     /// this for any write that touches more than one table and must be
     /// all-or-nothing -- per Architecture Rules, Section 3: "multi-table
     /// financial posting must be atomic."
-    pub fn with_transaction<T>(&self, f: impl FnOnce(&rusqlite::Transaction) -> AppResult<T>) -> AppResult<T> {
+    pub fn with_transaction<T>(
+        &self,
+        f: impl FnOnce(&rusqlite::Transaction) -> AppResult<T>,
+    ) -> AppResult<T> {
         self.with_connection(|conn| {
             let tx = conn.transaction()?;
             let result = f(&tx)?;
@@ -174,7 +182,8 @@ mod tests {
     #[test]
     fn fresh_database_applies_all_migrations_in_order() {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(&[ADD_WIDGET_COLOR, CREATE_WIDGETS]).unwrap();
+        db.run_migrations(&[ADD_WIDGET_COLOR, CREATE_WIDGETS])
+            .unwrap();
 
         db.with_connection(|conn| {
             conn.execute(
@@ -187,7 +196,9 @@ mod tests {
         .unwrap();
 
         let count: i64 = db
-            .with_connection(|conn| Ok(conn.query_row("SELECT COUNT(*) FROM widgets", [], |r| r.get(0))?))
+            .with_connection(|conn| {
+                Ok(conn.query_row("SELECT COUNT(*) FROM widgets", [], |r| r.get(0))?)
+            })
             .unwrap();
         assert_eq!(count, 1);
     }
@@ -199,7 +210,8 @@ mod tests {
         // Re-running the same migration set must be a no-op, not a
         // "table already exists" error.
         db.run_migrations(&[CREATE_WIDGETS]).unwrap();
-        db.run_migrations(&[CREATE_WIDGETS, ADD_WIDGET_COLOR]).unwrap();
+        db.run_migrations(&[CREATE_WIDGETS, ADD_WIDGET_COLOR])
+            .unwrap();
     }
 
     #[test]
@@ -221,8 +233,16 @@ mod tests {
     #[test]
     fn duplicate_version_within_one_call_is_rejected() {
         let db = Database::open_in_memory().unwrap();
-        let first = Migration { version: 5, name: "first_claim", sql: "CREATE TABLE a (id INTEGER PRIMARY KEY);" };
-        let second = Migration { version: 5, name: "second_claim", sql: "CREATE TABLE b (id INTEGER PRIMARY KEY);" };
+        let first = Migration {
+            version: 5,
+            name: "first_claim",
+            sql: "CREATE TABLE a (id INTEGER PRIMARY KEY);",
+        };
+        let second = Migration {
+            version: 5,
+            name: "second_claim",
+            sql: "CREATE TABLE b (id INTEGER PRIMARY KEY);",
+        };
 
         let result = db.run_migrations(&[first, second]);
 
@@ -253,8 +273,16 @@ mod tests {
     #[test]
     fn duplicate_version_across_separate_calls_is_rejected() {
         let db = Database::open_in_memory().unwrap();
-        let audit_logs_migration = Migration { version: 401, name: "audit_log_schema", sql: "CREATE TABLE audit_logs (id INTEGER PRIMARY KEY);" };
-        let unrelated_migration = Migration { version: 401, name: "users_must_change_password", sql: "CREATE TABLE should_never_run (id INTEGER PRIMARY KEY);" };
+        let audit_logs_migration = Migration {
+            version: 401,
+            name: "audit_log_schema",
+            sql: "CREATE TABLE audit_logs (id INTEGER PRIMARY KEY);",
+        };
+        let unrelated_migration = Migration {
+            version: 401,
+            name: "users_must_change_password",
+            sql: "CREATE TABLE should_never_run (id INTEGER PRIMARY KEY);",
+        };
 
         db.run_migrations(&[audit_logs_migration]).unwrap();
         let result = db.run_migrations(&[unrelated_migration]);

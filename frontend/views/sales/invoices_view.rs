@@ -20,12 +20,12 @@ use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
 use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
 use crate::frontend::styles::dropdown;
 use crate::frontend::styles::inputs;
-use crate::frontend::styles::button as button_style;
+use crate::frontend::styles::spacing;
+use crate::frontend::styles::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,11 +155,27 @@ pub fn load(ctx: &Ctx) -> State {
 
     let customers = service
         .list_customers(ctx.company_id)
-        .map(|customers| customers.iter().map(|c| Choice { id: c.id.unwrap_or_default(), label: c.name.clone() }).collect())
+        .map(|customers| {
+            customers
+                .iter()
+                .map(|c| Choice {
+                    id: c.id.unwrap_or_default(),
+                    label: c.name.clone(),
+                })
+                .collect()
+        })
         .unwrap_or_default();
     let accounts: Vec<Choice> = service
         .list_gl_accounts(ctx.company_id)
-        .map(|accounts: Vec<Account>| accounts.iter().map(|a| Choice { id: a.id.unwrap_or_default(), label: format!("{} - {}", a.account_code, a.account_name) }).collect())
+        .map(|accounts: Vec<Account>| {
+            accounts
+                .iter()
+                .map(|a| Choice {
+                    id: a.id.unwrap_or_default(),
+                    label: format!("{} - {}", a.account_code, a.account_name),
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
     let invoices = service.list_invoices(ctx.company_id).unwrap_or_default();
@@ -200,14 +216,20 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
 
             if let Some(id) = state.editing_id {
-                let Some(existing) = state.invoices.iter().find(|i| i.id == Some(id)).cloned() else {
+                let Some(existing) = state.invoices.iter().find(|i| i.id == Some(id)).cloned()
+                else {
                     state.error = Some("that invoice no longer exists".into());
                     state.editing_id = None;
                     return;
                 };
                 let invoice = Invoice {
                     customer_id: customer.id,
-                    lines: vec![InvoiceLine::new(revenue_account.id, state.description_input.clone(), Decimal::ONE, amount)],
+                    lines: vec![InvoiceLine::new(
+                        revenue_account.id,
+                        state.description_input.clone(),
+                        Decimal::ONE,
+                        amount,
+                    )],
                     ..existing
                 };
                 let service = SalesService::new(ctx.db.clone());
@@ -231,7 +253,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             let today = Utc::now().date_naive();
             let due_date = today.checked_add_days(Days::new(30)).unwrap_or(today);
             let mut invoice = Invoice::new(ctx.company_id, customer.id, today, due_date);
-            invoice.lines.push(InvoiceLine::new(revenue_account.id, state.description_input.clone(), Decimal::ONE, amount));
+            invoice.lines.push(InvoiceLine::new(
+                revenue_account.id,
+                state.description_input.clone(),
+                Decimal::ONE,
+                amount,
+            ));
 
             let service = SalesService::new(ctx.db.clone());
             match service.create_invoice(&invoice) {
@@ -250,7 +277,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(customer), Some(ar_account), Some(revenue_account)) = (&state.customer, &state.ar_account, &state.revenue_account) else {
+            let (Some(customer), Some(ar_account), Some(revenue_account)) =
+                (&state.customer, &state.ar_account, &state.revenue_account)
+            else {
                 state.error = Some("choose a customer, AR account, and revenue account".into());
                 return;
             };
@@ -265,7 +294,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             let today = Utc::now().date_naive();
             let due_date = today.checked_add_days(Days::new(30)).unwrap_or(today);
             let mut invoice = Invoice::new(ctx.company_id, customer.id, today, due_date);
-            invoice.lines.push(InvoiceLine::new(revenue_account.id, state.description_input.clone(), Decimal::ONE, amount));
+            invoice.lines.push(InvoiceLine::new(
+                revenue_account.id,
+                state.description_input.clone(),
+                Decimal::ONE,
+                amount,
+            ));
 
             let service = SalesService::new(ctx.db.clone());
             let created = match service.create_invoice(&invoice) {
@@ -277,7 +311,10 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
             match service.post_invoice(created.id.unwrap_or_default(), ar_account.id) {
                 Ok((posted, _transaction, _receivable)) => {
-                    state.message = Some(format!("Posted invoice #{}.", posted.id.unwrap_or_default()));
+                    state.message = Some(format!(
+                        "Posted invoice #{}.",
+                        posted.id.unwrap_or_default()
+                    ));
                     state.invoices.push(posted);
                     state.description_input.clear();
                     state.amount_input.clear();
@@ -327,7 +364,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 }
             }
             if !failures.is_empty() {
-                state.error = Some(format!("Deleted {deleted}; {} could not be deleted -- {}", failures.len(), failures.join("; ")));
+                state.error = Some(format!(
+                    "Deleted {deleted}; {} could not be deleted -- {}",
+                    failures.len(),
+                    failures.join("; ")
+                ));
             } else if deleted > 0 {
                 state.message = Some(format!("Deleted {deleted} draft invoice(s)."));
             }
@@ -335,15 +376,32 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::BulkExportCsv => {
             state.message = None;
             state.error = None;
-            let selected: Vec<&Invoice> = state.invoices.iter().filter(|i| state.selected.contains(&i.id.unwrap_or_default())).collect();
+            let selected: Vec<&Invoice> = state
+                .invoices
+                .iter()
+                .filter(|i| state.selected.contains(&i.id.unwrap_or_default()))
+                .collect();
             let headers = ["Invoice", "Date", "Status", "Total"];
             let rows: Vec<Vec<String>> = selected
                 .iter()
-                .map(|i| vec![i.id.map(|id| format!("INV-{id}")).unwrap_or_default(), i.invoice_date.to_string(), i.status.as_str().to_string(), i.total().to_string()])
+                .map(|i| {
+                    vec![
+                        i.id.map(|id| format!("INV-{id}")).unwrap_or_default(),
+                        i.invoice_date.to_string(),
+                        i.status.as_str().to_string(),
+                        i.total().to_string(),
+                    ]
+                })
                 .collect();
             let path = ctx.export_path("invoices_export.csv");
             match std::fs::write(&path, csv::export_csv(&headers, &rows)) {
-                Ok(()) => state.message = Some(format!("Exported {} invoice(s) to {}", selected.len(), path.display())),
+                Ok(()) => {
+                    state.message = Some(format!(
+                        "Exported {} invoice(s) to {}",
+                        selected.len(),
+                        path.display()
+                    ))
+                }
                 Err(err) => state.error = Some(err.to_string()),
             }
         }
@@ -365,14 +423,18 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(invoice_id), Some(ar_account)) = (state.post_invoice_id, &state.post_ar_account) else {
-                state.error = Some("choose a draft (via a row's Post button) and an AR account".into());
+            let (Some(invoice_id), Some(ar_account)) =
+                (state.post_invoice_id, &state.post_ar_account)
+            else {
+                state.error =
+                    Some("choose a draft (via a row's Post button) and an AR account".into());
                 return;
             };
             let service = SalesService::new(ctx.db.clone());
             match service.post_invoice(invoice_id, ar_account.id) {
                 Ok((posted, _transaction, _receivable)) => {
-                    if let Some(slot) = state.invoices.iter_mut().find(|i| i.id == Some(invoice_id)) {
+                    if let Some(slot) = state.invoices.iter_mut().find(|i| i.id == Some(invoice_id))
+                    {
                         *slot = posted;
                     }
                     state.message = Some(format!("Posted INV-{invoice_id}."));
@@ -385,7 +447,14 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::KebabForRow(invoice_id) => {
             state.message = None;
             state.error = None;
-            let Some(invoice) = state.invoices.iter().find(|i| i.id == Some(invoice_id)).cloned() else { return };
+            let Some(invoice) = state
+                .invoices
+                .iter()
+                .find(|i| i.id == Some(invoice_id))
+                .cloned()
+            else {
+                return;
+            };
             match invoice.status {
                 InvoiceStatus::Draft => {
                     // `state.invoices` only holds headers (no lines), so
@@ -394,11 +463,25 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                     match service.get_invoice(invoice_id) {
                         Ok(full) => {
                             state.editing_id = Some(invoice_id);
-                            state.customer = state.customers.iter().find(|c| c.id == full.customer_id).cloned();
+                            state.customer = state
+                                .customers
+                                .iter()
+                                .find(|c| c.id == full.customer_id)
+                                .cloned();
                             let first_line = full.lines.first();
-                            state.revenue_account = first_line.and_then(|line| state.accounts.iter().find(|a| a.id == line.revenue_account_id).cloned());
-                            state.description_input = first_line.map(|line| line.description.clone()).unwrap_or_default();
-                            state.amount_input = first_line.map(|line| line.amount().to_string()).unwrap_or_default();
+                            state.revenue_account = first_line.and_then(|line| {
+                                state
+                                    .accounts
+                                    .iter()
+                                    .find(|a| a.id == line.revenue_account_id)
+                                    .cloned()
+                            });
+                            state.description_input = first_line
+                                .map(|line| line.description.clone())
+                                .unwrap_or_default();
+                            state.amount_input = first_line
+                                .map(|line| line.amount().to_string())
+                                .unwrap_or_default();
                         }
                         Err(err) => state.error = Some(err.to_string()),
                     }
@@ -406,12 +489,17 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 InvoiceStatus::Posted => {
                     let service = SalesService::new(ctx.db.clone());
                     state.credit_note_invoice_id = Some(invoice_id);
-                    state.credit_note_amount_input = service.invoice_remaining_balance(invoice_id).map(|balance| balance.to_string()).unwrap_or_default();
+                    state.credit_note_amount_input = service
+                        .invoice_remaining_balance(invoice_id)
+                        .map(|balance| balance.to_string())
+                        .unwrap_or_default();
                 }
                 InvoiceStatus::Voided => {}
             }
         }
-        Message::CreditNoteRevenueAccountSelected(choice) => state.credit_note_revenue_account = Some(choice),
+        Message::CreditNoteRevenueAccountSelected(choice) => {
+            state.credit_note_revenue_account = Some(choice)
+        }
         Message::CreditNoteArAccountSelected(choice) => state.credit_note_ar_account = Some(choice),
         Message::CreditNoteDescriptionChanged(value) => state.credit_note_description_input = value,
         Message::CreditNoteAmountChanged(value) => state.credit_note_amount_input = value,
@@ -419,7 +507,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(invoice_id), Some(revenue_account), Some(ar_account)) = (state.credit_note_invoice_id, &state.credit_note_revenue_account, &state.credit_note_ar_account) else {
+            let (Some(invoice_id), Some(revenue_account), Some(ar_account)) = (
+                state.credit_note_invoice_id,
+                &state.credit_note_revenue_account,
+                &state.credit_note_ar_account,
+            ) else {
                 state.error = Some("choose an invoice (via a posted row's kebab menu), revenue account, and AR account".into());
                 return;
             };
@@ -433,9 +525,19 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
             let today = Utc::now().date_naive();
             let service = SalesService::new(ctx.db.clone());
-            match service.create_and_post_credit_note_for_invoice(invoice_id, today, revenue_account.id, state.credit_note_description_input.clone(), amount, ar_account.id) {
+            match service.create_and_post_credit_note_for_invoice(
+                invoice_id,
+                today,
+                revenue_account.id,
+                state.credit_note_description_input.clone(),
+                amount,
+                ar_account.id,
+            ) {
                 Ok((credit_note, _transaction)) => {
-                    state.message = Some(format!("Credit note #{} posted against INV-{invoice_id}.", credit_note.id.unwrap_or_default()));
+                    state.message = Some(format!(
+                        "Credit note #{} posted against INV-{invoice_id}.",
+                        credit_note.id.unwrap_or_default()
+                    ));
                     state.credit_note_description_input.clear();
                     state.credit_note_amount_input.clear();
                     state.credit_note_invoice_id = None;
@@ -465,7 +567,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
 
-            let (Some(invoice_id), Some(cash_account), Some(ar_account)) = (state.payment_invoice_id, &state.payment_cash_account, &state.payment_ar_account) else {
+            let (Some(invoice_id), Some(cash_account), Some(ar_account)) = (
+                state.payment_invoice_id,
+                &state.payment_cash_account,
+                &state.payment_ar_account,
+            ) else {
                 state.error = Some("choose an invoice (via a row's Record Payment button), cash account, and AR account".into());
                 return;
             };
@@ -479,9 +585,18 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 
             let today = Utc::now().date_naive();
             let service = SalesService::new(ctx.db.clone());
-            match service.record_payment_for_invoice(invoice_id, today, amount, cash_account.id, ar_account.id) {
+            match service.record_payment_for_invoice(
+                invoice_id,
+                today,
+                amount,
+                cash_account.id,
+                ar_account.id,
+            ) {
                 Ok(recorded) => {
-                    state.message = Some(format!("Recorded payment #{} against INV-{invoice_id}.", recorded.id.unwrap_or_default()));
+                    state.message = Some(format!(
+                        "Recorded payment #{} against INV-{invoice_id}.",
+                        recorded.id.unwrap_or_default()
+                    ));
                     state.payment_amount_input.clear();
                     state.payment_invoice_id = None;
                 }
@@ -492,7 +607,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
 }
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    let header = page_header::view(theme, "Invoices", "Everything you've billed customers, in one place.", "Create & post", Message::CreateAndPost);
+    let header = page_header::view(
+        theme,
+        "Invoices",
+        "Everything you've billed customers, in one place.",
+        "Create & post",
+        Message::CreateAndPost,
+    );
 
     let toolbar = toolbar::view(
         theme,
@@ -508,7 +629,11 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Message::SortClicked,
     );
 
-    let heading = section_heading::view(theme, "Invoice list", "Every invoice on this company's books.");
+    let heading = section_heading::view(
+        theme,
+        "Invoice list",
+        "Every invoice on this company's books.",
+    );
 
     let tab_status = match state.active_tab {
         0 => InvoiceStatus::Draft,
@@ -520,7 +645,15 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         .invoices
         .iter()
         .filter(|invoice| invoice.status == tab_status)
-        .filter(|invoice| query.is_empty() || invoice.id.map(|id| format!("INV-{id}")).unwrap_or_default().to_lowercase().contains(&query))
+        .filter(|invoice| {
+            query.is_empty()
+                || invoice
+                    .id
+                    .map(|id| format!("INV-{id}"))
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .contains(&query)
+        })
         .collect();
 
     let columns = vec![
@@ -536,7 +669,10 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
             let row = Row::new(vec![
                 Cell::text(invoice.id.map(|id| format!("INV-{id}")).unwrap_or_default()),
                 Cell::date(invoice.invoice_date.to_string()),
-                Cell::status(invoice.status.as_str(), status_tone(invoice.status.as_str())),
+                Cell::status(
+                    invoice.status.as_str(),
+                    status_tone(invoice.status.as_str()),
+                ),
                 Cell::text(invoice.total().to_string()),
             ]);
             match invoice.status {
@@ -547,9 +683,15 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         })
         .collect();
 
-    let invoice_ids: Vec<i64> = filtered.iter().map(|invoice| invoice.id.unwrap_or_default()).collect();
+    let invoice_ids: Vec<i64> = filtered
+        .iter()
+        .map(|invoice| invoice.id.unwrap_or_default())
+        .collect();
     let select_ids = invoice_ids.clone();
-    let selected_flags: Vec<bool> = invoice_ids.iter().map(|id| state.selected.contains(id)).collect();
+    let selected_flags: Vec<bool> = invoice_ids
+        .iter()
+        .map(|id| state.selected.contains(id))
+        .collect();
     let kebab_ids = invoice_ids.clone();
     let primary_ids = invoice_ids.clone();
     let active_tab = state.active_tab;
@@ -558,43 +700,101 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         theme,
         columns,
         rows,
-        if active_tab == 0 { Some(selected_flags) } else { None },
+        if active_tab == 0 {
+            Some(selected_flags)
+        } else {
+            None
+        },
         move |index, checked| Message::RowSelected(invoice_ids[index], checked),
         move |checked| Message::SelectAllChanged(select_ids.clone(), checked),
         move |index| Message::KebabForRow(kebab_ids[index]),
         move |index| {
             let id = primary_ids[index];
-            if active_tab == 0 { Message::PostForRow(id) } else { Message::RecordPaymentForRow(id) }
+            if active_tab == 0 {
+                Message::PostForRow(id)
+            } else {
+                Message::RecordPaymentForRow(id)
+            }
         },
     );
 
-    let form_heading = if state.editing_id.is_some() { "Edit draft invoice" } else { "Create an invoice" };
+    let form_heading = if state.editing_id.is_some() {
+        "Edit draft invoice"
+    } else {
+        "Create an invoice"
+    };
     let mut form = column![
         text(form_heading).size(typography::label()),
-        pick_list(state.customers.as_slice(), state.customer.clone(), Message::CustomerSelected).style(dropdown::style(theme)).placeholder("Customer"),
+        pick_list(
+            state.customers.as_slice(),
+            state.customer.clone(),
+            Message::CustomerSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("Customer"),
     ]
     .spacing(spacing::SM);
 
     if state.editing_id.is_none() {
-        form = form.push(pick_list(state.accounts.as_slice(), state.ar_account.clone(), Message::ArAccountSelected).style(dropdown::style(theme)).placeholder("AR account (for Create & post)"));
+        form = form.push(
+            pick_list(
+                state.accounts.as_slice(),
+                state.ar_account.clone(),
+                Message::ArAccountSelected,
+            )
+            .style(dropdown::style(theme))
+            .placeholder("AR account (for Create & post)"),
+        );
     }
-    form = form.push(pick_list(state.accounts.as_slice(), state.revenue_account.clone(), Message::RevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"));
-    form = form.push(text_input("Description", &state.description_input).style(inputs::text(theme)).on_input(Message::DescriptionChanged).width(Length::Fill).padding(spacing::SM));
-    form = form.push(text_input("Amount", &state.amount_input).style(inputs::text(theme)).on_input(Message::AmountChanged).width(Length::Fill).padding(spacing::SM));
+    form = form.push(
+        pick_list(
+            state.accounts.as_slice(),
+            state.revenue_account.clone(),
+            Message::RevenueAccountSelected,
+        )
+        .style(dropdown::style(theme))
+        .placeholder("Revenue account"),
+    );
+    form = form.push(
+        text_input("Description", &state.description_input)
+            .style(inputs::text(theme))
+            .on_input(Message::DescriptionChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+    );
+    form = form.push(
+        text_input("Amount", &state.amount_input)
+            .style(inputs::text(theme))
+            .on_input(Message::AmountChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+    );
 
     if state.editing_id.is_some() {
         form = form.push(
             iced::widget::row![
-                button(text("Save changes")).style(button_style::primary(theme)).on_press(Message::SaveDraft).padding(spacing::SM),
-                button(text("Cancel")).style(button_style::secondary(theme)).on_press(Message::CancelEdit).padding(spacing::SM),
+                button(text("Save changes"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::SaveDraft)
+                    .padding(spacing::SM),
+                button(text("Cancel"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::CancelEdit)
+                    .padding(spacing::SM),
             ]
             .spacing(spacing::SM),
         );
     } else {
         form = form.push(
             iced::widget::row![
-                button(text("Save as draft")).style(button_style::secondary(theme)).on_press(Message::SaveDraft).padding(spacing::SM),
-                button(text("Create & post")).style(button_style::primary(theme)).on_press(Message::CreateAndPost).padding(spacing::SM),
+                button(text("Save as draft"))
+                    .style(button_style::secondary(theme))
+                    .on_press(Message::SaveDraft)
+                    .padding(spacing::SM),
+                button(text("Create & post"))
+                    .style(button_style::primary(theme))
+                    .on_press(Message::CreateAndPost)
+                    .padding(spacing::SM),
             ]
             .spacing(spacing::SM),
         );
@@ -602,64 +802,168 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 
     let post_target_label = state
         .post_invoice_id
-        .and_then(|id| state.invoices.iter().find(|invoice| invoice.id == Some(id)).map(|invoice| (id, invoice.customer_id)))
+        .and_then(|id| {
+            state
+                .invoices
+                .iter()
+                .find(|invoice| invoice.id == Some(id))
+                .map(|invoice| (id, invoice.customer_id))
+        })
         .map(|(id, customer_id)| {
-            let customer_name = state.customers.iter().find(|c| c.id == customer_id).map(|c| c.label.clone()).unwrap_or_else(|| "unknown customer".to_string());
+            let customer_name = state
+                .customers
+                .iter()
+                .find(|c| c.id == customer_id)
+                .map(|c| c.label.clone())
+                .unwrap_or_else(|| "unknown customer".to_string());
             format!("INV-{id} ({customer_name})")
         })
         .unwrap_or_else(|| "Click a draft row's Post button to choose an invoice".to_string());
     let post_form = column![
         text("Post this draft").size(typography::label()),
-        text(format!("Invoice: {post_target_label}")).size(typography::body()).color(theme.neutral_front()),
-        pick_list(state.accounts.as_slice(), state.post_ar_account.clone(), Message::PostArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        button(text("Post")).style(button_style::primary(theme)).on_press(Message::SubmitPost).padding(spacing::SM),
+        text(format!("Invoice: {post_target_label}"))
+            .size(typography::body())
+            .color(theme.neutral_front()),
+        pick_list(
+            state.accounts.as_slice(),
+            state.post_ar_account.clone(),
+            Message::PostArAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("AR account"),
+        button(text("Post"))
+            .style(button_style::primary(theme))
+            .on_press(Message::SubmitPost)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
     let payment_target_label = state
         .payment_invoice_id
-        .and_then(|id| state.invoices.iter().find(|invoice| invoice.id == Some(id)).map(|invoice| (id, invoice.customer_id)))
+        .and_then(|id| {
+            state
+                .invoices
+                .iter()
+                .find(|invoice| invoice.id == Some(id))
+                .map(|invoice| (id, invoice.customer_id))
+        })
         .map(|(id, customer_id)| {
-            let customer_name = state.customers.iter().find(|c| c.id == customer_id).map(|c| c.label.clone()).unwrap_or_else(|| "unknown customer".to_string());
+            let customer_name = state
+                .customers
+                .iter()
+                .find(|c| c.id == customer_id)
+                .map(|c| c.label.clone())
+                .unwrap_or_else(|| "unknown customer".to_string());
             format!("INV-{id} ({customer_name})")
         })
         .unwrap_or_else(|| "Click a row's Record Payment button to choose an invoice".to_string());
     let payment_form = column![
         text("Record a payment").size(typography::label()),
-        text(format!("Invoice: {payment_target_label}")).size(typography::body()).color(theme.neutral_front()),
-        pick_list(state.accounts.as_slice(), state.payment_cash_account.clone(), Message::PaymentCashAccountSelected).style(dropdown::style(theme)).placeholder("Cash account"),
-        pick_list(state.accounts.as_slice(), state.payment_ar_account.clone(), Message::PaymentArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        text_input("Amount", &state.payment_amount_input).style(inputs::text(theme)).on_input(Message::PaymentAmountChanged).width(Length::Fill).padding(spacing::SM),
-        button(text("Record payment")).style(button_style::primary(theme)).on_press(Message::SubmitPayment).padding(spacing::SM),
+        text(format!("Invoice: {payment_target_label}"))
+            .size(typography::body())
+            .color(theme.neutral_front()),
+        pick_list(
+            state.accounts.as_slice(),
+            state.payment_cash_account.clone(),
+            Message::PaymentCashAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("Cash account"),
+        pick_list(
+            state.accounts.as_slice(),
+            state.payment_ar_account.clone(),
+            Message::PaymentArAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("AR account"),
+        text_input("Amount", &state.payment_amount_input)
+            .style(inputs::text(theme))
+            .on_input(Message::PaymentAmountChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        button(text("Record payment"))
+            .style(button_style::primary(theme))
+            .on_press(Message::SubmitPayment)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
     let credit_note_target_label = state
         .credit_note_invoice_id
-        .and_then(|id| state.invoices.iter().find(|invoice| invoice.id == Some(id)).map(|invoice| (id, invoice.customer_id)))
+        .and_then(|id| {
+            state
+                .invoices
+                .iter()
+                .find(|invoice| invoice.id == Some(id))
+                .map(|invoice| (id, invoice.customer_id))
+        })
         .map(|(id, customer_id)| {
-            let customer_name = state.customers.iter().find(|c| c.id == customer_id).map(|c| c.label.clone()).unwrap_or_else(|| "unknown customer".to_string());
+            let customer_name = state
+                .customers
+                .iter()
+                .find(|c| c.id == customer_id)
+                .map(|c| c.label.clone())
+                .unwrap_or_else(|| "unknown customer".to_string());
             format!("INV-{id} ({customer_name})")
         })
         .unwrap_or_else(|| "Click a posted row's kebab menu to choose an invoice".to_string());
     let credit_note_form = column![
         text("Issue a credit note").size(typography::label()),
-        text(format!("Invoice: {credit_note_target_label}")).size(typography::body()).color(theme.neutral_front()),
-        pick_list(state.accounts.as_slice(), state.credit_note_revenue_account.clone(), Message::CreditNoteRevenueAccountSelected).style(dropdown::style(theme)).placeholder("Revenue account"),
-        pick_list(state.accounts.as_slice(), state.credit_note_ar_account.clone(), Message::CreditNoteArAccountSelected).style(dropdown::style(theme)).placeholder("AR account"),
-        text_input("Description", &state.credit_note_description_input).style(inputs::text(theme)).on_input(Message::CreditNoteDescriptionChanged).width(Length::Fill).padding(spacing::SM),
-        text_input("Amount", &state.credit_note_amount_input).style(inputs::text(theme)).on_input(Message::CreditNoteAmountChanged).width(Length::Fill).padding(spacing::SM),
-        button(text("Issue credit note")).style(button_style::primary(theme)).on_press(Message::SubmitCreditNote).padding(spacing::SM),
+        text(format!("Invoice: {credit_note_target_label}"))
+            .size(typography::body())
+            .color(theme.neutral_front()),
+        pick_list(
+            state.accounts.as_slice(),
+            state.credit_note_revenue_account.clone(),
+            Message::CreditNoteRevenueAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("Revenue account"),
+        pick_list(
+            state.accounts.as_slice(),
+            state.credit_note_ar_account.clone(),
+            Message::CreditNoteArAccountSelected
+        )
+        .style(dropdown::style(theme))
+        .placeholder("AR account"),
+        text_input("Description", &state.credit_note_description_input)
+            .style(inputs::text(theme))
+            .on_input(Message::CreditNoteDescriptionChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        text_input("Amount", &state.credit_note_amount_input)
+            .style(inputs::text(theme))
+            .on_input(Message::CreditNoteAmountChanged)
+            .width(Length::Fill)
+            .padding(spacing::SM),
+        button(text("Issue credit note"))
+            .style(button_style::primary(theme))
+            .on_press(Message::SubmitCreditNote)
+            .padding(spacing::SM),
     ]
     .spacing(spacing::SM);
 
-    let mut content = column![header, toolbar, heading].spacing(spacing::SPACE_20).padding(spacing::LG).width(Length::Fill);
+    let mut content = column![header, toolbar, heading]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::LG)
+        .width(Length::Fill);
 
     if active_tab == 0 && !state.selected.is_empty() {
-        content = content.push(bulk_action_bar::view(theme, state.selected.len(), Message::BulkDelete, Message::BulkExportCsv, Message::ClearSelection));
+        content = content.push(bulk_action_bar::view(
+            theme,
+            state.selected.len(),
+            Message::BulkDelete,
+            Message::BulkExportCsv,
+            Message::ClearSelection,
+        ));
     }
 
-    content = content.push(table).push(form).push(post_form).push(payment_form).push(credit_note_form);
+    content = content
+        .push(table)
+        .push(form)
+        .push(post_form)
+        .push(payment_form)
+        .push(credit_note_form);
 
     if let Some(message) = &state.message {
         content = content.push(text(message.clone()).color(theme.positive_front()));
@@ -668,7 +972,9 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         content = content.push(text(error.clone()).color(theme.negative_front()));
     }
 
-    container(scrollable(content).height(Length::Fill)).width(Length::Fill).into()
+    container(scrollable(content).height(Length::Fill))
+        .width(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
@@ -692,27 +998,72 @@ mod tests {
 
     fn ctx_with_customer_and_accounts() -> (Ctx, Choice, Choice, Choice) {
         let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS).unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
         db.run_migrations(party_repository::MIGRATIONS).unwrap();
-        db.run_migrations(accounting_repository::MIGRATIONS).unwrap();
-        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS).unwrap();
+        db.run_migrations(accounting_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(crate::backend::audit::audit_logs::MIGRATIONS)
+            .unwrap();
         db.run_migrations(sales_repository::MIGRATIONS).unwrap();
 
         let org_repo = OrganizationRepository::new(db.clone());
-        let company_id = org_repo.create_company(&Company::new("Acme Trading Co", "USD")).unwrap().id.unwrap();
+        let company_id = org_repo
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
 
         let party_repo = PartyRepository::new(db.clone());
-        let customer = party_repo.create_customer(&Customer::new(company_id, "Acme Retail")).unwrap();
+        let customer = party_repo
+            .create_customer(&Customer::new(company_id, "Acme Retail"))
+            .unwrap();
 
         let accounting_repo = AccountingRepository::new(db.clone());
-        accounting_repo.create_fiscal_period(&FiscalPeriod::new(company_id, "Open Period", date(2026, 1, 1), date(2030, 12, 31))).unwrap();
-        let ar = accounting_repo.create_account(&Account::new(company_id, "1100", "Accounts Receivable", AccountType::Asset)).unwrap();
-        let revenue = accounting_repo.create_account(&Account::new(company_id, "4000", "Sales Revenue", AccountType::Revenue)).unwrap();
+        accounting_repo
+            .create_fiscal_period(&FiscalPeriod::new(
+                company_id,
+                "Open Period",
+                date(2026, 1, 1),
+                date(2030, 12, 31),
+            ))
+            .unwrap();
+        let ar = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "1100",
+                "Accounts Receivable",
+                AccountType::Asset,
+            ))
+            .unwrap();
+        let revenue = accounting_repo
+            .create_account(&Account::new(
+                company_id,
+                "4000",
+                "Sales Revenue",
+                AccountType::Revenue,
+            ))
+            .unwrap();
 
-        let ctx = Ctx { db, company_id, current_user_id: None, export_dir: PathBuf::from("."), uploads_dir: PathBuf::from(".") };
-        let customer_choice = Choice { id: customer.id.unwrap(), label: customer.name.clone() };
-        let ar_choice = Choice { id: ar.id.unwrap(), label: "1100 - Accounts Receivable".into() };
-        let revenue_choice = Choice { id: revenue.id.unwrap(), label: "4000 - Sales Revenue".into() };
+        let ctx = Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        };
+        let customer_choice = Choice {
+            id: customer.id.unwrap(),
+            label: customer.name.clone(),
+        };
+        let ar_choice = Choice {
+            id: ar.id.unwrap(),
+            label: "1100 - Accounts Receivable".into(),
+        };
+        let revenue_choice = Choice {
+            id: revenue.id.unwrap(),
+            label: "4000 - Sales Revenue".into(),
+        };
         (ctx, customer_choice, ar_choice, revenue_choice)
     }
 
@@ -721,10 +1072,22 @@ mod tests {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let mut state = State::default();
 
-        update(&mut state, Message::CustomerSelected(customer.clone()), &ctx);
+        update(
+            &mut state,
+            Message::CustomerSelected(customer.clone()),
+            &ctx,
+        );
         update(&mut state, Message::ArAccountSelected(ar.clone()), &ctx);
-        update(&mut state, Message::RevenueAccountSelected(revenue.clone()), &ctx);
-        update(&mut state, Message::DescriptionChanged("Consulting".into()), &ctx);
+        update(
+            &mut state,
+            Message::RevenueAccountSelected(revenue.clone()),
+            &ctx,
+        );
+        update(
+            &mut state,
+            Message::DescriptionChanged("Consulting".into()),
+            &ctx,
+        );
         update(&mut state, Message::AmountChanged("1500".into()), &ctx);
 
         assert_eq!(state.customer, Some(customer));
@@ -737,11 +1100,17 @@ mod tests {
     #[test]
     fn creating_without_choosing_customer_and_both_accounts_sets_an_error() {
         let (ctx, customer, _ar, _revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customer: Some(customer), ..Default::default() };
+        let mut state = State {
+            customer: Some(customer),
+            ..Default::default()
+        };
 
         update(&mut state, Message::CreateAndPost, &ctx);
 
-        assert_eq!(state.error.as_deref(), Some("choose a customer, AR account, and revenue account"));
+        assert_eq!(
+            state.error.as_deref(),
+            Some("choose a customer, AR account, and revenue account")
+        );
     }
 
     #[test]
@@ -775,7 +1144,11 @@ mod tests {
         update(&mut state, Message::CreateAndPost, &ctx);
 
         assert!(state.error.is_none());
-        assert!(state.message.as_deref().unwrap_or_default().starts_with("Posted invoice"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("Posted invoice"));
         assert_eq!(state.invoices.len(), 1);
         assert_eq!(state.invoices[0].total(), rust_decimal_macros::dec!(1500));
         assert!(state.description_input.is_empty());
@@ -793,7 +1166,14 @@ mod tests {
     }
 
     /// Creates and posts an invoice for `amount` and returns its id.
-    fn create_and_post_invoice(state: &mut State, ctx: &Ctx, customer: &Choice, ar: &Choice, revenue: &Choice, amount: &str) -> i64 {
+    fn create_and_post_invoice(
+        state: &mut State,
+        ctx: &Ctx,
+        customer: &Choice,
+        ar: &Choice,
+        revenue: &Choice,
+        amount: &str,
+    ) -> i64 {
         state.customer = Some(customer.clone());
         state.ar_account = Some(ar.clone());
         state.revenue_account = Some(revenue.clone());
@@ -804,7 +1184,13 @@ mod tests {
     }
 
     /// Saves a new draft (no posting) for `amount` and returns its id.
-    fn save_draft_invoice(state: &mut State, ctx: &Ctx, customer: &Choice, revenue: &Choice, amount: &str) -> i64 {
+    fn save_draft_invoice(
+        state: &mut State,
+        ctx: &Ctx,
+        customer: &Choice,
+        revenue: &Choice,
+        amount: &str,
+    ) -> i64 {
         state.customer = Some(customer.clone());
         state.revenue_account = Some(revenue.clone());
         state.description_input = "Consulting".into();
@@ -816,8 +1202,12 @@ mod tests {
     #[test]
     fn recording_a_row_s_payment_prefills_the_amount_with_that_invoice_s_own_balance() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
 
@@ -840,8 +1230,12 @@ mod tests {
     fn submitting_a_payment_with_a_non_numeric_amount_sets_an_error() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
         state.payment_invoice_id = Some(invoice_id);
         state.payment_cash_account = Some(cash);
         state.payment_ar_account = Some(ar);
@@ -856,8 +1250,12 @@ mod tests {
     fn a_payment_exactly_equal_to_the_invoice_s_balance_fully_settles_it() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
         update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
@@ -865,19 +1263,30 @@ mod tests {
         update(&mut state, Message::SubmitPayment, &ctx);
 
         assert!(state.error.is_none());
-        assert!(state.message.as_deref().unwrap_or_default().contains(&format!("INV-{invoice_id}")));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains(&format!("INV-{invoice_id}")));
         assert!(state.payment_invoice_id.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert!(service.invoice_remaining_balance(invoice_id).is_err(), "a fully-settled invoice has no open receivable left");
+        assert!(
+            service.invoice_remaining_balance(invoice_id).is_err(),
+            "a fully-settled invoice has no open receivable left"
+        );
     }
 
     #[test]
     fn a_partial_payment_reduces_only_that_invoice_s_balance() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
         state.payment_amount_input = "400".into();
@@ -887,15 +1296,22 @@ mod tests {
 
         assert!(state.error.is_none());
         let service = SalesService::new(ctx.db.clone());
-        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(600));
+        assert_eq!(
+            service.invoice_remaining_balance(invoice_id).unwrap(),
+            rust_decimal_macros::dec!(600)
+        );
     }
 
     #[test]
     fn an_overpayment_attempt_beyond_the_invoice_s_own_balance_is_rejected() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::RecordPaymentForRow(invoice_id), &ctx);
         state.payment_amount_input = "1500".into();
@@ -903,25 +1319,43 @@ mod tests {
         update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
         update(&mut state, Message::SubmitPayment, &ctx);
 
-        assert!(state.error.as_deref().unwrap_or_default().contains("exceeds"));
+        assert!(state
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("exceeds"));
         assert!(state.message.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(1000), "a rejected overpayment must not touch the invoice's balance at all");
+        assert_eq!(
+            service.invoice_remaining_balance(invoice_id).unwrap(),
+            rust_decimal_macros::dec!(1000),
+            "a rejected overpayment must not touch the invoice's balance at all"
+        );
     }
 
     /// Regression test for the exact bug this feature replaces: paying
     /// one invoice via its row must never touch a *different* open
     /// invoice for the same customer, even partially.
     #[test]
-    fn paying_one_invoice_via_its_row_leaves_the_customer_s_other_open_invoice_completely_untouched() {
+    fn paying_one_invoice_via_its_row_leaves_the_customer_s_other_open_invoice_completely_untouched(
+    ) {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
         let cash = ar.clone();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let first_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
-        let second_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "500");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let first_invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let second_invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "500");
 
-        update(&mut state, Message::RecordPaymentForRow(first_invoice_id), &ctx);
+        update(
+            &mut state,
+            Message::RecordPaymentForRow(first_invoice_id),
+            &ctx,
+        );
         update(&mut state, Message::PaymentCashAccountSelected(cash), &ctx);
         update(&mut state, Message::PaymentArAccountSelected(ar), &ctx);
         update(&mut state, Message::SubmitPayment, &ctx);
@@ -929,9 +1363,14 @@ mod tests {
         assert!(state.error.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert!(service.invoice_remaining_balance(first_invoice_id).is_err(), "the paid invoice should be fully settled");
+        assert!(
+            service.invoice_remaining_balance(first_invoice_id).is_err(),
+            "the paid invoice should be fully settled"
+        );
         assert_eq!(
-            service.invoice_remaining_balance(second_invoice_id).unwrap(),
+            service
+                .invoice_remaining_balance(second_invoice_id)
+                .unwrap(),
             rust_decimal_macros::dec!(500),
             "the customer's other open invoice must be completely untouched"
         );
@@ -951,11 +1390,24 @@ mod tests {
     fn kebab_on_a_voided_invoice_is_a_no_op() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
         let service = SalesService::new(ctx.db.clone());
-        let mut invoice = Invoice::new(ctx.company_id, customer.id, date(2026, 1, 5), date(2026, 2, 4));
-        invoice.lines.push(InvoiceLine::new(revenue.id, "Consulting", rust_decimal_macros::dec!(1), rust_decimal_macros::dec!(500)));
+        let mut invoice = Invoice::new(
+            ctx.company_id,
+            customer.id,
+            date(2026, 1, 5),
+            date(2026, 2, 4),
+        );
+        invoice.lines.push(InvoiceLine::new(
+            revenue.id,
+            "Consulting",
+            rust_decimal_macros::dec!(1),
+            rust_decimal_macros::dec!(500),
+        ));
         let draft = service.create_invoice(&invoice).unwrap();
         let voided = service.void_invoice(draft.id.unwrap()).unwrap();
-        let mut state = State { invoices: vec![voided.clone()], ..Default::default() };
+        let mut state = State {
+            invoices: vec![voided.clone()],
+            ..Default::default()
+        };
 
         update(&mut state, Message::KebabForRow(voided.id.unwrap()), &ctx);
 
@@ -968,7 +1420,10 @@ mod tests {
     #[test]
     fn kebab_on_a_posted_invoice_opens_the_credit_note_form_prefilled_with_its_own_balance() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
         let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "750");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
@@ -990,55 +1445,96 @@ mod tests {
     #[test]
     fn a_credit_note_exactly_equal_to_the_invoice_s_balance_fully_settles_it() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
-        update(&mut state, Message::CreditNoteRevenueAccountSelected(revenue), &ctx);
+        update(
+            &mut state,
+            Message::CreditNoteRevenueAccountSelected(revenue),
+            &ctx,
+        );
         update(&mut state, Message::CreditNoteArAccountSelected(ar), &ctx);
         state.credit_note_description_input = "Return".into();
         update(&mut state, Message::SubmitCreditNote, &ctx);
 
         assert!(state.error.is_none());
-        assert!(state.message.as_deref().unwrap_or_default().starts_with("Credit note"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("Credit note"));
         assert!(state.credit_note_invoice_id.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert!(service.invoice_remaining_balance(invoice_id).is_err(), "a fully-credited invoice has no open receivable left");
+        assert!(
+            service.invoice_remaining_balance(invoice_id).is_err(),
+            "a fully-credited invoice has no open receivable left"
+        );
     }
 
     #[test]
     fn a_credit_note_amount_exceeding_the_invoice_s_own_balance_is_rejected() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
         state.credit_note_amount_input = "1500".into();
-        update(&mut state, Message::CreditNoteRevenueAccountSelected(revenue), &ctx);
+        update(
+            &mut state,
+            Message::CreditNoteRevenueAccountSelected(revenue),
+            &ctx,
+        );
         update(&mut state, Message::CreditNoteArAccountSelected(ar), &ctx);
         state.credit_note_description_input = "Return".into();
         update(&mut state, Message::SubmitCreditNote, &ctx);
 
-        assert!(state.error.as_deref().unwrap_or_default().contains("exceeds"));
+        assert!(state
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("exceeds"));
         assert!(state.message.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(1000), "a rejected credit note must not touch the invoice's balance at all");
+        assert_eq!(
+            service.invoice_remaining_balance(invoice_id).unwrap(),
+            rust_decimal_macros::dec!(1000),
+            "a rejected credit note must not touch the invoice's balance at all"
+        );
     }
 
     /// Same regression shape as the payment-scoping test above, now for
     /// credit notes: issuing one against a single invoice must never
     /// touch a *different* open invoice for the same customer.
     #[test]
-    fn issuing_a_credit_note_against_one_invoice_leaves_the_customer_s_other_open_invoice_completely_untouched() {
+    fn issuing_a_credit_note_against_one_invoice_leaves_the_customer_s_other_open_invoice_completely_untouched(
+    ) {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
-        let first_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
-        let second_invoice_id = create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "500");
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
+        let first_invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "1000");
+        let second_invoice_id =
+            create_and_post_invoice(&mut state, &ctx, &customer, &ar, &revenue, "500");
 
         update(&mut state, Message::KebabForRow(first_invoice_id), &ctx);
-        update(&mut state, Message::CreditNoteRevenueAccountSelected(revenue), &ctx);
+        update(
+            &mut state,
+            Message::CreditNoteRevenueAccountSelected(revenue),
+            &ctx,
+        );
         update(&mut state, Message::CreditNoteArAccountSelected(ar), &ctx);
         state.credit_note_description_input = "Return".into();
         update(&mut state, Message::SubmitCreditNote, &ctx);
@@ -1046,9 +1542,14 @@ mod tests {
         assert!(state.error.is_none());
 
         let service = SalesService::new(ctx.db.clone());
-        assert!(service.invoice_remaining_balance(first_invoice_id).is_err(), "the credited invoice should be fully settled");
+        assert!(
+            service.invoice_remaining_balance(first_invoice_id).is_err(),
+            "the credited invoice should be fully settled"
+        );
         assert_eq!(
-            service.invoice_remaining_balance(second_invoice_id).unwrap(),
+            service
+                .invoice_remaining_balance(second_invoice_id)
+                .unwrap(),
             rust_decimal_macros::dec!(500),
             "the customer's other open invoice must be completely untouched"
         );
@@ -1057,7 +1558,11 @@ mod tests {
     #[test]
     fn saving_a_new_draft_without_choosing_a_customer_sets_an_error() {
         let (ctx, _customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { revenue_account: Some(revenue), amount_input: "500".into(), ..Default::default() };
+        let mut state = State {
+            revenue_account: Some(revenue),
+            amount_input: "500".into(),
+            ..Default::default()
+        };
 
         update(&mut state, Message::SaveDraft, &ctx);
 
@@ -1089,7 +1594,11 @@ mod tests {
     #[test]
     fn kebab_on_a_draft_invoice_opens_the_edit_form_prefilled() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], accounts: vec![revenue.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            accounts: vec![revenue.clone()],
+            ..Default::default()
+        };
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
@@ -1104,7 +1613,11 @@ mod tests {
     #[test]
     fn cancel_edit_clears_editing_state_without_touching_the_stored_draft() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], accounts: vec![revenue.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            accounts: vec![revenue.clone()],
+            ..Default::default()
+        };
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
@@ -1122,7 +1635,11 @@ mod tests {
     #[test]
     fn saving_changes_to_a_draft_updates_it_in_place_and_clears_editing_state() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], accounts: vec![revenue.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            accounts: vec![revenue.clone()],
+            ..Default::default()
+        };
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
 
         update(&mut state, Message::KebabForRow(invoice_id), &ctx);
@@ -1158,17 +1675,28 @@ mod tests {
         let (ctx, _customer, _ar, _revenue) = ctx_with_customer_and_accounts();
         let mut state = State::default();
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], true), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], true),
+            &ctx,
+        );
         assert_eq!(state.selected, HashSet::from([1, 2, 3]));
 
-        update(&mut state, Message::SelectAllChanged(vec![1, 2, 3], false), &ctx);
+        update(
+            &mut state,
+            Message::SelectAllChanged(vec![1, 2, 3], false),
+            &ctx,
+        );
         assert!(state.selected.is_empty());
     }
 
     #[test]
     fn clear_selection_empties_it_regardless_of_what_was_selected() {
         let (ctx, _customer, _ar, _revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { selected: HashSet::from([1, 2, 3]), ..Default::default() };
+        let mut state = State {
+            selected: HashSet::from([1, 2, 3]),
+            ..Default::default()
+        };
 
         update(&mut state, Message::ClearSelection, &ctx);
 
@@ -1178,7 +1706,10 @@ mod tests {
     #[test]
     fn bulk_delete_removes_every_selected_draft_invoice() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
         save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
         save_draft_invoice(&mut state, &ctx, &customer, &revenue, "300");
         let ids: Vec<i64> = state.invoices.iter().map(|i| i.id.unwrap()).collect();
@@ -1189,14 +1720,27 @@ mod tests {
         assert!(state.error.is_none());
         assert!(state.invoices.is_empty());
         assert!(state.selected.is_empty());
-        assert!(state.message.as_deref().unwrap_or_default().contains("Deleted 2"));
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Deleted 2"));
     }
 
     #[test]
     fn bulk_export_csv_writes_only_the_selected_invoices() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let ctx = Ctx { export_dir: std::env::temp_dir().join(format!("memonbooks_invoices_view_test_{:?}", std::thread::current().id())), ..ctx };
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let ctx = Ctx {
+            export_dir: std::env::temp_dir().join(format!(
+                "memonbooks_invoices_view_test_{:?}",
+                std::thread::current().id()
+            )),
+            ..ctx
+        };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
         let export_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
         save_draft_invoice(&mut state, &ctx, &customer, &revenue, "300");
         state.selected = HashSet::from([export_id]);
@@ -1213,7 +1757,10 @@ mod tests {
     #[test]
     fn post_for_row_sets_the_target_invoice() {
         let (ctx, customer, _ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
 
         update(&mut state, Message::PostForRow(invoice_id), &ctx);
@@ -1228,13 +1775,19 @@ mod tests {
 
         update(&mut state, Message::SubmitPost, &ctx);
 
-        assert_eq!(state.error.as_deref(), Some("choose a draft (via a row's Post button) and an AR account"));
+        assert_eq!(
+            state.error.as_deref(),
+            Some("choose a draft (via a row's Post button) and an AR account")
+        );
     }
 
     #[test]
     fn posting_a_draft_via_its_post_button_moves_it_to_posted_and_creates_a_receivable() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            ..Default::default()
+        };
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "500");
 
         update(&mut state, Message::PostForRow(invoice_id), &ctx);
@@ -1244,7 +1797,10 @@ mod tests {
         assert!(state.error.is_none());
         assert_eq!(state.invoices[0].status, InvoiceStatus::Posted);
         let service = SalesService::new(ctx.db.clone());
-        assert_eq!(service.invoice_remaining_balance(invoice_id).unwrap(), rust_decimal_macros::dec!(500));
+        assert_eq!(
+            service.invoice_remaining_balance(invoice_id).unwrap(),
+            rust_decimal_macros::dec!(500)
+        );
     }
 
     /// The exact scenario requested when this Draft/Edit/Post pattern
@@ -1254,7 +1810,11 @@ mod tests {
     #[test]
     fn creating_a_draft_editing_it_twice_then_posting_reflects_the_last_edit_not_the_original() {
         let (ctx, customer, ar, revenue) = ctx_with_customer_and_accounts();
-        let mut state = State { customers: vec![customer.clone()], accounts: vec![ar.clone(), revenue.clone()], ..Default::default() };
+        let mut state = State {
+            customers: vec![customer.clone()],
+            accounts: vec![ar.clone(), revenue.clone()],
+            ..Default::default()
+        };
 
         let invoice_id = save_draft_invoice(&mut state, &ctx, &customer, &revenue, "1000");
         assert_eq!(state.invoices[0].status, InvoiceStatus::Draft);
@@ -1280,7 +1840,11 @@ mod tests {
         update(&mut state, Message::SubmitPost, &ctx);
 
         assert!(state.error.is_none());
-        let posted = state.invoices.iter().find(|i| i.id == Some(invoice_id)).unwrap();
+        let posted = state
+            .invoices
+            .iter()
+            .find(|i| i.id == Some(invoice_id))
+            .unwrap();
         assert_eq!(posted.status, InvoiceStatus::Posted);
         assert_eq!(posted.total(), rust_decimal_macros::dec!(1500));
 

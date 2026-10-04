@@ -72,7 +72,12 @@ pub struct Quotation {
 }
 
 impl Quotation {
-    pub fn new(company_id: i64, customer_id: i64, quotation_date: NaiveDate, valid_until: NaiveDate) -> Self {
+    pub fn new(
+        company_id: i64,
+        customer_id: i64,
+        quotation_date: NaiveDate,
+        valid_until: NaiveDate,
+    ) -> Self {
         Self {
             id: None,
             company_id,
@@ -92,16 +97,24 @@ impl Quotation {
 impl Validate for Quotation {
     fn validate(&self) -> AppResult<()> {
         if self.company_id <= 0 {
-            return Err(AppError::Validation("quotation must reference a valid company".into()));
+            return Err(AppError::Validation(
+                "quotation must reference a valid company".into(),
+            ));
         }
         if self.customer_id <= 0 {
-            return Err(AppError::Validation("quotation must reference a valid customer".into()));
+            return Err(AppError::Validation(
+                "quotation must reference a valid customer".into(),
+            ));
         }
         if self.lines.is_empty() {
-            return Err(AppError::Validation("a quotation must have at least one line".into()));
+            return Err(AppError::Validation(
+                "a quotation must have at least one line".into(),
+            ));
         }
         if self.valid_until < self.quotation_date {
-            return Err(AppError::Validation("quotation valid_until must not be before quotation_date".into()));
+            return Err(AppError::Validation(
+                "quotation valid_until must not be before quotation_date".into(),
+            ));
         }
         for line in &self.lines {
             require_non_empty("quotation line description", &line.description)?;
@@ -124,8 +137,12 @@ mod tests {
     #[test]
     fn total_sums_line_amounts() {
         let mut quotation = Quotation::new(1, 1, date(2026, 1, 1), date(2026, 1, 31));
-        quotation.lines.push(QuotationLine::new("Widget", dec!(3), dec!(50)));
-        quotation.lines.push(QuotationLine::new("Gadget", dec!(1), dec!(200)));
+        quotation
+            .lines
+            .push(QuotationLine::new("Widget", dec!(3), dec!(50)));
+        quotation
+            .lines
+            .push(QuotationLine::new("Gadget", dec!(1), dec!(200)));
         assert_eq!(quotation.total(), dec!(350));
     }
 
@@ -138,7 +155,9 @@ mod tests {
     #[test]
     fn validate_rejects_valid_until_before_quotation_date() {
         let mut quotation = Quotation::new(1, 1, date(2026, 1, 31), date(2026, 1, 1));
-        quotation.lines.push(QuotationLine::new("Widget", dec!(1), dec!(50)));
+        quotation
+            .lines
+            .push(QuotationLine::new("Widget", dec!(1), dec!(50)));
         assert!(quotation.validate().is_err());
     }
 

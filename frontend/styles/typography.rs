@@ -23,7 +23,9 @@ pub fn body() -> f32 {
 }
 
 /// Native checkbox control dimension (not a text size).
-pub fn checkbox_size() -> f32 { 16.0 }
+pub fn checkbox_size() -> f32 {
+    16.0
+}
 
 /// The single most common size in the app (39 of the audit's 87 raw
 /// `.size(N)` call sites) -- button labels, form `text_input`s, table

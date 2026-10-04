@@ -22,14 +22,21 @@ impl BackupFrequency {
 }
 
 /// `None` (never backed up) is always due immediately.
-pub fn next_backup_due(last_backup: Option<DateTime<Utc>>, frequency: BackupFrequency) -> DateTime<Utc> {
+pub fn next_backup_due(
+    last_backup: Option<DateTime<Utc>>,
+    frequency: BackupFrequency,
+) -> DateTime<Utc> {
     match last_backup {
         Some(last) => last + frequency.interval(),
         None => Utc::now(),
     }
 }
 
-pub fn is_backup_due(last_backup: Option<DateTime<Utc>>, frequency: BackupFrequency, now: DateTime<Utc>) -> bool {
+pub fn is_backup_due(
+    last_backup: Option<DateTime<Utc>>,
+    frequency: BackupFrequency,
+    now: DateTime<Utc>,
+) -> bool {
     match last_backup {
         None => true,
         Some(_) => now >= next_backup_due(last_backup, frequency),
@@ -48,16 +55,40 @@ mod tests {
     #[test]
     fn daily_backup_is_not_due_before_a_day_has_passed() {
         let last = Utc::now();
-        assert!(!is_backup_due(Some(last), BackupFrequency::Daily, last + Duration::hours(12)));
-        assert!(is_backup_due(Some(last), BackupFrequency::Daily, last + Duration::hours(25)));
+        assert!(!is_backup_due(
+            Some(last),
+            BackupFrequency::Daily,
+            last + Duration::hours(12)
+        ));
+        assert!(is_backup_due(
+            Some(last),
+            BackupFrequency::Daily,
+            last + Duration::hours(25)
+        ));
     }
 
     #[test]
     fn weekly_and_monthly_use_their_own_intervals() {
         let last = Utc::now();
-        assert!(!is_backup_due(Some(last), BackupFrequency::Weekly, last + Duration::days(3)));
-        assert!(is_backup_due(Some(last), BackupFrequency::Weekly, last + Duration::days(8)));
-        assert!(!is_backup_due(Some(last), BackupFrequency::Monthly, last + Duration::days(15)));
-        assert!(is_backup_due(Some(last), BackupFrequency::Monthly, last + Duration::days(31)));
+        assert!(!is_backup_due(
+            Some(last),
+            BackupFrequency::Weekly,
+            last + Duration::days(3)
+        ));
+        assert!(is_backup_due(
+            Some(last),
+            BackupFrequency::Weekly,
+            last + Duration::days(8)
+        ));
+        assert!(!is_backup_due(
+            Some(last),
+            BackupFrequency::Monthly,
+            last + Duration::days(15)
+        ));
+        assert!(is_backup_due(
+            Some(last),
+            BackupFrequency::Monthly,
+            last + Duration::days(31)
+        ));
     }
 }

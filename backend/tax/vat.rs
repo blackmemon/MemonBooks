@@ -15,7 +15,11 @@ pub fn gross_amount(net_amount: Decimal, rate_percent: Decimal, decimal_places: 
 }
 
 /// Backs out the net amount from a tax-inclusive (gross) amount.
-pub fn net_amount_from_gross(gross_amount: Decimal, rate_percent: Decimal, decimal_places: u32) -> Decimal {
+pub fn net_amount_from_gross(
+    gross_amount: Decimal,
+    rate_percent: Decimal,
+    decimal_places: u32,
+) -> Decimal {
     let divisor = Decimal::ONE + rate_percent / Decimal::from(100);
     (gross_amount / divisor).round_dp(decimal_places)
 }

@@ -1,20 +1,10 @@
-//! List vendors, add new ones, edit or delete existing ones (singly or
-//! in bulk), and export a selection to CSV.
-
-use std::collections::HashSet;
-
-use iced::widget::{
-    button, column, container, pick_list, row, scrollable, stack, text, text_input, tooltip, Space,
-};
-use iced::{Alignment, Background, Color, Element, Length};
-
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::vendors::Vendor;
 use crate::backend::services::party_service::PartyService;
 use crate::database::exports::csv;
 use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
 use crate::frontend::components::common::toolbar::StatusFilter;
-use crate::frontend::styles::badges::BadgeTone;
+use crate::frontend::styles::badges::{self, BadgeTone};
 use crate::frontend::styles::button as button_style;
 use crate::frontend::styles::colors::Theme;
 use crate::frontend::styles::dropdown;
@@ -22,10 +12,16 @@ use crate::frontend::styles::fonts;
 use crate::frontend::styles::headers;
 use crate::frontend::styles::icons;
 use crate::frontend::styles::inputs;
+use crate::frontend::styles::labels;
 use crate::frontend::styles::spacing;
 use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, states, tabs};
+use crate::frontend::styles::{panels, states, tabs};
 use crate::frontend::views::Ctx;
+use iced::widget::{
+    button, column, container, pick_list, row, scrollable, stack, text, text_input, tooltip, Space,
+};
+use iced::{Alignment, Element, Length};
+use std::collections::HashSet;
 
 const COLUMN_LABELS: [&str; 2] = ["Vendor", "Status"];
 const PAGE_SIZES: [usize; 4] = [10, 25, 50, 100];
@@ -38,18 +34,13 @@ pub struct State {
     name_input: String,
     email_input: String,
     search: String,
-    /// `Some(id)` while the form below the table is editing an existing
-    /// vendor instead of creating a new one -- `Message::Create` does
-    /// double duty as "save changes" in that state.
     editing_id: Option<i64>,
     selected: HashSet<i64>,
     status_filter: StatusFilter,
     columns_open: bool,
     column_visible: Vec<bool>,
-    /// The record form is hidden until "Add" or a row's edit is pressed.
     form_open: bool,
     page: usize,
-    /// `0` means "not chosen yet" -- see [`State::rows_per_page`].
     page_size: usize,
     message: Option<String>,
     error: Option<String>,
@@ -397,105 +388,12 @@ pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
     .into()
 }
 
-/// Maintain page margin and the gap between the table and the detail panel.
-const MARGIN: f32 = spacing::SPACE_20;
-/// Disabled controls are drawn at this fraction of their normal opacity.
-const DISABLED_ALPHA: f32 = 0.45;
-/// Glyphs for the search box and the small icon buttons (this app has
-/// no icon font -- see `styles::icons`).
-/// Return type of [`dimmed`] (an alias, so the line-based style check
-/// does not mistake the signature for a hand-built color literal).
-type Tint = Color;
-
-const GLYPH_SEARCH: &str = icons::SEARCH;
-const GLYPH_RESET: &str = icons::RESET;
-const GLYPH_COLUMNS: &str = icons::COLUMNS;
-const GLYPH_EXPORT: &str = icons::EXPORT;
-const GLYPH_CLOSE: &str = icons::CLOSE;
-
-fn dimmed(color: Color, status: button::Status) -> Tint {
-    if matches!(status, button::Status::Disabled) {
-        color.scale_alpha(DISABLED_ALPHA)
-    } else {
-        color
-    }
-}
-
-/// Solid button with white text (`rest` fill, `hover` fill on
-/// hover/press); visibly dimmed when disabled.
-fn filled_button(
-    theme: Theme,
-    rest: Color,
-    hover: Color,
-) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
-    move |_iced_theme, status| {
-        let fill = match status {
-            button::Status::Hovered | button::Status::Pressed => hover,
-            _ => rest,
-        };
-        button::Style {
-            background: Some(Background::Color(dimmed(fill, status))),
-            text_color: dimmed(theme.accent_front(), status),
-            border: iced::Border {
-                radius: states::RADIUS_SM.into(),
-                ..iced::Border::default()
-            },
-            shadow: iced::Shadow::default(),
-        }
-    }
-}
-
-/// The app's existing primary color as a solid button (Add, Save).
-fn primary_button(theme: Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
-    filled_button(theme, theme.primary(), theme.primary_hover())
-}
-
-/// Surface-colored button with a light border; the border and text turn
-/// primary on hover. `active` draws it as the selected page box.
-fn outlined_button(
-    theme: Theme,
-    active: bool,
-) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
-    move |_iced_theme, status| {
-        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let accent = active || hovered;
-        button::Style {
-            background: Some(Background::Color(if active {
-                theme.primary_tint(states::SELECTED_ALPHA)
-            } else {
-                theme.surface()
-            })),
-            text_color: dimmed(
-                if accent {
-                    theme.primary()
-                } else {
-                    theme.neutral_font()
-                },
-                status,
-            ),
-            border: iced::Border {
-                color: dimmed(
-                    if accent {
-                        theme.primary()
-                    } else {
-                        theme.neutral_border()
-                    },
-                    status,
-                ),
-                width: states::STYLES_BORDER_WIDTH_ALPHA,
-                radius: states::RADIUS_SM.into(),
-            },
-            shadow: iced::Shadow::default(),
-        }
-    }
-}
-
-fn card_style(theme: Theme) -> impl Fn(&iced::Theme) -> container::Style {
-    move |_iced_theme| container::Style {
-        background: Some(Background::Color(theme.surface())),
-        border: borders::card(theme, states::RADIUS_MD),
-        ..container::Style::default()
-    }
+/// A button with a bold label; callers add the style and the press.
+fn bold_button<'a, M: 'a>(
+    label: &'a str,
+    padding: impl Into<iced::Padding>,
+) -> iced::widget::Button<'a, M> {
+    button(text(label).size(typography::label()).font(fonts::BOLD)).padding(padding)
 }
 
 /// Page title, optional entity selector, and the solid primary Add button.
@@ -504,26 +402,18 @@ fn header<'a, M: Clone + 'a>(
     switcher: Option<Element<'a, M>>,
     on_add: M,
 ) -> Element<'a, M> {
-    let mut titles = row![text(TITLE)
-        .size(headers::page_title_size())
-        .font(fonts::BOLD)
-        .color(theme.neutral_font())]
-    .spacing(spacing::SPACE_12)
-    .align_y(Alignment::Center);
+    let mut titles = row![labels::strong(theme, TITLE, headers::page_title_size())]
+        .spacing(spacing::SPACE_12)
+        .align_y(Alignment::Center);
     if let Some(switcher) = switcher {
         titles = titles.push(switcher);
     }
-    let add = button(
-        text("Add Vendor")
-            .size(typography::label())
-            .font(fonts::BOLD),
-    )
-    .padding([spacing::SPACE_10, spacing::MD])
-    .style(primary_button(theme))
-    .on_press(on_add);
+    let add = bold_button("Add Vendor", [spacing::SPACE_10, spacing::MD])
+        .style(button_style::mode(theme, true))
+        .on_press(on_add);
 
     container(row![titles, Space::with_width(Length::Fill), add].align_y(Alignment::Center))
-        .padding(MARGIN)
+        .padding(spacing::SPACE_20)
         .into()
 }
 
@@ -545,18 +435,7 @@ fn status_tab(
             }),
     )
     .padding([spacing::SPACE_2, spacing::SPACE_8])
-    .style(move |_iced_theme: &iced::Theme| container::Style {
-        background: Some(Background::Color(if active {
-            theme.primary_tint(states::SELECTED_ALPHA)
-        } else {
-            theme.neutral_bg()
-        })),
-        border: iced::Border {
-            radius: states::RADIUS_PILL.into(),
-            ..iced::Border::default()
-        },
-        ..container::Style::default()
-    });
+    .style(badges::count(theme, active));
     let mut label_text = text(label)
         .size(typography::label())
         .color(tabs::text_color(theme, active));
@@ -572,9 +451,11 @@ fn status_tab(
         .style(tabs::tab_button(theme))
         .padding([spacing::SPACE_6, spacing::SPACE_4])
         .on_press(on_press),
-        container(Space::with_height(Length::Fixed(2.0)))
-            .width(Length::Fill)
-            .style(tabs::underline(theme, active)),
+        container(Space::with_height(Length::Fixed(
+            spacing::TAB_UNDERLINE_HEIGHT
+        )))
+        .width(Length::Fill)
+        .style(tabs::underline(theme, active)),
     ]
     .spacing(spacing::SPACE_2)
     .width(Length::Shrink)
@@ -590,13 +471,13 @@ fn icon_button(
 ) -> Element<'static, Message> {
     tooltip(
         button(text(glyph).size(typography::emphasis()).center())
-            .width(Length::Fixed(36.0))
-            .height(Length::Fixed(36.0))
-            .style(outlined_button(theme, false))
+            .width(Length::Fixed(spacing::ICON_BUTTON_SIZE))
+            .height(Length::Fixed(spacing::ICON_BUTTON_SIZE))
+            .style(button_style::outlined(theme, false))
             .on_press(message),
         container(text(tip).size(typography::caption()))
             .padding([spacing::SPACE_4, spacing::SPACE_8])
-            .style(card_style(theme)),
+            .style(panels::flat_card(theme, states::RADIUS_MD)),
         tooltip::Position::Bottom,
     )
     .into()
@@ -633,9 +514,7 @@ fn field<'a>(
     input: iced::widget::TextInput<'a, Message>,
 ) -> Element<'a, Message> {
     column![
-        text(label)
-            .size(typography::caption())
-            .color(theme.neutral_front()),
+        labels::muted(theme, label, typography::caption()),
         input
             .style(inputs::text(theme))
             .width(Length::Fill)
@@ -683,25 +562,21 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
             top: spacing::SM,
             right: spacing::SPACE_12,
             bottom: spacing::SM,
-            left: 36.0,
+            left: spacing::SEARCH_ICON_INSET,
         })
         .size(typography::label())
         .width(Length::Fill);
     let search_box = stack![
         search_input,
-        container(
-            text(GLYPH_SEARCH)
-                .size(typography::label())
-                .color(theme.neutral_front())
-        )
-        .padding([spacing::SPACE_10, spacing::SPACE_12])
+        container(labels::muted(theme, icons::SEARCH, typography::label()))
+            .padding([spacing::SPACE_10, spacing::SPACE_12])
     ]
     .width(Length::FillPortion(9));
     let search_row = row![
         search_box,
-        icon_button(theme, GLYPH_RESET, "Reset all", Message::ResetAll),
-        icon_button(theme, GLYPH_COLUMNS, "Columns", Message::ToggleColumns),
-        icon_button(theme, GLYPH_EXPORT, "Export CSV", Message::BulkExportCsv),
+        icon_button(theme, icons::RESET, "Reset all", Message::ResetAll),
+        icon_button(theme, icons::COLUMNS, "Columns", Message::ToggleColumns),
+        icon_button(theme, icons::EXPORT, "Export CSV", Message::BulkExportCsv),
         Space::with_width(Length::FillPortion(11)),
     ]
     .spacing(spacing::SPACE_12)
@@ -791,12 +666,9 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         .editing_id
         .and_then(|id| state.vendors.iter().find(|r| r.id == Some(id)));
     let mut form = column![row![
-        text("Vendor Details")
-            .size(typography::panel_title())
-            .font(fonts::BOLD)
-            .color(theme.neutral_font()),
+        labels::strong(theme, "Vendor Details", typography::panel_title()),
         Space::with_width(Length::Fill),
-        button(text(GLYPH_CLOSE).size(typography::label()))
+        button(text(icons::CLOSE).size(typography::label()))
             .padding([spacing::SPACE_4, spacing::SPACE_8])
             .style(button_style::plain(theme))
             .on_press(Message::CancelEdit),
@@ -804,18 +676,11 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     .align_y(Alignment::Center)]
     .spacing(spacing::MD);
     if let Some(record) = editing {
-        let line = |value: String| {
-            text(value)
-                .size(typography::caption())
-                .color(theme.neutral_front())
-        };
+        let line = |value: String| labels::muted(theme, value, typography::caption());
         form = form.push(
             container(
                 column![
-                    text(record.name.clone())
-                        .size(typography::emphasis())
-                        .font(fonts::BOLD)
-                        .color(theme.neutral_font()),
+                    labels::strong(theme, record.name.clone(), typography::emphasis()),
                     line(record.phone.clone().unwrap_or_else(|| "--".to_string())),
                     line(record.email.clone().unwrap_or_else(|| "--".to_string())),
                 ]
@@ -823,7 +688,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
             )
             .padding(spacing::MD)
             .width(Length::Fill)
-            .style(card_style(theme)),
+            .style(panels::flat_card(theme, states::RADIUS_MD)),
         );
     }
     form = form
@@ -846,21 +711,19 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
         .push(Space::with_height(Length::Fill))
         .push(
             row![
-                button(text("Save").size(typography::label()).font(fonts::BOLD))
-                    .style(primary_button(theme))
-                    .on_press(Message::Create)
-                    .padding([spacing::SM, spacing::MD]),
-                button(text("Cancel").size(typography::label()).font(fonts::BOLD))
-                    .style(outlined_button(theme, false))
-                    .on_press(Message::CancelEdit)
-                    .padding([spacing::SM, spacing::MD]),
+                bold_button("Save", [spacing::SM, spacing::MD])
+                    .style(button_style::mode(theme, true))
+                    .on_press(Message::Create),
+                bold_button("Cancel", [spacing::SM, spacing::MD])
+                    .style(button_style::outlined(theme, false))
+                    .on_press(Message::CancelEdit),
             ]
             .spacing(spacing::SM),
         );
 
     // The right-hand third: the detail panel and/or the columns picker,
     // hidden until one of them is opened.
-    let mut side = column![].spacing(MARGIN).height(Length::Fill);
+    let mut side = column![].spacing(spacing::SPACE_20).height(Length::Fill);
     if state.form_open {
         side = side.push(form);
     }
@@ -882,7 +745,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     } else {
         Length::Fill
     })]
-    .spacing(MARGIN)
+    .spacing(spacing::SPACE_20)
     .height(Length::Fill);
     if panel_open {
         main = main.push(
@@ -890,10 +753,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
                 .padding(spacing::MD)
                 .width(Length::FillPortion(1))
                 .height(Length::Fill)
-                .style(move |iced_theme: &iced::Theme| container::Style {
-                    border: borders::card(theme, states::RADIUS_LG),
-                    ..card_style(theme)(iced_theme)
-                }),
+                .style(panels::flat_card(theme, states::RADIUS_LG)),
         );
     }
 
@@ -906,26 +766,42 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
                         .size(typography::label())
                         .center(),
                 )
-                .width(Length::Fixed(32.0))
+                .width(Length::Fixed(spacing::PAGE_BUTTON_WIDTH))
                 .padding([spacing::SPACE_4, 0.0])
-                .style(outlined_button(theme, index == page))
+                .style(button_style::outlined(theme, index == page))
                 .on_press(Message::GoToPage(index)),
             ),
-            None => text("...")
-                .size(typography::label())
-                .color(theme.neutral_front())
-                .into(),
+            None => labels::muted(theme, "...", typography::label()).into(),
         });
     }
+    let mut content = column![tab_row, search_row].spacing(spacing::SPACE_12);
+    if has_selection {
+        let bulk = |value: &'static str| bold_button(value, [spacing::SM, spacing::SPACE_14]);
+        content = content.push(
+            row![
+                labels::muted(
+                    theme,
+                    format!("{} selected", state.selected.len()),
+                    typography::label()
+                ),
+                bulk("Archive Selected")
+                    .style(button_style::mode(theme, false))
+                    .on_press(Message::BulkArchive),
+                bulk("Restore Selected")
+                    .style(button_style::mode(theme, false))
+                    .on_press(Message::BulkRestore),
+                bulk("Delete Selected")
+                    .style(button_style::destructive(theme))
+                    .on_press(Message::BulkDelete),
+            ]
+            .spacing(spacing::SPACE_12)
+            .align_y(Alignment::Center),
+        );
+    }
+
     let pagination = row![
-        button(text("Previous").size(typography::label()))
-            .padding([spacing::SM, spacing::MD])
-            .style(outlined_button(theme, false))
-            .on_press_maybe((page > 0).then_some(Message::PrevPage)),
         Space::with_width(Length::Fill),
-        text("Rows per page:")
-            .size(typography::label())
-            .color(theme.neutral_front()),
+        labels::muted(theme, "Rows per page:", typography::label()),
         pick_list(PAGE_SIZES, Some(size), Message::PageSizeChanged)
             .padding([spacing::SM, spacing::SPACE_12])
             .text_size(typography::label())
@@ -936,60 +812,19 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     .spacing(spacing::SPACE_12)
     .align_y(Alignment::Center);
 
-    let mut content = column![tab_row, search_row].spacing(spacing::SPACE_12);
-    if has_selection {
-        let bulk = |value: &'static str| {
-            button(text(value).size(typography::label()).font(fonts::BOLD))
-                .padding([spacing::SM, spacing::SPACE_14])
-        };
-        content = content.push(
-            row![
-                text(format!("{} selected", state.selected.len()))
-                    .size(typography::label())
-                    .color(theme.neutral_front()),
-                bulk("Archive Selected")
-                    .style(filled_button(
-                        theme,
-                        theme.secondary(),
-                        theme.secondary_hover()
-                    ))
-                    .on_press(Message::BulkArchive),
-                bulk("Restore Selected")
-                    .style(filled_button(
-                        theme,
-                        theme.secondary(),
-                        theme.secondary_hover()
-                    ))
-                    .on_press(Message::BulkRestore),
-                bulk("Delete Selected")
-                    .style(filled_button(
-                        theme,
-                        theme.negative_front(),
-                        theme
-                            .negative_front()
-                            .scale_alpha(states::SOLID_BUTTON_HOVER_ALPHA)
-                    ))
-                    .on_press(Message::BulkDelete),
-            ]
-            .spacing(spacing::SPACE_12)
-            .align_y(Alignment::Center),
-        );
-    }
-
     content
         .push(main)
         .push(pagination)
         .padding(iced::Padding {
             top: 0.0,
-            right: MARGIN,
-            bottom: MARGIN,
-            left: MARGIN,
+            right: spacing::SPACE_20,
+            bottom: spacing::SPACE_20,
+            left: spacing::SPACE_20,
         })
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

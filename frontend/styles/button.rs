@@ -260,3 +260,41 @@ pub fn profile_card(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
         }
     }
 }
+
+/// Surface-colored button with a light border; the border and text turn
+/// primary on hover. `active` draws it as the selected state (tinted
+/// primary), e.g. the current page box in pagination. Dimmed when disabled.
+pub fn outlined(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> Style {
+    move |_iced_theme: &IcedTheme, status: Status| {
+        let accent = active || matches!(status, Status::Hovered | Status::Pressed);
+        let dim = |color: Color| {
+            if matches!(status, Status::Disabled) {
+                color.scale_alpha(states::DISABLED_ALPHA)
+            } else {
+                color
+            }
+        };
+        Style {
+            background: Some(Background::Color(if active {
+                theme.primary_tint(states::SELECTED_ALPHA)
+            } else {
+                theme.surface()
+            })),
+            text_color: dim(if accent {
+                theme.primary()
+            } else {
+                theme.neutral_font()
+            }),
+            border: Border {
+                color: dim(if accent {
+                    theme.primary()
+                } else {
+                    theme.neutral_border()
+                }),
+                width: states::STYLES_BORDER_WIDTH_ALPHA,
+                radius: states::RADIUS_SM.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    }
+}

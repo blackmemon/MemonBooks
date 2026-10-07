@@ -44,6 +44,14 @@ pub const SPACE_5: f32 = 5.0;
 pub const SPACE_1: f32 = 1.0;
 pub const SPACE_20: f32 = 20.0;
 pub const SPACE_40: f32 = 40.0;
+/// Side of a square icon-only button.
+pub const ICON_BUTTON_SIZE: f32 = 36.0;
+/// Width of a numbered pagination button.
+pub const PAGE_BUTTON_WIDTH: f32 = 32.0;
+/// Height of the underline under a tab.
+pub const TAB_UNDERLINE_HEIGHT: f32 = 2.0;
+/// Left padding that leaves room for a glyph inside a search box.
+pub const SEARCH_ICON_INSET: f32 = 36.0;
 pub const HEADER_PADDING: Padding = Padding {
     top: LG,
     right: LG,

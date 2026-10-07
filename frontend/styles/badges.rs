@@ -2,9 +2,11 @@
 //! Theme background/front color pair. No new colors -- this only picks
 //! which existing pair applies, plus the one new neutral pair.
 
-use iced::Color;
+use iced::widget::container;
+use iced::{Background, Border, Color, Theme as IcedTheme};
 
 use crate::frontend::styles::colors::Theme;
+use crate::frontend::styles::states;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BadgeTone {
@@ -22,5 +24,22 @@ pub fn tone_colors(theme: Theme, tone: BadgeTone) -> (Color, Color) {
         BadgeTone::Negative => (theme.negative_bg(), theme.negative_front()),
         BadgeTone::Warning => (theme.warning_bg(), theme.warning_front()),
         BadgeTone::Neutral => (theme.neutral_bg(), theme.neutral_front()),
+    }
+}
+
+/// Pill for a count next to a tab label: primary tint when `active`,
+/// neutral otherwise.
+pub fn count(theme: Theme, active: bool) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(if active {
+            theme.primary_tint(states::SELECTED_ALPHA)
+        } else {
+            theme.neutral_bg()
+        })),
+        border: Border {
+            radius: states::RADIUS_PILL.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
     }
 }

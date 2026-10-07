@@ -13,3 +13,5 @@ pub const TABLE_ROW_HOVER_ALPHA: f32 = 0.5;
 pub const STYLES_BORDER_WIDTH_ALPHA: f32 = 1.0;
 pub const TEXTBOX_WIDTH_ALPHA: f32 = 1.2;
 pub const TEXTBOX_SELECTION_TINT_ALPHA: f32 = 0.25;
+/// Disabled controls are drawn at this fraction of their normal opacity.
+pub const DISABLED_ALPHA: f32 = 0.45;

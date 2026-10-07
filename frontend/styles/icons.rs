@@ -50,3 +50,33 @@ pub const TREE_EXPANDED: &str = "\u{25BC}";
 /// direction -- right, toward its hidden children -- a click would
 /// expand it).
 pub const TREE_COLLAPSED: &str = "\u{25BA}";
+
+/// Search box prefix (Maintain Customers/Vendors).
+pub const SEARCH: &str = "\u{1F50D}";
+
+/// "Reset all" icon button.
+pub const RESET: &str = "\u{21BB}";
+
+/// "Columns" picker icon button.
+pub const COLUMNS: &str = "\u{2630}";
+
+/// "Export" icon button.
+pub const EXPORT: &str = "\u{2193}";
+
+/// Close (X) button on a side panel.
+pub const CLOSE: &str = "\u{2715}";
+
+/// Detail-panel field glyphs (Maintain Customers/Vendors).
+pub const FIELD_NAME: &str = "\u{263A}";
+pub const FIELD_COMPANY: &str = "\u{25A3}";
+pub const FIELD_PHONE: &str = "\u{260E}";
+pub const FIELD_EMAIL: &str = "\u{2709}";
+pub const FIELD_WEBSITE: &str = "\u{2316}";
+pub const FIELD_ADDRESS: &str = "\u{2302}";
+pub const FIELD_PAYMENT: &str = "\u{00A4}";
+pub const FIELD_NOTE: &str = "\u{270E}";
+pub const FIELD_STATUS: &str = "\u{25CF}";
+pub const FIELD_OTHER: &str = "\u{2022}";
+
+/// "Back" arrow on an inline page view.
+pub const ARROW_LEFT: &str = "\u{2190}";

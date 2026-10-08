@@ -3,8 +3,8 @@
 
 use iced::widget::{text, Text};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::fonts;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::fonts;
 
 /// Small gray text: captions, field labels, secondary lines.
 pub fn muted<'a>(theme: Theme, value: impl text::IntoFragment<'a>, size: f32) -> Text<'a> {

@@ -7,11 +7,11 @@ use iced::{Element, Length};
 use crate::backend::core::auth::authentication::AuthOutcome;
 use crate::backend::core::users::User;
 use crate::backend::services::auth_service::AuthService;
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::inputs;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

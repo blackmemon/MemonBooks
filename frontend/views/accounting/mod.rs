@@ -1,4 +1,3 @@
-pub mod documents_view;
 pub mod fixed_assets_view;
 pub mod journal_entries_view;
 pub mod journal_entry_view;

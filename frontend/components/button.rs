@@ -1,8 +1,8 @@
 use iced::widget::button::{Status, Style};
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::states;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::states;
 
 pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {

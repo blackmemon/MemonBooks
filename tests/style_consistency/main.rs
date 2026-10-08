@@ -34,6 +34,60 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// The former `frontend/styles/*.rs` modules, now flattened into
+/// `frontend/components/`. They are the canonical source of the literals
+/// this test forbids elsewhere, so they stay exempt (`toolbar.rs` is not
+/// listed: it now holds real component code and is still checked).
+const STYLE_MODULES: &[&str] = &[
+    "badges.rs",
+    "borders.rs",
+    "button.rs",
+    "calendar.rs",
+    "checkbox.rs",
+    "colors.rs",
+    "combobox.rs",
+    "datepicker.rs",
+    "dialogs.rs",
+    "dropdown.rs",
+    "font_scale.rs",
+    "fonts.rs",
+    "forms.rs",
+    "frames.rs",
+    "headers.rs",
+    "icons.rs",
+    "inputs.rs",
+    "labels.rs",
+    "list.rs",
+    "menu.rs",
+    "modal.rs",
+    "panels.rs",
+    "radiobutton.rs",
+    "scrollbar.rs",
+    "separators.rs",
+    "shadows.rs",
+    "spacing.rs",
+    "states.rs",
+    "statusbar.rs",
+    "table.rs",
+    "tabs.rs",
+    "textbox.rs",
+    "theme.rs",
+    "tooltip.rs",
+    "tree.rs",
+    "typography.rs",
+];
+
+fn is_style_module(path: &Path) -> bool {
+    path.parent()
+        .and_then(|dir| dir.file_name())
+        .and_then(|name| name.to_str())
+        == Some("components")
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| STYLE_MODULES.contains(&name))
+}
+
 fn crate_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -160,7 +214,7 @@ fn views_and_components_source_all_styling_from_styles_rs() {
     assert!(!files.is_empty(), "expected to find .rs files under frontend/views and frontend/components -- did the layout move?");
 
     let mut findings = Vec::new();
-    for file in &files {
+    for file in files.iter().filter(|file| !is_style_module(file)) {
         let content = fs::read_to_string(file)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", file.display()));
         for (index, line) in production_source(&content).lines().enumerate() {

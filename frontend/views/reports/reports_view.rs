@@ -11,10 +11,10 @@ use iced::{Element, Length};
 use crate::backend::reports::{balance_sheet, profit_loss};
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

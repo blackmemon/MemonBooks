@@ -12,14 +12,14 @@ use crate::backend::core::validation::Validate;
 use crate::backend::inventory::products::Product;
 use crate::backend::services::inventory_service::InventoryService;
 use crate::database::exports::csv;
-use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::{bulk_action_bar, page_header, section_heading, toolbar};
-use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::{bulk_action_bar, page_header, section_heading, toolbar};
+use crate::frontend::components::badges::BadgeTone;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::inputs;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use crate::frontend::styles::font_scale::FontScale;
+use crate::frontend::components::font_scale::FontScale;
 
 pub fn load(path: &Path) -> Option<FontScale> {
     let contents = std::fs::read_to_string(path).ok()?;

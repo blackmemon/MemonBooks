@@ -4,7 +4,7 @@
 
 use iced::{Color, Shadow, Vector};
 
-use crate::frontend::styles::colors::Theme;
+use crate::frontend::components::colors::Theme;
 
 /// Shadow opacity for [`card`] -- not one of `states.rs`'s reconciled
 /// interactive-state constants (a shadow's own opacity isn't a hover/

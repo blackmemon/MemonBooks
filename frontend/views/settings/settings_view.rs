@@ -6,13 +6,13 @@ use iced::Element;
 use crate::backend::core::validation::Validate;
 use crate::backend::organization::companies::Company;
 use crate::backend::services::organization_service::OrganizationService;
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::font_scale::{self, FontScale};
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::dropdown;
+use crate::frontend::components::font_scale::{self, FontScale};
+use crate::frontend::components::inputs;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

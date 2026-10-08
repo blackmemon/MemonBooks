@@ -1,13 +1,20 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
 use iced::{Alignment, Element, Font, Length};
 
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::fonts;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::{spacing, tabs, toolbar as toolbar_style};
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::dropdown;
+use crate::frontend::components::fonts;
+use crate::frontend::components::inputs;
+use crate::frontend::components::typography;
+use crate::frontend::components::{spacing, tabs};
+
+/// Toolbar row layout constant (Section 6) -- the shared height every
+/// control in a list-view toolbar row (search input, buttons,
+/// pick_lists) lines up against. The bordered dropdown-button look
+/// toolbar controls use is `button::secondary` (Batch 3 of the Section
+/// 6 consistency audit consolidated it there).
+pub const CONTROL_HEIGHT: f32 = 36.0;
 
 #[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
@@ -73,7 +80,7 @@ pub fn view<'a, Message: Clone + 'a>(
     let controls = row![search, filters_button, sort_button]
         .spacing(spacing::SM)
         .align_y(Alignment::Center)
-        .height(Length::Fixed(toolbar_style::CONTROL_HEIGHT));
+        .height(Length::Fixed(CONTROL_HEIGHT));
 
     row![tab_row, Space::with_width(Length::Fill), controls]
         .align_y(Alignment::Center)
@@ -171,7 +178,7 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     ]
     .spacing(spacing::SM)
     .align_y(Alignment::Center)
-    .height(Length::Fixed(toolbar_style::CONTROL_HEIGHT))
+    .height(Length::Fixed(CONTROL_HEIGHT))
     .width(Length::Fill)
     .into()
 }

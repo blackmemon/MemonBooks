@@ -5,9 +5,9 @@
 use iced::widget::{column, text};
 use iced::{Element, Font};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::headers;
-use crate::frontend::styles::spacing;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::headers;
+use crate::frontend::components::spacing;
 
 pub fn view<'a, Message: 'a>(
     theme: Theme,

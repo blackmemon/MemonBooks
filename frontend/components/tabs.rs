@@ -5,7 +5,7 @@
 use iced::widget::button;
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
+use crate::frontend::components::colors::Theme;
 
 pub fn text_color(theme: Theme, active: bool) -> Color {
     if active {

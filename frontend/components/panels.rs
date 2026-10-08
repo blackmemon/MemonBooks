@@ -6,8 +6,8 @@
 use iced::widget::container;
 use iced::{Background, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, shadows};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::{borders, shadows};
 
 pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
     move |_iced_theme: &IcedTheme| container::Style {

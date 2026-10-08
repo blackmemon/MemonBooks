@@ -2,8 +2,8 @@ use iced::widget::text_editor::{Status as EditStatus, Style as EditStyle};
 use iced::widget::text_input::{Status, Style};
 use iced::{Background, Border, Color};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::states;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::states;
 
 pub fn text(theme: Theme) -> impl Fn(&iced::Theme, Status) -> Style {
     move |_iced_theme: &iced::Theme, status: Status| {

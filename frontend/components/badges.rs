@@ -5,8 +5,8 @@
 use iced::widget::container;
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::states;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::states;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BadgeTone {
@@ -36,6 +36,32 @@ pub fn count(theme: Theme, active: bool) -> impl Fn(&IcedTheme) -> container::St
         } else {
             theme.neutral_bg()
         })),
+        border: Border {
+            radius: states::RADIUS_PILL.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
+/// Plain tinted status pill (no dot): the tone's background, fully
+/// rounded. Pair the text with `tone_colors(..).1`.
+pub fn pill(theme: Theme, tone: BadgeTone) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(tone_colors(theme, tone).0)),
+        border: Border {
+            radius: states::RADIUS_PILL.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
+/// Round initials avatar: a primary tint disc. Size it with
+/// `spacing::AVATAR_SIZE` and color the initials `theme.primary()`.
+pub fn avatar(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.primary_tint(states::SELECTED_ALPHA))),
         border: Border {
             radius: states::RADIUS_PILL.into(),
             ..Border::default()

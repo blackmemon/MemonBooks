@@ -1,9 +1,9 @@
 use iced::widget::{container, row};
 use iced::{Background, Element, Length};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::{borders, states};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::spacing;
+use crate::frontend::components::{borders, states};
 
 pub const WIDTH: f32 = 380.0;
 

@@ -7,10 +7,10 @@
 use iced::widget::{button, row, text, Space};
 use iced::{Alignment, Background, Element, Length};
 
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, spacing, states};
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::typography;
+use crate::frontend::components::{borders, spacing, states};
 
 pub fn view<'a, Message: Clone + 'a>(
     theme: Theme,

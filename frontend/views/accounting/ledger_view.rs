@@ -3,7 +3,7 @@ use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::services::{party_service::PartyService, report_service::ReportService};
 use crate::backend::transactions::documents::parse_date;
 use crate::frontend::{
-    styles::{colors::Theme, dropdown, inputs, panels, spacing, typography},
+    components::{colors::Theme, dropdown, inputs, panels, spacing, typography},
     views::Ctx,
 };
 use iced::widget::{

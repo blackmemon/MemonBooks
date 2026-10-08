@@ -80,3 +80,12 @@ pub const FIELD_OTHER: &str = "\u{2022}";
 
 /// "Back" arrow on an inline page view.
 pub const ARROW_LEFT: &str = "\u{2190}";
+
+/// Pencil on a row's "edit" icon button.
+pub const EDIT: &str = "\u{270E}";
+
+/// Dash drawn in a partially-checked (tri-state) checkbox.
+pub const INDETERMINATE: &str = "\u{2212}";
+
+/// Tick drawn in a checked box.
+pub const CHECK: &str = "\u{2713}";

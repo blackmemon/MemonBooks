@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use crate::frontend::styles::colors::Theme;
+use crate::frontend::components::colors::Theme;
 
 pub fn load(path: &Path) -> Option<Theme> {
     let contents = std::fs::read_to_string(path).ok()?;

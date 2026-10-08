@@ -3,13 +3,13 @@ use iced::widget::{
 };
 use iced::{Alignment, Background, Border, Element, Font, Length, Theme as IcedTheme};
 
-use crate::frontend::styles::badges::{tone_colors, BadgeTone};
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::checkbox as checkbox_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::fonts;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::{icons, panels, spacing, states, table as table_style};
+use crate::frontend::components::badges::{tone_colors, BadgeTone};
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::checkbox as checkbox_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::fonts;
+use crate::frontend::components::typography;
+use crate::frontend::components::{icons, panels, spacing, states, table as table_style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {

@@ -10,10 +10,10 @@ use iced::{Element, Length};
 
 use crate::backend::fixed_assets::assets::Asset;
 use crate::backend::services::fixed_asset_service::FixedAssetService;
-use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::{page_header, section_heading, toolbar};
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
+use crate::frontend::components::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::{page_header, section_heading, toolbar};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::spacing;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

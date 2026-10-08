@@ -22,11 +22,11 @@ use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::expenses::expense_categories::ExpenseCategory;
 use crate::backend::expenses::expenses::Expense;
 use crate::backend::services::expense_service::ExpenseService;
-use crate::frontend::components::common::page_header;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::spacing;
+use crate::frontend::components::page_header;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::dropdown;
+use crate::frontend::components::inputs;
+use crate::frontend::components::spacing;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, PartialEq)]

@@ -8,8 +8,8 @@
 use iced::widget::button;
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::states;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::states;
 
 /// Indent added per depth level, in pixels -- large enough to make
 /// nesting obvious at a glance, small enough that deeply-nested

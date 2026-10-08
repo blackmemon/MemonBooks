@@ -10,10 +10,10 @@
 use iced::widget::{button, column, container, row, scrollable, text, Space};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
 
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::{borders, icons, spacing, states};
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::typography;
+use crate::frontend::components::{borders, icons, spacing, states};
 
 pub const EXPANDED_WIDTH: f32 = 252.0;
 pub const COLLAPSED_WIDTH: f32 = 72.0;

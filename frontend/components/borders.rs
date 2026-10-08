@@ -1,4 +1,4 @@
-use crate::frontend::styles::colors::Theme;
+use crate::frontend::components::colors::Theme;
 use iced::Border;
 
 pub fn card(theme: Theme, radius: f32) -> Border {

@@ -8,10 +8,10 @@ use crate::backend::core::errors::AppResult;
 use crate::backend::services::document_service::DocumentService;
 use crate::backend::services::report_service::ReportService;
 use crate::backend::transactions::documents::{num, Document, Kind};
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
-use crate::frontend::styles::{button as buttons, panels};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
+use crate::frontend::components::{button as buttons, panels};
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]
@@ -31,8 +31,6 @@ pub struct State {
 pub enum Message {
     Refresh,
     NewExpense,
-    NewTrip,
-    AddReceipt,
     CreateReport,
 }
 
@@ -164,9 +162,7 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     let mut quick = row![].spacing(spacing::SPACE_12);
     for (label, message) in [
         ("+ New expense", Message::NewExpense),
-        ("+ Add receipt", Message::AddReceipt),
         ("+ Create report", Message::CreateReport),
-        ("+ Create trip", Message::NewTrip),
     ] {
         quick = quick.push(
             button(text(label))

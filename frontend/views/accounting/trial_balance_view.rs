@@ -10,10 +10,10 @@ use crate::backend::accounting::trial_balance::TrialBalance;
 use crate::backend::reports::trial_balance as trial_balance_report;
 use crate::backend::services::report_service::ReportService;
 use crate::database::exports::csv;
-use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::{page_header, section_heading, toolbar};
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::spacing;
+use crate::frontend::components::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::{page_header, section_heading, toolbar};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::spacing;
 use crate::frontend::views::Ctx;
 
 #[derive(Debug, Clone, Default)]

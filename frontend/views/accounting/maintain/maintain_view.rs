@@ -1,10 +1,9 @@
-use super::{
-    bank_of_accounts_view, chart_of_accounts_view, customers_view, vendors_view, warehouse_view,
-};
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::spacing;
+use super::{bank_of_accounts_view, chart_of_accounts_view, customers_view, warehouse_view};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::dropdown;
+use crate::frontend::components::spacing;
 use crate::frontend::views::Ctx;
+use crate::frontend::views::accounting::maintain::vendors_view;
 use iced::widget::pick_list;
 use iced::{Element, Length};
 

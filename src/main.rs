@@ -26,16 +26,14 @@ use memonbooks::backend::organization::companies::Company;
 use memonbooks::backend::repositories::accounting_repository::AccountingRepository;
 use memonbooks::backend::repositories::organization_repository::OrganizationRepository;
 use memonbooks::backend::repositories::user_repository::UserRepository;
-use memonbooks::backend::transactions::documents::{Kind, MONEY, PURCHASE, SALE};
 use memonbooks::configs::app::AppConfig;
 use memonbooks::configs::{font_scale_preference, theme_preference};
 use memonbooks::database::database::Database;
-use memonbooks::frontend::components::common::sidebar::{self, NavEntry};
-use memonbooks::frontend::styles::button as button_style;
-use memonbooks::frontend::styles::colors::Theme;
-use memonbooks::frontend::styles::font_scale::{self, FontScale};
-use memonbooks::frontend::styles::{dropdown, spacing, states, typography};
-use memonbooks::frontend::views::accounting::documents_view;
+use memonbooks::frontend::components::sidebar::{self, NavEntry};
+use memonbooks::frontend::components::button as button_style;
+use memonbooks::frontend::components::colors::Theme;
+use memonbooks::frontend::components::font_scale::{self, FontScale};
+use memonbooks::frontend::components::{dropdown, spacing, states, typography};
 use memonbooks::frontend::views::accounting::ledger_view;
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
 use memonbooks::frontend::views::accounting::{
@@ -198,7 +196,7 @@ fn main() -> iced::Result {
     let font_scale_path = config.data_dir.join("font_scale_preference.txt");
     let font_scale = font_scale_preference::load(&font_scale_path).unwrap_or_default();
     // Every `typography`/`headers`/`fonts` size getter reads through
-    // this global mirror (see `frontend::styles::font_scale`) -- set it
+    // this global mirror (see `frontend::components::font_scale`) -- set it
     // once here before the first `view()` so the very first frame
     // already renders at the persisted size, then again whenever the
     // Settings picker changes it.
@@ -233,12 +231,7 @@ fn main() -> iced::Result {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
-    LegacyMaintain,
     Accounting,
-    Documents,
-    Trips,
-    Payroll,
-    Claims,
     Dashboard,
     Maintain,
     JournalEntry,
@@ -260,13 +253,8 @@ enum Route {
 
 const NAV_ITEMS: &[(Route, &str)] = &[
     (Route::Dashboard, "Home"),
-    (Route::Documents, "Transactions"),
     (Route::Accounting, "Accounting"),
-    (Route::Trips, "Trips"),
-    (Route::Payroll, "Payroll"),
-    (Route::Claims, "Expense Claims"),
     (Route::Maintain, "Maintain"),
-    (Route::LegacyMaintain, "Advanced Masters"),
     (Route::JournalEntry, "New Journal Entry"),
     (Route::JournalEntries, "Journal Entries"),
     (Route::TrialBalance, "Trial Balance"),
@@ -347,12 +335,7 @@ fn is_secondary_route(route: Route) -> bool {
 }
 
 struct MemonBooks {
-    masters: documents_view::State,
     ledger: ledger_view::State,
-    documents: documents_view::State,
-    trips: documents_view::State,
-    payroll: documents_view::State,
-    claims: documents_view::State,
     ctx: Ctx,
     session: Option<User>,
     /// Cached at login/switch-user time (not recomputed in `view()`, to
@@ -368,7 +351,7 @@ struct MemonBooks {
     /// is a device-level UI preference, not company data).
     theme_path: PathBuf,
     /// The Settings screen's Font Size choice. Mirrored into
-    /// `frontend::styles::font_scale`'s global on every change (see
+    /// `frontend::components::font_scale`'s global on every change (see
     /// `Message::Settings`) so every view's `.size()` call picks it up
     /// without a restart -- this field itself just drives the Settings
     /// picker's display and persistence, same relationship `theme` has
@@ -406,12 +389,7 @@ struct MemonBooks {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Masters(documents_view::Message),
     Ledger(ledger_view::Message),
-    Documents(documents_view::Message),
-    Trips(documents_view::Message),
-    Payroll(documents_view::Message),
-    Claims(documents_view::Message),
     Navigate(Route),
     TransactionSideSelect(TransactionSide),
     TransactionDocumentSelect(TransactionDocument),
@@ -454,12 +432,7 @@ impl MemonBooks {
                 .has_permission(&startup_user, "users.manage")
                 .unwrap_or(false);
         Self {
-            masters: documents_view::State::default(),
             ledger: ledger_view::State::default(),
-            documents: documents_view::State::default(),
-            trips: documents_view::State::default(),
-            payroll: documents_view::State::default(),
-            claims: documents_view::State::default(),
             ctx,
             session: Some(startup_user),
             can_manage_users,
@@ -499,15 +472,8 @@ impl MemonBooks {
     fn load_route(&mut self, route: Route) {
         match route {
             Route::Accounting => self.ledger = ledger_view::load(&self.ctx),
-            Route::Documents => {
-                self.documents = documents_view::load(&self.ctx, Kind::PurchaseOrder)
-            }
-            Route::Trips => self.trips = documents_view::load(&self.ctx, Kind::Trip),
-            Route::Payroll => self.payroll = documents_view::load(&self.ctx, Kind::Payroll),
-            Route::Claims => self.claims = documents_view::load(&self.ctx, Kind::Expense),
             Route::Dashboard => self.dashboard = dashboard_view::load(&self.ctx),
-            Route::Maintain => self.masters = documents_view::load(&self.ctx, Kind::Account),
-            Route::LegacyMaintain => self.maintain = maintain_view::load(&self.ctx),
+            Route::Maintain => self.maintain = maintain_view::load(&self.ctx),
             Route::JournalEntry => self.journal_entry = journal_entry_view::load(&self.ctx),
             Route::JournalEntries => self.journal_entries = journal_entries_view::load(&self.ctx),
             Route::TrialBalance => self.trial_balance = trial_balance_view::load(&self.ctx),
@@ -539,12 +505,7 @@ impl MemonBooks {
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::Masters(m) => documents_view::update(&mut self.masters, m, &self.ctx),
             Message::Ledger(m) => ledger_view::update(&mut self.ledger, m, &self.ctx),
-            Message::Documents(m) => documents_view::update(&mut self.documents, m, &self.ctx),
-            Message::Trips(m) => documents_view::update(&mut self.trips, m, &self.ctx),
-            Message::Payroll(m) => documents_view::update(&mut self.payroll, m, &self.ctx),
-            Message::Claims(m) => documents_view::update(&mut self.claims, m, &self.ctx),
             Message::Navigate(route) => {
                 self.route = route;
                 self.load_route(route);
@@ -604,30 +565,9 @@ impl MemonBooks {
                 }
             }
             Message::Dashboard(inner) => match inner {
-                dashboard_view::Message::NewExpense | dashboard_view::Message::AddReceipt => {
-                    self.route = Route::Claims;
-                    self.load_route(Route::Claims);
-                    documents_view::update(
-                        &mut self.claims,
-                        documents_view::Message::Add,
-                        &self.ctx,
-                    );
-                    if matches!(inner, dashboard_view::Message::AddReceipt) {
-                        documents_view::update(
-                            &mut self.claims,
-                            documents_view::Message::Attach,
-                            &self.ctx,
-                        );
-                    }
-                }
-                dashboard_view::Message::NewTrip => {
-                    self.route = Route::Trips;
-                    self.load_route(Route::Trips);
-                    documents_view::update(
-                        &mut self.trips,
-                        documents_view::Message::Add,
-                        &self.ctx,
-                    );
+                dashboard_view::Message::NewExpense => {
+                    self.route = Route::Expenses;
+                    self.load_route(Route::Expenses);
                 }
                 dashboard_view::Message::CreateReport => {
                     self.route = Route::Reports;
@@ -808,52 +748,10 @@ impl MemonBooks {
     fn screen(&self) -> Element<'_, Message> {
         match self.route {
             Route::Accounting => ledger_view::view(&self.ledger, self.theme).map(Message::Ledger),
-            Route::Documents => {
-                let kinds = if SALE.contains(&self.documents.kind) {
-                    SALE
-                } else if MONEY.contains(&self.documents.kind) {
-                    MONEY
-                } else {
-                    PURCHASE
-                };
-                column![
-                    row![
-                        button("Purchase").on_press(Message::Documents(
-                            documents_view::Message::Kind(Kind::PurchaseOrder)
-                        )),
-                        button("Sale").on_press(Message::Documents(documents_view::Message::Kind(
-                            Kind::Quotation
-                        ))),
-                        button("Transaction").on_press(Message::Documents(
-                            documents_view::Message::Kind(Kind::CashReceipt)
-                        ))
-                    ]
-                    .spacing(8)
-                    .padding([12, 20]),
-                    documents_view::view(&self.documents, self.theme, kinds)
-                        .map(Message::Documents)
-                ]
-                .into()
-            }
-            Route::Trips => {
-                documents_view::view(&self.trips, self.theme, &[Kind::Trip]).map(Message::Trips)
-            }
-            Route::Payroll => {
-                documents_view::view(&self.payroll, self.theme, &[Kind::Payroll, Kind::Employee])
-                    .map(Message::Payroll)
-            }
-            Route::Claims => documents_view::view(&self.claims, self.theme, &[Kind::Expense])
-                .map(Message::Claims),
             Route::Dashboard => {
                 dashboard_view::view(&self.dashboard, self.theme).map(Message::Dashboard)
             }
-            Route::Maintain => documents_view::view(
-                &self.masters,
-                self.theme,
-                memonbooks::backend::transactions::documents::MASTERS,
-            )
-            .map(Message::Masters),
-            Route::LegacyMaintain => {
+            Route::Maintain => {
                 maintain_view::view(&self.maintain, self.theme).map(Message::Maintain)
             }
             Route::JournalEntry => {

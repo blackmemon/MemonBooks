@@ -2,8 +2,8 @@ use iced::widget::overlay::menu as menu_widget;
 use iced::widget::pick_list::{Status, Style};
 use iced::{Background, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::{borders, states};
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::{borders, states};
 
 pub fn style(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     styled(theme, theme.text_primary())

@@ -5,8 +5,8 @@
 use iced::widget::{button, container};
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::states;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::states;
 
 /// `radius` must match the enclosing card's own corner radius (e.g.
 /// `borders::RADIUS_LG`, as `data_table` passes) -- the header sits flush
@@ -68,6 +68,14 @@ pub fn row(
 
 pub fn divider_color(theme: Theme) -> Color {
     theme.neutral_bg()
+}
+
+/// The 1px hairline drawn between two plain table rows.
+pub fn divider(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(divider_color(theme))),
+        ..container::Style::default()
+    }
 }
 
 /// The 1px grid-line color drawn between columns and between rows in a

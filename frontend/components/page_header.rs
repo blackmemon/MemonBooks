@@ -1,8 +1,8 @@
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::headers;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::headers;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use iced::widget::{button, column, row, text, Space};
 use iced::{Alignment, Element, Font, Length};
 

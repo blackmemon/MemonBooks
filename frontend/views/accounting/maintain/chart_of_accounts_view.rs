@@ -11,17 +11,17 @@ use crate::backend::core::reference_code;
 use crate::backend::core::validation::Validate;
 use crate::backend::services::accounting_service::AccountingService;
 use crate::database::exports::csv;
-use crate::frontend::components::common::data_table::{self, Cell, ColumnDef, Row, SortDirection};
-use crate::frontend::components::common::toolbar::{self, StatusFilter};
-use crate::frontend::components::common::{page_header, side_panel};
-use crate::frontend::styles::badges::BadgeTone;
-use crate::frontend::styles::button as button_style;
-use crate::frontend::styles::colors::Theme;
-use crate::frontend::styles::dropdown;
-use crate::frontend::styles::fonts;
-use crate::frontend::styles::inputs;
-use crate::frontend::styles::spacing;
-use crate::frontend::styles::typography;
+use crate::frontend::components::data_table::{self, Cell, ColumnDef, Row, SortDirection};
+use crate::frontend::components::toolbar::{self, StatusFilter};
+use crate::frontend::components::{page_header, side_panel};
+use crate::frontend::components::badges::BadgeTone;
+use crate::frontend::components::button as button_style;
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::dropdown;
+use crate::frontend::components::fonts;
+use crate::frontend::components::inputs;
+use crate::frontend::components::spacing;
+use crate::frontend::components::typography;
 use crate::frontend::views::Ctx;
 
 const ACCOUNT_TYPES: [AccountType; 5] = [
@@ -1021,7 +1021,7 @@ fn export_panel(state: &State, theme: Theme) -> Element<'_, Message> {
             .unwrap_or(true);
         list = list.push(
             iced::widget::checkbox(*label, is_visible)
-                .style(crate::frontend::styles::checkbox::style(theme))
+                .style(crate::frontend::components::checkbox::style(theme))
                 .on_toggle(move |_| Message::ExportColumnToggled(index))
                 .size(typography::checkbox_size())
                 .text_size(typography::label()),

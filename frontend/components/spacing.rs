@@ -52,6 +52,15 @@ pub const PAGE_BUTTON_WIDTH: f32 = 32.0;
 pub const TAB_UNDERLINE_HEIGHT: f32 = 2.0;
 /// Left padding that leaves room for a glyph inside a search box.
 pub const SEARCH_ICON_INSET: f32 = 36.0;
+/// Data table card pieces: row height, round avatar diameter, leading
+/// checkbox column, trailing actions column, header search width.
+pub const TABLE_ROW_HEIGHT: f32 = 52.0;
+pub const AVATAR_SIZE: f32 = 36.0;
+pub const CHECKBOX_COLUMN_WIDTH: f32 = 24.0;
+pub const ACTION_COLUMN_WIDTH: f32 = 48.0;
+pub const SEARCH_WIDTH: f32 = 260.0;
+/// Width of a vertical scrollbar and of the gutter reserved beside it.
+pub const SCROLLBAR_WIDTH: f32 = 8.0;
 pub const HEADER_PADDING: Padding = Padding {
     top: LG,
     right: LG,

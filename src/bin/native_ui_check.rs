@@ -85,7 +85,8 @@ impl Check {
                     0 => "home",
                     1 => "general-ledger",
                     2 => "vendors-list",
-                    _ => "vendor-form",
+                    3 => "vendor-form",
+                    _ => "vendor-preview",
                 };
                 let path = self.output.join(format!("{name}.png"));
                 let file = std::fs::File::create(&path).expect("screenshot file");
@@ -105,7 +106,7 @@ impl Check {
                     screenshot.size.height
                 );
                 self.step += 1;
-                if self.step >= 4 {
+                if self.step >= 5 {
                     return iced::exit();
                 }
                 if self.step == 2 {
@@ -118,6 +119,12 @@ impl Check {
                     maintain_view::update(
                         &mut self.maintain,
                         maintain_view::Message::Vendors(vendors_view::Message::OpenForm),
+                        &self.ctx,
+                    );
+                } else if self.step == 4 {
+                    maintain_view::update(
+                        &mut self.maintain,
+                        maintain_view::Message::Vendors(vendors_view::Message::Preview),
                         &self.ctx,
                     );
                 }

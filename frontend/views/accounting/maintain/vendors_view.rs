@@ -1,5 +1,5 @@
 use crate::backend::core::validation::Validate;
-use crate::backend::parties::vendors::Vendor;
+use crate::backend::parties::vendors::{Vendor, VENDOR_TYPES};
 use crate::backend::services::party_service::PartyService;
 use crate::database::exports::csv;
 use crate::frontend::components::badges::{self, BadgeTone};
@@ -13,7 +13,6 @@ use crate::frontend::components::forms;
 use crate::frontend::components::icons;
 use crate::frontend::components::inputs;
 use crate::frontend::components::labels;
-use crate::frontend::components::scrollbar;
 use crate::frontend::components::spacing;
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::StatusFilter;
@@ -26,10 +25,99 @@ use iced::widget::{
 use iced::{Alignment, Element, Length};
 use std::collections::HashSet;
 
-const COLUMN_LABELS: [&str; 2] = ["Vendor", "Status"];
+const VENDOR_HEADERS: [&str; 21] = [
+    "S.No",
+    "",
+    "Vendor ID",
+    "Vendor Name",
+    "Company Name",
+    "Phone",
+    "Email",
+    "Website",
+    "Mailing Address",
+    "Shipping Address",
+    "Payment Terms",
+    "Debit",
+    "Credit",
+    "Balance",
+    "Payment Method",
+    "Attachments",
+    "Description",
+    "Status",
+    "Create Timestamp",
+    "Modified Timestamp",
+    "Custom Fields",
+];
+const VENDOR_ALWAYS_SELECTED: [&str; 10] = [
+    "S.No",
+    "Vendor ID",
+    "Vendor Name",
+    "Company Name",
+    "Phone",
+    "Email",
+    "Mailing Address",
+    "Debit",
+    "Credit",
+    "Balance",
+];
+const VENDOR_DEFAULT_VISIBLE: [&str; 10] = [
+    "S.No",
+    "Vendor ID",
+    "Vendor Name",
+    "Company Name",
+    "Phone",
+    "Email",
+    "Mailing Address",
+    "Debit",
+    "Credit",
+    "Balance",
+];
+const VENDOR_VISIBLE_COLUMNS: [(&str, bool); 21] = [
+    ("S.No", true),
+    ("", true),
+    ("Vendor ID", true),
+    ("Vendor Name", true),
+    ("Company Name", true),
+    ("Phone", true),
+    ("Email", true),
+    ("Website", false),
+    ("Mailing Address", true),
+    ("Shipping Address", false),
+    ("Payment Terms", false),
+    ("Debit", true),
+    ("Credit", true),
+    ("Balance", true),
+    ("Payment Method", false),
+    ("Attachments", false),
+    ("Description", false),
+    ("Status", false),
+    ("Create Timestamp", false),
+    ("Modified Timestamp", false),
+    ("Custom Fields", false),
+];
+const VENDOR_OPTIONAL_COLUMNS: [&str; 10] = [
+    "Website",
+    "Shipping Address",
+    "Payment Terms",
+    "Payment Method",
+    "Attachments",
+    "Description",
+    "Status",
+    "Create Timestamp",
+    "Modified Timestamp",
+    "Custom Fields",
+];
+const VENDOR_TYPE_OPTIONS: [&str; 6] = [
+    "All",
+    "Supplier",
+    "Contractor",
+    "Distributor",
+    "Manufacturer",
+    "Other",
+];
+const VENDOR_STATUS_OPTIONS: [&str; 2] = ["Active", "Inactive"];
 const PAGE_SIZES: [usize; 4] = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE: usize = 50;
-const DEFAULT_COLUMN_VISIBLE: [bool; 2] = [true, true];
 const VENDOR_FORM_TABS: [&str; 2] = ["Details", "Payment"];
 
 #[derive(Debug, Clone, Default)]
@@ -39,15 +127,19 @@ pub struct State {
     email_input: String,
     phone_input: String,
     tax_id_input: String,
+    vendor_type_input: String,
+    status_input: String,
     payment_terms_input: String,
     form_tab: usize,
     search: String,
+    vendor_type_filter: String,
     editing_id: Option<i64>,
     selected: HashSet<i64>,
     status_filter: StatusFilter,
     columns_open: bool,
     column_visible: Vec<bool>,
     form_open: bool,
+    show_preview: bool,
     page: usize,
     page_size: usize,
     message: Option<String>,
@@ -60,9 +152,13 @@ pub enum Message {
     EmailChanged(String),
     PhoneChanged(String),
     TaxIdChanged(String),
+    VendorTypeChanged(String),
+    VendorTypeFilterChanged(String),
+    StatusChanged(String),
     PaymentTermsChanged(String),
     FormTabChanged(usize),
     OpenForm,
+    Preview,
     Create,
     EditRow(i64),
     CancelEdit,
@@ -101,10 +197,12 @@ pub fn load(ctx: &Ctx) -> State {
     match service.list_vendors(ctx.company_id) {
         Ok(vendors) => State {
             vendors,
+            column_visible: default_column_visibility(),
             ..Default::default()
         },
         Err(err) => State {
             error: Some(err.to_string()),
+            column_visible: default_column_visibility(),
             ..Default::default()
         },
     }
@@ -116,8 +214,15 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::EmailChanged(value) => state.email_input = value,
         Message::PhoneChanged(value) => state.phone_input = value,
         Message::TaxIdChanged(value) => state.tax_id_input = value,
+        Message::VendorTypeChanged(value) => state.vendor_type_input = value,
+        Message::VendorTypeFilterChanged(value) => {
+            state.vendor_type_filter = value;
+            state.page = 0;
+        }
+        Message::StatusChanged(value) => state.status_input = value,
         Message::PaymentTermsChanged(value) => state.payment_terms_input = value,
         Message::FormTabChanged(index) => state.form_tab = index.min(VENDOR_FORM_TABS.len() - 1),
+        Message::Preview => state.show_preview = !state.show_preview,
         Message::OpenForm => {
             state.message = None;
             state.error = None;
@@ -126,9 +231,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.email_input.clear();
             state.phone_input.clear();
             state.tax_id_input.clear();
+            state.vendor_type_input = "Other".into();
+            state.status_input = "Active".into();
             state.payment_terms_input = "30".into();
             state.form_tab = 0;
             state.form_open = true;
+            state.show_preview = false;
         }
         Message::Create => {
             state.message = None;
@@ -150,6 +258,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                     email: optional_input(&state.email_input),
                     phone: optional_input(&state.phone_input),
                     tax_id: optional_input(&state.tax_id_input),
+                    vendor_type: state.vendor_type_input.clone(),
+                    is_active: state.status_input == "Active",
                     payment_terms_days,
                     ..existing
                 };
@@ -169,9 +279,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         state.email_input.clear();
                         state.phone_input.clear();
                         state.tax_id_input.clear();
+                        state.vendor_type_input = "Other".into();
+                        state.status_input = "Active".into();
                         state.payment_terms_input = "30".into();
                         state.form_tab = 0;
                         state.message = Some("Saved changes.".into());
+                        state.show_preview = false;
                     }
                     Err(err) => state.error = Some(err.to_string()),
                 }
@@ -182,6 +295,8 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             vendor.email = optional_input(&state.email_input);
             vendor.phone = optional_input(&state.phone_input);
             vendor.tax_id = optional_input(&state.tax_id_input);
+            vendor.vendor_type = state.vendor_type_input.clone();
+            vendor.is_active = state.status_input == "Active";
             vendor.payment_terms_days = payment_terms_days;
             if let Err(err) = vendor.validate() {
                 state.error = Some(err.to_string());
@@ -195,9 +310,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                     state.email_input.clear();
                     state.phone_input.clear();
                     state.tax_id_input.clear();
+                    state.vendor_type_input = "Other".into();
+                    state.status_input = "Active".into();
                     state.payment_terms_input = "30".into();
                     state.form_tab = 0;
                     state.form_open = false;
+                    state.show_preview = false;
                 }
                 Err(err) => state.error = Some(err.to_string()),
             }
@@ -208,10 +326,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             if let Some(vendor) = state.vendors.iter().find(|v| v.id == Some(id)) {
                 state.editing_id = Some(id);
                 state.form_open = true;
+                state.show_preview = false;
                 state.name_input = vendor.name.clone();
                 state.email_input = vendor.email.clone().unwrap_or_default();
                 state.phone_input = vendor.phone.clone().unwrap_or_default();
                 state.tax_id_input = vendor.tax_id.clone().unwrap_or_default();
+                state.vendor_type_input = vendor.vendor_type.clone();
+                state.status_input = if vendor.is_active { "Active" } else { "Inactive" }.into();
                 state.payment_terms_input = vendor.payment_terms_days.to_string();
                 state.form_tab = 0;
             }
@@ -219,10 +340,13 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::CancelEdit => {
             state.editing_id = None;
             state.form_open = false;
+            state.show_preview = false;
             state.name_input.clear();
             state.email_input.clear();
             state.phone_input.clear();
             state.tax_id_input.clear();
+            state.vendor_type_input.clear();
+            state.status_input.clear();
             state.payment_terms_input.clear();
             state.form_tab = 0;
             state.error = None;
@@ -286,7 +410,14 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state
                     .vendors
                     .iter()
-                    .filter(|v| matches_filters(v, &query, state.status_filter))
+                    .filter(|v| {
+                        matches_filters(
+                            v,
+                            &query,
+                            state.status_filter,
+                            &state.vendor_type_filter,
+                        )
+                    })
                     .collect()
             } else {
                 state
@@ -295,7 +426,14 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                     .filter(|v| state.selected.contains(&v.id.unwrap_or_default()))
                     .collect()
             };
-            let headers = ["Name", "Email", "Phone", "Payment Terms (days)", "Status"];
+            let headers = [
+                "Name",
+                "Email",
+                "Phone",
+                "Vendor Type",
+                "Payment Terms (days)",
+                "Status",
+            ];
             let rows: Vec<Vec<String>> = selected
                 .iter()
                 .map(|v| {
@@ -303,6 +441,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         v.name.clone(),
                         v.email.clone().unwrap_or_default(),
                         v.phone.clone().unwrap_or_default(),
+                        v.vendor_type.clone(),
                         v.payment_terms_days.to_string(),
                         if v.is_active {
                             "Active".to_string()
@@ -335,18 +474,39 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
         Message::ResetAll => {
             state.search.clear();
             state.status_filter = StatusFilter::All;
+            state.vendor_type_filter = "All".into();
             state.page = 0;
         }
         Message::ToggleColumns => state.columns_open = !state.columns_open,
         Message::ColumnToggled(index) => {
-            if index >= state.column_visible.len() {
-                state.column_visible.resize(index + 1, true);
+            if let Some(label) = VENDOR_OPTIONAL_COLUMNS.get(index) {
+                if state.column_visible.len() != VENDOR_HEADERS.len() {
+                    state.column_visible = default_column_visibility();
+                }
+                if let Some(column_index) = VENDOR_HEADERS.iter().position(|header| header == label)
+                {
+                    let was_visible = column_visible(state, column_index);
+                    state.column_visible[column_index] = !was_visible;
+                }
             }
-            state.column_visible[index] = !state.column_visible[index];
         }
-        Message::SelectAllColumns => state.column_visible = vec![true; COLUMN_LABELS.len()],
-        Message::DeselectAllColumns => state.column_visible = vec![false; COLUMN_LABELS.len()],
-        Message::ResetColumns => state.column_visible = DEFAULT_COLUMN_VISIBLE.to_vec(),
+        Message::SelectAllColumns => {
+            state.column_visible = default_column_visibility();
+            for label in VENDOR_OPTIONAL_COLUMNS {
+                if let Some(index) = VENDOR_HEADERS.iter().position(|header| *header == label) {
+                    state.column_visible[index] = true;
+                }
+            }
+        }
+        Message::DeselectAllColumns => {
+            state.column_visible = default_column_visibility();
+            for label in VENDOR_OPTIONAL_COLUMNS {
+                if let Some(index) = VENDOR_HEADERS.iter().position(|header| *header == label) {
+                    state.column_visible[index] = false;
+                }
+            }
+        }
+        Message::ResetColumns => state.column_visible = default_column_visibility(),
     }
 }
 
@@ -393,12 +553,62 @@ fn optional_input(value: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_string())
 }
 
+fn default_column_visibility() -> Vec<bool> {
+    VENDOR_HEADERS
+        .iter()
+        .map(|label| {
+            label.is_empty()
+                || VENDOR_DEFAULT_VISIBLE.contains(label)
+                    && VENDOR_VISIBLE_COLUMNS
+                        .iter()
+                        .any(|(column, visible)| column == label && *visible)
+        })
+        .collect()
+}
+
+fn column_visible(state: &State, index: usize) -> bool {
+    let Some(label) = VENDOR_HEADERS.get(index) else {
+        return false;
+    };
+    if label.is_empty() || VENDOR_ALWAYS_SELECTED.contains(label) {
+        return true;
+    }
+    state
+        .column_visible
+        .get(index)
+        .copied()
+        .unwrap_or_else(|| {
+            VENDOR_VISIBLE_COLUMNS
+                .iter()
+                .find(|(column, _)| column == label)
+                .is_some_and(|(_, visible)| *visible)
+        })
+}
+
+fn optional_column_visibility(state: &State) -> Vec<bool> {
+    VENDOR_OPTIONAL_COLUMNS
+        .iter()
+        .map(|label| {
+            VENDOR_HEADERS
+                .iter()
+                .position(|header| header == label)
+                .is_some_and(|index| column_visible(state, index))
+        })
+        .collect()
+}
+
 /// Whether a vendor passes both the search box and the status filter --
 /// shared by the table's live filtering in `view` and by
 /// `BulkExportCsv`'s "no selection -> export everything currently
 /// visible" fallback, so the two can never disagree.
-fn matches_filters(vendor: &Vendor, query: &str, status: StatusFilter) -> bool {
+fn matches_filters(
+    vendor: &Vendor,
+    query: &str,
+    status: StatusFilter,
+    vendor_type: &str,
+) -> bool {
     status.matches(vendor.is_active)
+        && (vendor_type.is_empty() || vendor_type == "All" || vendor.vendor_type == vendor_type)
         && (query.is_empty()
             || vendor.name.to_lowercase().contains(query)
             || vendor
@@ -411,7 +621,121 @@ fn matches_filters(vendor: &Vendor, query: &str, status: StatusFilter) -> bool {
 
 const TITLE: &str = "Vendors";
 const SUBTITLE: &str = "Manage your vendors and their contact details.";
-const COLUMN_WIDTHS: [Length; 2] = [Length::FillPortion(3), Length::FillPortion(1)];
+fn column_width_px(label: &str) -> f32 {
+    match label {
+        "Vendor ID" => 140.0,
+        "Vendor Name" => 220.0,
+        "Company Name" => 180.0,
+        "Phone" => 120.0,
+        "Email" => 220.0,
+        "Website" => 180.0,
+        "Mailing Address" | "Shipping Address" => 200.0,
+        "Payment Terms" => 120.0,
+        "Debit" | "Credit" => 100.0,
+        "Balance" => 110.0,
+        "Payment Method" | "Attachments" => 140.0,
+        "Description" => 200.0,
+        "Status" => 100.0,
+        "Create Timestamp" | "Modified Timestamp" => 180.0,
+        "Custom Fields" => 160.0,
+        _ => 68.0,
+    }
+}
+
+fn column_width(label: &str) -> Length {
+    Length::Fixed(column_width_px(label))
+}
+
+fn table_widths(state: &State) -> (f32, f32) {
+    let (field_width, field_count) = VENDOR_HEADERS
+        .iter()
+        .enumerate()
+        .skip(2)
+        .filter(|(index, _)| column_visible(state, *index))
+        .fold((0.0, 0.0), |(width, count), (_, label)| {
+            (width + column_width_px(label), count + 1.0)
+        });
+    let row_width = 68.0
+        + 44.0
+        + spacing::ACTION_COLUMN_WIDTH
+        + field_width
+        + spacing::MD * (field_count + 2.0);
+    let table_width = row_width + spacing::MD * 2.0 + spacing::SCROLLBAR_WIDTH;
+    (table_width, row_width)
+}
+
+fn vendor_preview(state: &State, theme: Theme) -> Element<'static, Message> {
+    let saved = state
+        .editing_id
+        .and_then(|id| state.vendors.iter().find(|vendor| vendor.id == Some(id)));
+    let name = if state.name_input.is_empty() {
+        "New Vendor".into()
+    } else {
+        state.name_input.clone()
+    };
+    let vendor_id = saved
+        .and_then(|vendor| vendor.reference_code.clone())
+        .unwrap_or_else(|| "Assigned on save".into());
+    let status = if state.status_input.is_empty() {
+        "Active".into()
+    } else {
+        state.status_input.clone()
+    };
+    let value = |input: &str| {
+        if input.is_empty() {
+            "--".to_string()
+        } else {
+            input.to_string()
+        }
+    };
+    let identity = vec![
+        forms::PreviewField::new("Vendor ID", vendor_id.clone()),
+        forms::PreviewField::new("Phone", value(&state.phone_input)),
+        forms::PreviewField::new("Email", value(&state.email_input)),
+    ];
+    let details = forms::PreviewSection::new(
+        "Vendor Details",
+        vec![
+            forms::PreviewField::new("Vendor ID", vendor_id),
+            forms::PreviewField::new("Vendor Name", value(&state.name_input)),
+            forms::PreviewField::new("Company Name", "--"),
+            forms::PreviewField::new("Phone", value(&state.phone_input)),
+            forms::PreviewField::new("Email", value(&state.email_input)),
+            forms::PreviewField::new("Website", "--"),
+            forms::PreviewField::new("Mailing Address", "--"),
+            forms::PreviewField::new("Shipping Address", "--"),
+            forms::PreviewField::new("Description", "--"),
+            forms::PreviewField::new("Custom Fields", "--"),
+            forms::PreviewField::new("Vendor Type", value(&state.vendor_type_input)),
+        ],
+    );
+    let payment = forms::PreviewSection::new(
+        "Payment & Account",
+        vec![
+            forms::PreviewField::new("Payment Terms", format!("{} days", state.payment_terms_input)),
+            forms::PreviewField::new("Debit", "--"),
+            forms::PreviewField::new("Credit", "--"),
+            forms::PreviewField::new("Balance", "--"),
+            forms::PreviewField::new("Payment Method", "--"),
+            forms::PreviewField::new("Attachments", "--"),
+            forms::PreviewField::new("Status", status.clone()),
+            forms::PreviewField::new("Create Timestamp", "--"),
+            forms::PreviewField::new("Modified Timestamp", "--"),
+        ],
+    );
+    forms::record_preview(
+        theme,
+        forms::RecordPreview {
+            name,
+            subtitle: format!("Vendor · {}", value(&state.vendor_type_input)),
+            status,
+            identity,
+            sections: vec![details, payment],
+        },
+        Message::Preview,
+        Message::Preview,
+    )
+}
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
     body(state, theme, None, |message| message)
@@ -536,47 +860,6 @@ fn check_box(theme: Theme, state: CheckState, on_press: Message) -> Element<'sta
     .into()
 }
 
-/// Up to two leading letters of `name`, upper-cased, for an avatar.
-fn initials(name: &str) -> String {
-    let letters: String = name
-        .split_whitespace()
-        .filter_map(|word| word.chars().next())
-        .take(2)
-        .flat_map(char::to_uppercase)
-        .collect();
-    if letters.is_empty() {
-        "?".to_string()
-    } else {
-        letters
-    }
-}
-
-/// Round initials avatar, the bold name, and a muted line beneath it.
-fn person_cell(theme: Theme, name: &str, subtitle: String) -> Element<'static, Message> {
-    let avatar = container(
-        text(initials(name))
-            .size(typography::body())
-            .font(fonts::BOLD)
-            .color(theme.primary()),
-    )
-    .width(Length::Fixed(spacing::AVATAR_SIZE))
-    .height(Length::Fixed(spacing::AVATAR_SIZE))
-    .center_x(Length::Fixed(spacing::AVATAR_SIZE))
-    .center_y(Length::Fixed(spacing::AVATAR_SIZE))
-    .style(badges::avatar(theme));
-    row![
-        avatar,
-        column![
-            labels::strong(theme, name.to_string(), typography::label()),
-            labels::muted(theme, subtitle, typography::caption()),
-        ]
-        .spacing(spacing::SPACE_2),
-    ]
-    .spacing(spacing::SPACE_12)
-    .align_y(Alignment::Center)
-    .into()
-}
-
 /// Small tinted status pill.
 fn status_pill(theme: Theme, label: &'static str, tone: BadgeTone) -> Element<'static, Message> {
     container(
@@ -621,13 +904,18 @@ fn table_header(
     check: CheckState,
     on_toggle: Message,
     visible: &dyn Fn(usize) -> bool,
+    row_width: f32,
 ) -> Element<'static, Message> {
-    let mut header = row![check_box(theme, check, on_toggle)]
+    let mut header = row![
+        container(text("S.No").size(typography::caption()).font(fonts::BOLD))
+            .width(column_width("S.No")),
+        container(check_box(theme, check, on_toggle)).width(Length::Fixed(44.0)),
+    ]
         .spacing(spacing::MD)
         .align_y(Alignment::Center);
-    for (index, label) in COLUMN_LABELS.iter().enumerate() {
+    for (index, label) in VENDOR_HEADERS.iter().enumerate().skip(2) {
         if visible(index) {
-            header = header.push(column_label(theme, label, index == 0, COLUMN_WIDTHS[index]));
+            header = header.push(column_label(theme, label, false, column_width(label)));
         }
     }
     header = header.push(Space::with_width(Length::Fixed(
@@ -640,7 +928,7 @@ fn table_header(
             bottom: spacing::SPACE_10,
             left: spacing::MD,
         })
-        .width(Length::Fill)
+        .width(Length::Fixed(row_width + spacing::MD * 2.0 + spacing::SCROLLBAR_WIDTH))
         .style(table_style::header_row(theme, 0.0))
         .into()
 }
@@ -650,40 +938,52 @@ fn table_header(
 fn vendor_row(
     theme: Theme,
     vendor: &Vendor,
+    serial_number: usize,
+    row_width: f32,
     selected: bool,
     highlighted: bool,
     visible: &dyn Fn(usize) -> bool,
 ) -> Element<'static, Message> {
     let id = vendor.id.unwrap_or_default();
-    let mut cells = row![check_box(
-        theme,
-        if selected {
-            CheckState::Checked
-        } else {
-            CheckState::Unchecked
-        },
-        Message::RowSelected(id, !selected),
-    )]
+    let mut cells = row![
+        container(text(serial_number.to_string()).size(typography::body()))
+            .width(column_width("S.No")),
+        container(check_box(
+            theme,
+            if selected {
+                CheckState::Checked
+            } else {
+                CheckState::Unchecked
+            },
+            Message::RowSelected(id, !selected),
+        ))
+        .width(Length::Fixed(44.0)),
+    ]
     .spacing(spacing::MD)
-    .padding([0.0, spacing::MD])
     .height(Length::Fixed(spacing::TABLE_ROW_HEIGHT))
     .align_y(Alignment::Center);
-    if visible(0) {
-        let subtitle = vendor
-            .phone
-            .clone()
-            .or_else(|| vendor.email.clone())
-            .unwrap_or_default();
-        cells = cells
-            .push(container(person_cell(theme, &vendor.name, subtitle)).width(COLUMN_WIDTHS[0]));
-    }
-    if visible(1) {
-        let (label, tone) = if vendor.is_active {
-            ("Active", BadgeTone::Positive)
-        } else {
-            ("Archived", BadgeTone::Neutral)
+    for (index, label) in VENDOR_HEADERS.iter().enumerate().skip(2) {
+        if !visible(index) {
+            continue;
+        }
+        let cell: Element<'static, Message> = match *label {
+            "Vendor Name" => labels::strong(theme, vendor.name.clone(), typography::label()).into(),
+            "Status" => {
+                let (label, tone) = if vendor.is_active {
+                    ("Active", BadgeTone::Positive)
+                } else {
+                    ("Archived", BadgeTone::Neutral)
+                };
+                status_pill(theme, label, tone)
+            }
+            _ => labels::muted(
+                theme,
+                vendor_column_value(vendor, label),
+                typography::body(),
+            )
+            .into(),
         };
-        cells = cells.push(container(status_pill(theme, label, tone)).width(COLUMN_WIDTHS[1]));
+        cells = cells.push(container(cell).width(column_width(label)));
     }
     cells = cells.push(
         container(icon_button(
@@ -698,10 +998,29 @@ fn vendor_row(
     );
     button(cells)
         .padding(0)
-        .width(Length::Fill)
+        .width(Length::Fixed(row_width))
         .style(table_style::row(theme, highlighted))
         .on_press(Message::EditRow(id))
         .into()
+}
+
+fn vendor_column_value(vendor: &Vendor, label: &str) -> String {
+    match label {
+        "Vendor ID" => vendor
+            .reference_code
+            .clone()
+            .or_else(|| vendor.id.map(|id| id.to_string()))
+            .unwrap_or_default(),
+        "Company Name" | "Website" | "Mailing Address" | "Shipping Address"
+        | "Payment Method" | "Attachments" | "Description" | "Create Timestamp"
+        | "Modified Timestamp" | "Custom Fields" | "Debit" | "Credit" | "Balance" => {
+            "--".into()
+        }
+        "Phone" => vendor.phone.clone().unwrap_or_default(),
+        "Email" => vendor.email.clone().unwrap_or_default(),
+        "Payment Terms" => format!("{} days", vendor.payment_terms_days),
+        _ => String::new(),
+    }
 }
 
 /// Page numbers to show: every page when there are few, otherwise the
@@ -811,16 +1130,44 @@ fn field<'a>(
     label: &'a str,
     input: iced::widget::TextInput<'a, Message>,
 ) -> Element<'a, Message> {
-    column![
-        labels::muted(theme, label, typography::caption()),
+    field_element(
+        theme,
+        label,
         input
             .style(inputs::text(theme))
             .width(Length::Fill)
-            .padding(spacing::SM),
+            .padding(spacing::SM)
+            .into(),
+    )
+}
+
+fn field_element<'a>(
+    theme: Theme,
+    label: &'a str,
+    input: Element<'a, Message>,
+) -> Element<'a, Message> {
+    column![
+        labels::muted(theme, label, typography::caption()),
+        input,
     ]
     .spacing(spacing::SPACE_4)
     .width(Length::FillPortion(1))
     .into()
+}
+
+fn readonly_field(
+    theme: Theme,
+    label: &'static str,
+    value: impl Into<String>,
+) -> Element<'static, Message> {
+    field_element(
+        theme,
+        label,
+        text(value.into())
+            .size(typography::body())
+            .color(theme.neutral_font())
+            .into(),
+    )
 }
 
 fn body<'a, M: Clone + 'a>(
@@ -830,13 +1177,31 @@ fn body<'a, M: Clone + 'a>(
     wrap: impl Fn(Message) -> M + Clone + 'a,
 ) -> Element<'a, M> {
     let lift = |element: Element<'a, Message>| element.map(wrap.clone());
-    let visible_column = |index: usize| state.column_visible.get(index).copied().unwrap_or(true);
+    if state.show_preview {
+        let mut preview = column![];
+        if let Some(switcher) = switcher {
+            preview = preview.push(switcher);
+        }
+        return preview
+            .push(lift(vendor_preview(state, theme)))
+            .spacing(spacing::MD)
+            .padding(spacing::SPACE_20)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
+    }
+    let visible_column = |index: usize| column_visible(state, index);
 
     let query = state.search.trim().to_lowercase();
+    let vendor_type = if state.vendor_type_filter.is_empty() {
+        "All"
+    } else {
+        state.vendor_type_filter.as_str()
+    };
     let filtered: Vec<&Vendor> = state
         .vendors
         .iter()
-        .filter(|vendor| matches_filters(vendor, &query, state.status_filter))
+        .filter(|vendor| matches_filters(vendor, &query, state.status_filter, vendor_type))
         .collect();
     let total = filtered.len();
     let size = state.rows_per_page();
@@ -881,8 +1246,21 @@ fn body<'a, M: Clone + 'a>(
             .padding([spacing::SPACE_10, spacing::SPACE_12])
     ]
     .width(Length::Fixed(spacing::SEARCH_WIDTH));
+    let selected_vendor_type = if state.vendor_type_filter.is_empty() {
+        "All"
+    } else {
+        state.vendor_type_filter.as_str()
+    };
     let controls = row![
         search_box,
+        pick_list(
+            VENDOR_TYPE_OPTIONS,
+            Some(selected_vendor_type),
+            |value| Message::VendorTypeFilterChanged(value.to_string())
+        )
+        .placeholder("Vendor type")
+        .style(dropdown::style(theme))
+        .menu_style(dropdown::dropdown_menu(theme)),
         icon_button(theme, icons::RESET, "Reset all", Message::ResetAll, true),
         icon_button(
             theme,
@@ -950,7 +1328,8 @@ fn body<'a, M: Clone + 'a>(
         .count();
     let check = CheckState::from_counts(selected_here, row_ids.len());
     let toggle_all = Message::SelectAllChanged(row_ids, check != CheckState::Checked);
-    let header_row = table_header(theme, check, toggle_all, &visible_column);
+    let (table_width, row_width) = table_widths(state);
+    let header_row = table_header(theme, check, toggle_all, &visible_column, row_width);
 
     let mut rows = column![];
     for (index, vendor) in visible.iter().enumerate() {
@@ -965,13 +1344,28 @@ fn body<'a, M: Clone + 'a>(
         rows = rows.push(vendor_row(
             theme,
             vendor,
+            page * size + index + 1,
+            row_width,
             state.selected.contains(&id),
             state.selected.contains(&id) || (state.form_open && state.editing_id == vendor.id),
             &visible_column,
         ));
     }
-    let table_area = scrollable(rows.width(Length::Fill))
-        .direction(scrollbar::vertical())
+    let table_area = scrollable(
+        column![header_row, rows.width(Length::Fixed(row_width))]
+            .width(Length::Fixed(table_width))
+            .spacing(spacing::SPACE_1),
+    )
+        .direction(scrollable::Direction::Both {
+            vertical: scrollable::Scrollbar::new()
+                .width(spacing::SCROLLBAR_WIDTH)
+                .scroller_width(spacing::SCROLLBAR_WIDTH)
+                .spacing(0.0),
+            horizontal: scrollable::Scrollbar::new()
+                .width(spacing::SCROLLBAR_WIDTH)
+                .scroller_width(spacing::SCROLLBAR_WIDTH)
+                .spacing(0.0),
+        })
         .height(Length::Fill);
 
     let mut card = column![
@@ -979,7 +1373,7 @@ fn body<'a, M: Clone + 'a>(
         lift(container(tab_row).padding([0.0, spacing::MD]).into())
     ];
     // Removed the conditional block for bulk actions as it is no longer needed
-    card = card.push(lift(header_row)).push(lift(table_area.into()));
+    card = card.push(lift(table_area.into()));
     if let Some(message) = &state.message {
         card = card.push(lift(
             container(text(message.clone()).color(theme.positive_front()))
@@ -1011,57 +1405,75 @@ fn body<'a, M: Clone + 'a>(
     let editing = state
         .editing_id
         .and_then(|id| state.vendors.iter().find(|r| r.id == Some(id)));
-    let mut form = column![
+    let summary_name = if state.name_input.is_empty() {
+        "New Vendor".to_string()
+    } else {
+        state.name_input.clone()
+    };
+    let summary = container(
         row![
-            labels::strong(theme, "Vendor Details", typography::panel_title()),
-            Space::with_width(Length::Fill),
-            button(text(icons::CLOSE).size(typography::label()))
-                .padding([spacing::SPACE_4, spacing::SPACE_8])
-                .style(button_style::plain(theme))
-                .on_press(Message::CancelEdit),
+            column![
+                labels::strong(theme, summary_name, typography::emphasis()),
+                labels::muted(
+                    theme,
+                    format!(
+                        "{}  ·  {}",
+                        if state.phone_input.is_empty() { "--" } else { &state.phone_input },
+                        if state.email_input.is_empty() { "--" } else { &state.email_input }
+                    ),
+                    typography::caption(),
+                ),
+            ]
+            .spacing(spacing::SPACE_4)
+            .width(Length::Fill),
+            status_pill(
+                theme,
+                if state.status_input == "Inactive" {
+                    "Archived"
+                } else {
+                    "Active"
+                },
+                if state.status_input == "Inactive" {
+                    BadgeTone::Neutral
+                } else {
+                    BadgeTone::Positive
+                },
+            ),
         ]
+        .spacing(spacing::MD)
         .align_y(Alignment::Center),
-        forms::tab_bar(
-            theme,
-            &VENDOR_FORM_TABS,
-            state.form_tab,
-            Message::FormTabChanged,
-        ),
-    ]
-    .spacing(spacing::MD);
-    if let Some(record) = editing {
-        let line = |value: String| labels::muted(theme, value, typography::caption());
-        form = form.push(
-            container(
-                column![
-                    labels::strong(theme, record.name.clone(), typography::emphasis()),
-                    line(record.phone.clone().unwrap_or_else(|| "--".to_string())),
-                    line(record.email.clone().unwrap_or_else(|| "--".to_string())),
-                    line(record.tax_id.clone().unwrap_or_else(|| "--".to_string())),
-                ]
-                .spacing(spacing::SPACE_4),
-            )
-            .padding(spacing::MD)
-            .width(Length::Fill)
-            .style(panels::flat_card(theme, states::RADIUS_MD)),
-        );
-    }
+    )
+    .padding(spacing::MD)
+    .width(Length::Fill)
+    .style(panels::flat_card(theme, states::RADIUS_MD))
+    .into();
+    let mut form = column![].spacing(spacing::MD);
     match state.form_tab {
         0 => {
+            let vendor_id = editing
+                .and_then(|vendor| vendor.reference_code.clone())
+                .unwrap_or_else(|| "Assigned on save".into());
             form = form
                 .push(
                     row![
+                        readonly_field(theme, "Vendor ID", vendor_id),
                         field(
                             theme,
                             "Vendor name",
                             text_input("Vendor name", &state.name_input)
                                 .on_input(Message::NameChanged)
                         ),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        readonly_field(theme, "Company Name", "--"),
                         field(
                             theme,
-                            "Email (optional)",
-                            text_input("Email (optional)", &state.email_input)
-                                .on_input(Message::EmailChanged)
+                            "Phone (optional)",
+                            text_input("Phone (optional)", &state.phone_input)
+                                .on_input(Message::PhoneChanged)
                         ),
                     ]
                     .spacing(spacing::SM),
@@ -1070,39 +1482,126 @@ fn body<'a, M: Clone + 'a>(
                     row![
                         field(
                             theme,
-                            "Phone (optional)",
-                            text_input("Phone (optional)", &state.phone_input)
-                                .on_input(Message::PhoneChanged)
+                            "Email (optional)",
+                            text_input("Email (optional)", &state.email_input)
+                                .on_input(Message::EmailChanged)
                         ),
+                        readonly_field(theme, "Website", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        readonly_field(theme, "Mailing Address", "--"),
+                        readonly_field(theme, "Shipping Address", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
                         field(
                             theme,
                             "Tax ID (optional)",
                             text_input("Tax ID (optional)", &state.tax_id_input)
                                 .on_input(Message::TaxIdChanged)
                         ),
+                        readonly_field(theme, "Description", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        field_element(
+                            theme,
+                            "Vendor type",
+                            pick_list(VENDOR_TYPES, Some(state.vendor_type_input.as_str()), |value| {
+                                Message::VendorTypeChanged(value.to_string())
+                            })
+                            .style(dropdown::style(theme))
+                            .padding(spacing::SM)
+                            .width(Length::Fill)
+                            .into(),
+                        ),
+                        readonly_field(theme, "Custom Fields", "--"),
                     ]
                     .spacing(spacing::SM),
                 );
         }
         _ => {
-            form = form.push(row![field(
-                theme,
-                "Payment terms (days)",
-                text_input("30", &state.payment_terms_input).on_input(Message::PaymentTermsChanged)
-            )]);
+            form = form
+                .push(
+                    row![
+                        field(
+                            theme,
+                            "Payment Terms",
+                            text_input("30", &state.payment_terms_input)
+                                .on_input(Message::PaymentTermsChanged)
+                        ),
+                        readonly_field(theme, "Debit", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        readonly_field(theme, "Credit", "--"),
+                        readonly_field(theme, "Balance", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        readonly_field(theme, "Payment Method", "--"),
+                        readonly_field(theme, "Attachments", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(
+                    row![
+                        field_element(
+                            theme,
+                            "Status",
+                            pick_list(
+                                VENDOR_STATUS_OPTIONS,
+                                Some(state.status_input.as_str()),
+                                |value| Message::StatusChanged(value.to_string()),
+                            )
+                            .style(dropdown::style(theme))
+                            .padding(spacing::SM)
+                            .width(Length::Fill)
+                            .into(),
+                        ),
+                        readonly_field(theme, "Create Timestamp", "--"),
+                    ]
+                    .spacing(spacing::SM),
+                )
+                .push(row![
+                    readonly_field(theme, "Modified Timestamp", "--"),
+                    Space::with_width(Length::Fill),
+                ]);
         }
     }
-    form = form.push(Space::with_height(Length::Fill)).push(
-        row![
-            bold_button("Save", [spacing::SM, spacing::MD])
-                .style(button_style::mode(theme, true))
-                .on_press(Message::Create),
-            bold_button("Cancel", [spacing::SM, spacing::MD])
-                .style(button_style::outlined(theme, false))
-                .on_press(Message::CancelEdit),
-        ]
-        .spacing(spacing::SM),
-    );
+    let footer = row![
+        bold_button("Save", [spacing::SM, spacing::MD])
+            .style(button_style::mode(theme, true))
+            .on_press(Message::Create),
+        bold_button("Cancel", [spacing::SM, spacing::MD])
+            .style(button_style::outlined(theme, false))
+            .on_press(Message::CancelEdit),
+    ]
+    .spacing(spacing::SM)
+    .into();
+    let form = forms::detail_panel(forms::DetailPanel {
+        theme,
+        title: "Vendor Details",
+        tab_labels: &VENDOR_FORM_TABS,
+        active_tab: state.form_tab,
+        on_select_tab: Message::FormTabChanged,
+        summary: Some(summary),
+        content: form.into(),
+        footer,
+        on_preview: Message::Preview,
+        on_close: Message::CancelEdit,
+    });
 
     // The right-hand third: the detail panel and/or the columns picker,
     // hidden until one of them is opened.
@@ -1111,10 +1610,11 @@ fn body<'a, M: Clone + 'a>(
         side = side.push(form);
     }
     if state.columns_open {
+        let optional_visibility = optional_column_visibility(state);
         side = side.push(data_table::columns_panel(
             theme,
-            &COLUMN_LABELS,
-            &state.column_visible,
+            &VENDOR_OPTIONAL_COLUMNS,
+            &optional_visibility,
             Message::ColumnToggled,
             Message::SelectAllColumns,
             Message::DeselectAllColumns,
@@ -1145,4 +1645,71 @@ fn body<'a, M: Clone + 'a>(
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vendor_columns_keep_serial_and_selection_first_and_pin_required_columns() {
+        assert_eq!(VENDOR_HEADERS[0], "S.No");
+        assert_eq!(VENDOR_HEADERS[1], "");
+        let state = State::default();
+        for label in VENDOR_ALWAYS_SELECTED {
+            let index = VENDOR_HEADERS.iter().position(|header| *header == label).unwrap();
+            assert!(column_visible(&state, index), "{label} should stay visible");
+        }
+        for label in VENDOR_DEFAULT_VISIBLE {
+            assert!(VENDOR_ALWAYS_SELECTED.contains(&label));
+        }
+        assert!(!column_visible(
+            &state,
+            VENDOR_HEADERS
+                .iter()
+                .position(|header| *header == "Website")
+                .unwrap()
+        ));
+    }
+
+    #[test]
+    fn vendor_type_filter_matches_only_the_selected_type() {
+        let mut vendor = Vendor::new(1, "Acme Supplies");
+        vendor.vendor_type = "Contractor".into();
+        assert!(matches_filters(&vendor, "", StatusFilter::All, "All"));
+        assert!(matches_filters(
+            &vendor,
+            "",
+            StatusFilter::All,
+            "Contractor"
+        ));
+        assert!(!matches_filters(
+            &vendor,
+            "",
+            StatusFilter::All,
+            "Supplier"
+        ));
+    }
+
+    #[test]
+    fn detail_and_payment_tabs_build_with_the_full_vendor_schema() {
+        let state = State {
+            form_open: true,
+            vendor_type_input: "Other".into(),
+            payment_terms_input: "30".into(),
+            status_input: "Active".into(),
+            ..State::default()
+        };
+        for form_tab in 0..VENDOR_FORM_TABS.len() {
+            let mut tab_state = state.clone();
+            tab_state.form_tab = form_tab;
+            let _: Element<'_, Message> = view(&tab_state, Theme::Light);
+        }
+        let mut preview_state = state;
+        preview_state.name_input = "Acme Supplies".into();
+        preview_state.phone_input = "+1 555 0100".into();
+        preview_state.vendor_type_input = "Supplier".into();
+        preview_state.show_preview = true;
+        let _: Element<'_, Message> = view(&preview_state, Theme::Light);
+    }
 }

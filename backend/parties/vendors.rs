@@ -5,6 +5,14 @@ use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::reference_code;
 use crate::backend::core::validation::{require_max_length, require_non_empty, Validate};
 
+pub const VENDOR_TYPES: [&str; 5] = [
+    "Supplier",
+    "Contractor",
+    "Distributor",
+    "Manufacturer",
+    "Other",
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vendor {
     pub id: Option<i64>,
@@ -13,6 +21,7 @@ pub struct Vendor {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub tax_id: Option<String>,
+    pub vendor_type: String,
     pub payment_terms_days: i32,
     pub is_active: bool,
     /// Auto-generated, collision-safe internal reference id (`VEND-
@@ -31,6 +40,7 @@ impl Vendor {
             email: None,
             phone: None,
             tax_id: None,
+            vendor_type: "Other".into(),
             payment_terms_days: 30,
             is_active: true,
             reference_code: Some(reference_code::generate_code("VEND")),
@@ -51,6 +61,9 @@ impl Validate for Vendor {
             return Err(AppError::Validation(
                 "payment terms (days) must not be negative".into(),
             ));
+        }
+        if !VENDOR_TYPES.contains(&self.vendor_type.as_str()) {
+            return Err(AppError::Validation("vendor type is not supported".into()));
         }
         if let Some(email) = &self.email {
             if !email.contains('@') {
@@ -77,5 +90,12 @@ mod tests {
     fn validate_accepts_a_well_formed_vendor() {
         let vendor = Vendor::new(1, "Acme Supplies Ltd");
         assert!(vendor.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_an_unsupported_vendor_type() {
+        let mut vendor = Vendor::new(1, "Acme Supplies Ltd");
+        vendor.vendor_type = "All".into();
+        assert!(vendor.validate().is_err());
     }
 }

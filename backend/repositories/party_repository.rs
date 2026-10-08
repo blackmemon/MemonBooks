@@ -78,6 +78,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         CREATE UNIQUE INDEX customers_reference_code_unique ON customers (reference_code) WHERE reference_code IS NOT NULL;
         CREATE UNIQUE INDEX vendors_reference_code_unique ON vendors (reference_code) WHERE reference_code IS NOT NULL;
     ",
+}, Migration {
+    version: 903,
+    name: "vendor_type_column",
+    sql: "ALTER TABLE vendors ADD COLUMN vendor_type TEXT NOT NULL DEFAULT 'Other';",
 }];
 
 #[derive(Clone)]
@@ -196,8 +200,8 @@ impl PartyRepository {
         vendor.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO vendors (company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO vendors (company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     vendor.company_id,
                     vendor.name,
@@ -207,6 +211,7 @@ impl PartyRepository {
                     vendor.payment_terms_days,
                     vendor.is_active,
                     vendor.reference_code,
+                    vendor.vendor_type,
                 ],
             )?;
             Ok(Vendor {
@@ -219,7 +224,7 @@ impl PartyRepository {
     pub fn get_vendor(&self, id: i64) -> AppResult<Vendor> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type
                  FROM vendors WHERE id = ?1",
                 params![id],
                 map_vendor,
@@ -232,7 +237,7 @@ impl PartyRepository {
     pub fn list_vendors_for_company(&self, company_id: i64) -> AppResult<Vec<Vendor>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type
                  FROM vendors WHERE company_id = ?1 ORDER BY name",
             )?;
             let rows = stmt.query_map(params![company_id], map_vendor)?;
@@ -248,7 +253,7 @@ impl PartyRepository {
         self.db.with_connection(|conn| {
             let affected = conn.execute(
                 "UPDATE vendors SET name = ?1, email = ?2, phone = ?3, tax_id = ?4,
-                 payment_terms_days = ?5, is_active = ?6 WHERE id = ?7",
+                 payment_terms_days = ?5, is_active = ?6, vendor_type = ?7 WHERE id = ?8",
                 params![
                     vendor.name,
                     vendor.email,
@@ -256,6 +261,7 @@ impl PartyRepository {
                     vendor.tax_id,
                     vendor.payment_terms_days,
                     vendor.is_active,
+                    vendor.vendor_type,
                     id,
                 ],
             )?;
@@ -403,6 +409,7 @@ fn map_vendor(row: &Row) -> rusqlite::Result<Vendor> {
         payment_terms_days: row.get(6)?,
         is_active: row.get(7)?,
         reference_code: row.get(8)?,
+        vendor_type: row.get(9)?,
     })
 }
 
@@ -582,11 +589,12 @@ mod tests {
     #[test]
     fn creates_and_fetches_a_vendor() {
         let (repo, company_id) = repo_with_company();
-        let created = repo
-            .create_vendor(&Vendor::new(company_id, "Acme Supplies Ltd"))
-            .unwrap();
+        let mut vendor = Vendor::new(company_id, "Acme Supplies Ltd");
+        vendor.vendor_type = "Contractor".into();
+        let created = repo.create_vendor(&vendor).unwrap();
         let fetched = repo.get_vendor(created.id.unwrap()).unwrap();
         assert_eq!(fetched.name, "Acme Supplies Ltd");
+        assert_eq!(fetched.vendor_type, "Contractor");
     }
 
     #[test]

@@ -1,10 +1,11 @@
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
+use crate::frontend::components::fonts;
 use crate::frontend::components::headers;
 use crate::frontend::components::spacing;
 use crate::frontend::components::typography;
 use iced::widget::{button, column, row, text, Space};
-use iced::{Alignment, Element, Font, Length};
+use iced::{Alignment, Element, Length};
 
 pub fn view<'a, Message: Clone + 'a>(
     theme: Theme,
@@ -25,10 +26,9 @@ pub fn view_with_action_style<'a, Message: Clone + 'a>(
     secondary_action: bool,
 ) -> Element<'a, Message> {
     let titles = column![
-        text(title).size(headers::page_title_size()).font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Font::DEFAULT
-        }),
+        text(title)
+            .size(headers::page_title_size())
+            .font(fonts::BOLD),
         text(description)
             .size(headers::page_description_size())
             .color(theme.neutral_front()),
@@ -87,10 +87,9 @@ pub fn view_with_switcher_action_style<'a, Message: Clone + 'a>(
     secondary_action: bool,
 ) -> Element<'a, Message> {
     let title_row = row![
-        text(title).size(headers::page_title_size()).font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Font::DEFAULT
-        }),
+        text(title)
+            .size(headers::page_title_size())
+            .font(fonts::BOLD),
         switcher
     ]
     .spacing(spacing::SPACE_12)
@@ -133,10 +132,9 @@ pub fn page_header_view_with_switcher<'a, Message: Clone + 'a>(
     on_action: Message,
 ) -> Element<'a, Message> {
     let title_row = row![
-        text(title).size(headers::page_title_size()).font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Font::DEFAULT
-        }),
+        text(title)
+            .size(headers::page_title_size())
+            .font(fonts::BOLD),
         switcher
     ]
     .spacing(spacing::SPACE_12)

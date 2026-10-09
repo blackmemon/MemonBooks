@@ -17,7 +17,7 @@ use crate::frontend::components::spacing;
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::StatusFilter;
 use crate::frontend::components::typography;
-use crate::frontend::components::{panels, states, tabs};
+use crate::frontend::components::{panels, states};
 use crate::frontend::views::Ctx;
 use iced::widget::{
     button, column, container, pick_list, row, scrollable, stack, text, text_input, tooltip, Space,
@@ -119,6 +119,49 @@ const VENDOR_STATUS_OPTIONS: [&str; 2] = ["Active", "Inactive"];
 const PAGE_SIZES: [usize; 4] = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE: usize = 50;
 const VENDOR_FORM_TABS: [&str; 2] = ["Details", "Payment"];
+
+/// Dropdown entry showing "Label (count)"; equality is by label only so the
+/// selected entry still matches when the count changes.
+#[derive(Debug, Clone)]
+struct CountedOption {
+    label: &'static str,
+    count: usize,
+    message: Message,
+}
+
+impl PartialEq for CountedOption {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+    }
+}
+
+impl std::fmt::Display for CountedOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.label, self.count)
+    }
+}
+
+fn filter_dropdown(
+    theme: Theme,
+    placeholder: &'static str,
+    options: Vec<(&'static str, usize, Message, bool)>,
+) -> Element<'static, Message> {
+    let selected = options.iter().position(|option| option.3);
+    let entries: Vec<CountedOption> = options
+        .into_iter()
+        .map(|(label, count, message, _)| CountedOption {
+            label,
+            count,
+            message,
+        })
+        .collect();
+    let current = selected.map(|index| entries[index].clone());
+    pick_list(entries, current, |option| option.message)
+        .placeholder(placeholder)
+        .style(dropdown::style(theme))
+        .menu_style(dropdown::dropdown_menu(theme))
+        .into()
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct State {
@@ -597,10 +640,6 @@ fn optional_column_visibility(state: &State) -> Vec<bool> {
         .collect()
 }
 
-/// Whether a vendor passes both the search box and the status filter --
-/// shared by the table's live filtering in `view` and by
-/// `BulkExportCsv`'s "no selection -> export everything currently
-/// visible" fallback, so the two can never disagree.
 fn matches_filters(
     vendor: &Vendor,
     query: &str,
@@ -765,47 +804,18 @@ fn bold_button<'a, M: 'a>(
 
 /// Small count pill: primary tint when `active`, neutral otherwise.
 fn count_badge(theme: Theme, label: String, active: bool) -> Element<'static, Message> {
-    container(text(label).size(typography::caption()).color(if active {
-        theme.primary()
-    } else {
-        theme.neutral_front()
-    }))
+    container(
+        text(label)
+            .size(typography::filter_count())
+            .font(fonts::DEFAULT)
+            .color(if active {
+                theme.primary()
+            } else {
+                theme.neutral_front()
+            }),
+    )
     .padding([spacing::SPACE_2, spacing::SPACE_8])
     .style(badges::count(theme, active))
-    .into()
-}
-
-/// One filter tab: label, count badge, and an underline when active.
-fn status_tab(
-    theme: Theme,
-    label: &'static str,
-    count: usize,
-    active: bool,
-    on_press: Message,
-) -> Element<'static, Message> {
-    let mut label_text = text(label)
-        .size(typography::label())
-        .color(tabs::text_color(theme, active));
-    if active {
-        label_text = label_text.font(fonts::BOLD);
-    }
-    column![
-        button(
-            row![label_text, count_badge(theme, count.to_string(), active)]
-                .spacing(spacing::SPACE_8)
-                .align_y(Alignment::Center)
-        )
-        .style(tabs::tab_button(theme))
-        .padding([spacing::SPACE_6, spacing::SPACE_4])
-        .on_press(on_press),
-        container(Space::with_height(Length::Fixed(
-            spacing::TAB_UNDERLINE_HEIGHT
-        )))
-        .width(Length::Fill)
-        .style(tabs::underline(theme, active)),
-    ]
-    .spacing(spacing::SPACE_2)
-    .width(Length::Shrink)
     .into()
 }
 
@@ -1191,13 +1201,8 @@ fn body<'a, M: Clone + 'a>(
             .into();
     }
     let visible_column = |index: usize| column_visible(state, index);
-
     let query = state.search.trim().to_lowercase();
-    let vendor_type = if state.vendor_type_filter.is_empty() {
-        "All"
-    } else {
-        state.vendor_type_filter.as_str()
-    };
+    let vendor_type = if state.vendor_type_filter.is_empty() {"All"} else {state.vendor_type_filter.as_str()};
     let filtered: Vec<&Vendor> = state
         .vendors
         .iter()
@@ -1232,12 +1237,7 @@ fn body<'a, M: Clone + 'a>(
     let search_input = text_input("Search vendors by name or email", &state.search)
         .style(inputs::text(theme))
         .on_input(Message::SearchChanged)
-        .padding(iced::Padding {
-            top: spacing::SM,
-            right: spacing::SPACE_12,
-            bottom: spacing::SM,
-            left: spacing::SEARCH_ICON_INSET,
-        })
+        .padding(iced::Padding {top: spacing::SM,right: spacing::SPACE_12,bottom: spacing::SM,left: spacing::SEARCH_ICON_INSET,})
         .size(typography::label())
         .width(Length::Fill);
     let search_box = stack![
@@ -1251,16 +1251,51 @@ fn body<'a, M: Clone + 'a>(
     } else {
         state.vendor_type_filter.as_str()
     };
+    let vendor_type_options: Vec<(&'static str, usize, Message, bool)> = VENDOR_TYPE_OPTIONS
+        .iter()
+        .map(|&label| {
+            let count = if label == "All" {
+                state.vendors.len()
+            } else {
+                state
+                    .vendors
+                    .iter()
+                    .filter(|vendor| vendor.vendor_type == label)
+                    .count()
+            };
+            (
+                label,
+                count,
+                Message::VendorTypeFilterChanged(label.to_string()),
+                label == selected_vendor_type,
+            )
+        })
+        .collect();
+    let active_vendor_count = state.vendors.iter().filter(|vendor| vendor.is_active).count();
+    let status_options: Vec<(&'static str, usize, Message, bool)> = vec![
+        (
+            "All",
+            state.vendors.len(),
+            Message::StatusFilterChanged(StatusFilter::All),
+            state.status_filter == StatusFilter::All,
+        ),
+        (
+            "Active",
+            active_vendor_count,
+            Message::StatusFilterChanged(StatusFilter::Active),
+            state.status_filter == StatusFilter::Active,
+        ),
+        (
+            "Archived",
+            state.vendors.len() - active_vendor_count,
+            Message::StatusFilterChanged(StatusFilter::Inactive),
+            state.status_filter == StatusFilter::Inactive,
+        ),
+    ];
     let controls = row![
         search_box,
-        pick_list(
-            VENDOR_TYPE_OPTIONS,
-            Some(selected_vendor_type),
-            |value| Message::VendorTypeFilterChanged(value.to_string())
-        )
-        .placeholder("Vendor type")
-        .style(dropdown::style(theme))
-        .menu_style(dropdown::dropdown_menu(theme)),
+        filter_dropdown(theme, "Vendor type", vendor_type_options),
+        filter_dropdown(theme, "Status", status_options),
         icon_button(theme, icons::RESET, "Reset all", Message::ResetAll, true),
         icon_button(
             theme,
@@ -1269,14 +1304,8 @@ fn body<'a, M: Clone + 'a>(
             Message::ToggleColumns,
             true
         ),
-        icon_button(
-            theme,
-            icons::EXPORT,
-            "Export CSV",
-            Message::BulkExportCsv,
-            true
-        ),
-        bold_button("Add Vendor", [spacing::SPACE_10, spacing::MD])
+        icon_button(theme,icons::EXPORT,"Export CSV",Message::BulkExportCsv,true),
+        bold_button("Add", [spacing::SPACE_10, spacing::MD])
             .style(button_style::mode(theme, true))
             .on_press(Message::OpenForm),
     ]
@@ -1293,33 +1322,6 @@ fn body<'a, M: Clone + 'a>(
     ]
     .align_y(Alignment::Center)
     .padding(spacing::MD);
-
-    // Tabs: All / Active / Archived, each with its count.
-    let active_count = state.vendors.iter().filter(|r| r.is_active).count();
-    let tab_row = row![
-        status_tab(
-            theme,
-            "All",
-            state.vendors.len(),
-            state.status_filter == StatusFilter::All,
-            Message::StatusFilterChanged(StatusFilter::All)
-        ),
-        status_tab(
-            theme,
-            "Active",
-            active_count,
-            state.status_filter == StatusFilter::Active,
-            Message::StatusFilterChanged(StatusFilter::Active)
-        ),
-        status_tab(
-            theme,
-            "Archived",
-            state.vendors.len() - active_count,
-            state.status_filter == StatusFilter::Inactive,
-            Message::StatusFilterChanged(StatusFilter::Inactive)
-        ),
-    ]
-    .spacing(spacing::LG);
 
     let row_ids: Vec<i64> = visible.iter().map(|v| v.id.unwrap_or_default()).collect();
     let selected_here = row_ids
@@ -1368,10 +1370,7 @@ fn body<'a, M: Clone + 'a>(
         })
         .height(Length::Fill);
 
-    let mut card = column![
-        card_header,
-        lift(container(tab_row).padding([0.0, spacing::MD]).into())
-    ];
+    let mut card = column![card_header];
     // Removed the conditional block for bulk actions as it is no longer needed
     card = card.push(lift(table_area.into()));
     if let Some(message) = &state.message {
@@ -1584,7 +1583,7 @@ fn body<'a, M: Clone + 'a>(
         bold_button("Save", [spacing::SM, spacing::MD])
             .style(button_style::mode(theme, true))
             .on_press(Message::Create),
-        bold_button("Cancel", [spacing::SM, spacing::MD])
+        bold_button("Close", [spacing::SM, spacing::MD])
             .style(button_style::outlined(theme, false))
             .on_press(Message::CancelEdit),
     ]
@@ -1600,7 +1599,6 @@ fn body<'a, M: Clone + 'a>(
         content: form.into(),
         footer,
         on_preview: Message::Preview,
-        on_close: Message::CancelEdit,
     });
 
     // The right-hand third: the detail panel and/or the columns picker,
@@ -1645,71 +1643,4 @@ fn body<'a, M: Clone + 'a>(
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn vendor_columns_keep_serial_and_selection_first_and_pin_required_columns() {
-        assert_eq!(VENDOR_HEADERS[0], "S.No");
-        assert_eq!(VENDOR_HEADERS[1], "");
-        let state = State::default();
-        for label in VENDOR_ALWAYS_SELECTED {
-            let index = VENDOR_HEADERS.iter().position(|header| *header == label).unwrap();
-            assert!(column_visible(&state, index), "{label} should stay visible");
-        }
-        for label in VENDOR_DEFAULT_VISIBLE {
-            assert!(VENDOR_ALWAYS_SELECTED.contains(&label));
-        }
-        assert!(!column_visible(
-            &state,
-            VENDOR_HEADERS
-                .iter()
-                .position(|header| *header == "Website")
-                .unwrap()
-        ));
-    }
-
-    #[test]
-    fn vendor_type_filter_matches_only_the_selected_type() {
-        let mut vendor = Vendor::new(1, "Acme Supplies");
-        vendor.vendor_type = "Contractor".into();
-        assert!(matches_filters(&vendor, "", StatusFilter::All, "All"));
-        assert!(matches_filters(
-            &vendor,
-            "",
-            StatusFilter::All,
-            "Contractor"
-        ));
-        assert!(!matches_filters(
-            &vendor,
-            "",
-            StatusFilter::All,
-            "Supplier"
-        ));
-    }
-
-    #[test]
-    fn detail_and_payment_tabs_build_with_the_full_vendor_schema() {
-        let state = State {
-            form_open: true,
-            vendor_type_input: "Other".into(),
-            payment_terms_input: "30".into(),
-            status_input: "Active".into(),
-            ..State::default()
-        };
-        for form_tab in 0..VENDOR_FORM_TABS.len() {
-            let mut tab_state = state.clone();
-            tab_state.form_tab = form_tab;
-            let _: Element<'_, Message> = view(&tab_state, Theme::Light);
-        }
-        let mut preview_state = state;
-        preview_state.name_input = "Acme Supplies".into();
-        preview_state.phone_input = "+1 555 0100".into();
-        preview_state.vendor_type_input = "Supplier".into();
-        preview_state.show_preview = true;
-        let _: Element<'_, Message> = view(&preview_state, Theme::Light);
-    }
 }

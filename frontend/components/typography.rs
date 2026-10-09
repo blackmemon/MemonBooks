@@ -5,6 +5,11 @@ pub fn micro() -> f32 {
     scaled(9.0)
 }
 
+/// Count pills/badges (e.g. "12 Total").
+pub fn filter_count() -> f32 {
+    scaled(10.0)
+}
+
 /// Secondary/subtitle text sitting beside or under something more
 /// prominent -- avatar subtitles, the sidebar's user subtitle and
 /// dropdown caret, a table row's progress-bar percentage label.

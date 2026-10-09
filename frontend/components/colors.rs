@@ -33,7 +33,7 @@ impl Theme {
 
     pub fn page_bg(&self) -> Color {
         match self {
-            Theme::Light => rgb8(252, 252, 252),
+            Theme::Light => rgb8(255, 255, 255),
             Theme::Dark => rgb8(34, 34, 38),
         }
     }
@@ -170,6 +170,30 @@ impl Theme {
 
     /// Error / negative text & icon color.
     pub fn negative_front(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0x9C, 0x00, 0x0A),
+            Theme::Dark => rgb8(0xFF, 0x8A, 0x93), // PLACEHOLDER
+        }
+    }
+
+        /// Header background.
+    pub fn header_bg(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
+            Theme::Dark => rgb8(0xEF, 0x44, 0x44),
+        }
+    }
+
+    /// Header hover background.
+    pub fn header_bg_hover(&self) -> Color {
+        match self {
+            Theme::Light => rgb8(0xDC, 0x26, 0x26),
+            Theme::Dark => rgb8(0xDC, 0x26, 0x26),
+        }
+    }
+
+    /// Header text & icon color.
+    pub fn header_front(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x9C, 0x00, 0x0A),
             Theme::Dark => rgb8(0xFF, 0x8A, 0x93), // PLACEHOLDER

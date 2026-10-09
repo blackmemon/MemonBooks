@@ -29,11 +29,11 @@ use memonbooks::backend::repositories::user_repository::UserRepository;
 use memonbooks::configs::app::AppConfig;
 use memonbooks::configs::{font_scale_preference, theme_preference};
 use memonbooks::database::database::Database;
-use memonbooks::frontend::components::sidebar::{self, NavEntry};
 use memonbooks::frontend::components::button as button_style;
 use memonbooks::frontend::components::colors::Theme;
 use memonbooks::frontend::components::font_scale::{self, FontScale};
-use memonbooks::frontend::components::{dropdown, spacing, states, typography};
+use memonbooks::frontend::components::sidebar::{self, NavEntry};
+use memonbooks::frontend::components::{dropdown, fonts, spacing, states, typography};
 use memonbooks::frontend::views::accounting::ledger_view;
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
 use memonbooks::frontend::views::accounting::{
@@ -203,6 +203,7 @@ fn main() -> iced::Result {
     font_scale::set(font_scale);
 
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
+        .default_font(fonts::DEFAULT)
         .theme(|state: &MemonBooks| match state.theme {
             Theme::Light => iced::Theme::Light,
             Theme::Dark => iced::Theme::Dark,
@@ -733,9 +734,7 @@ impl MemonBooks {
             .height(Length::Fill)
             .style(
                 move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-                    background: Some(iced::Background::Color(self.theme.page_bg())),
-                    ..iced::widget::container::Style::default()
-                },
+                    background: Some(iced::Background::Color(self.theme.page_bg())),..iced::widget::container::Style::default()},
             )
             .into()
     }

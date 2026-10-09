@@ -2,10 +2,10 @@ use iced::Font;
 
 use super::font_scale::scaled;
 
-pub const DEFAULT: Font = Font::DEFAULT;
+pub const DEFAULT: Font = Font::with_name("Nimbus Sans Narrow");
 pub const BOLD: Font = Font {
     weight: iced::font::Weight::Bold,
-    ..Font::DEFAULT
+    ..DEFAULT
 };
 
 pub fn button_size() -> f32 {

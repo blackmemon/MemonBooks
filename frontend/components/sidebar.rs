@@ -8,12 +8,12 @@
 //! swapped for a real glyph without touching layout.
 
 use iced::widget::{button, column, container, row, scrollable, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Background, Border, Color, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::typography;
-use crate::frontend::components::{borders, icons, spacing, states};
+use crate::frontend::components::{borders, fonts, icons, spacing, states};
 
 pub const EXPANDED_WIDTH: f32 = 252.0;
 pub const COLLAPSED_WIDTH: f32 = 72.0;
@@ -237,10 +237,7 @@ fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'
         text(label.to_string())
             .size(typography::body())
             .color(front)
-            .font(Font {
-                weight: iced::font::Weight::Bold,
-                ..Font::DEFAULT
-            }),
+            .font(fonts::BOLD),
     )
     .width(Length::Fixed(36.0))
     .height(Length::Fixed(36.0))
@@ -261,9 +258,6 @@ fn bold_text<'a, Message: 'a>(value: &str, size: f32, color: Color) -> Element<'
     text(value.to_string())
         .size(size)
         .color(color)
-        .font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Font::DEFAULT
-        })
+        .font(fonts::BOLD)
         .into()
 }

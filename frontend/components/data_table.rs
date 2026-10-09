@@ -1,7 +1,7 @@
 use iced::widget::{
     button, checkbox, column, container, progress_bar, row, scrollable, text, Space,
 };
-use iced::{Alignment, Background, Border, Element, Font, Length, Theme as IcedTheme};
+use iced::{Alignment, Background, Border, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::badges::{tone_colors, BadgeTone};
 use crate::frontend::components::button as button_style;
@@ -509,10 +509,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
                 text(initial)
                     .size(typography::body())
                     .color(theme.accent_front())
-                    .font(Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Font::DEFAULT
-                    }),
+                    .font(fonts::BOLD),
             )
             .width(Length::Fixed(28.0))
             .height(Length::Fixed(28.0))

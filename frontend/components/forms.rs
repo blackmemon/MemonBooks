@@ -48,7 +48,6 @@ pub struct DetailPanel<'a, Message, Select> {
     pub content: Element<'a, Message>,
     pub footer: Element<'a, Message>,
     pub on_preview: Message,
-    pub on_close: Message,
 }
 
 /// Shared shell for a right-side detail editor with tabs, preview, and actions.
@@ -65,7 +64,6 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
         content,
         footer,
         on_preview,
-        on_close,
     } = config;
     let header = row![
         text(title)
@@ -77,10 +75,6 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
             .padding([spacing::SPACE_6, spacing::SPACE_10])
             .style(button_style::outlined(theme, false))
             .on_press(on_preview),
-        button(text("Close").size(typography::label()))
-            .padding([spacing::SPACE_4, spacing::SPACE_8])
-            .style(button_style::plain(theme))
-            .on_press(on_close),
     ]
     .spacing(spacing::SPACE_8)
     .align_y(Alignment::Center);

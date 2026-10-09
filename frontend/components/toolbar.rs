@@ -1,5 +1,5 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
-use iced::{Alignment, Element, Font, Length};
+use iced::{Alignment, Element, Length};
 
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
@@ -33,14 +33,7 @@ pub fn view<'a, Message: Clone + 'a>(
     let mut tab_row = row![].spacing(spacing::LG).align_y(Alignment::Center);
     for (index, label) in tab_labels.iter().enumerate() {
         let active = index == active_tab;
-        let font = if active {
-            Font {
-                weight: iced::font::Weight::Bold,
-                ..Font::DEFAULT
-            }
-        } else {
-            Font::DEFAULT
-        };
+        let font = if active { fonts::BOLD } else { fonts::DEFAULT };
         let tab = column![
             button(
                 text(*label)

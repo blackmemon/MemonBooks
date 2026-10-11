@@ -6,6 +6,12 @@
 //! as raw `\u{...}` literals across `sidebar.rs` and `data_table.rs`,
 //! so a future real icon-font swap has one place to change per glyph
 //! instead of a grep-and-replace across the app.
+//!
+//! The app font is a sans face that has no emoji or dingbat glyphs, so the
+//! action icons below stick to characters that the common sans fonts
+//! (Liberation Sans, Cantarell, Adwaita Sans) all carry; the earlier
+//! magnifier, hamburger, pencil, cross and vertical-ellipsis glyphs drew
+//! as empty boxes.
 
 /// Sidebar collapse toggle, shown when the sidebar is collapsed
 /// (points the direction a click would expand it).
@@ -33,7 +39,7 @@ pub const SORT_ASCENDING: &str = "\u{25B2}";
 pub const SORT_DESCENDING: &str = "\u{25BC}";
 
 /// Data table row's secondary-actions menu trigger ("more options").
-pub const KEBAB: &str = "\u{22EE}";
+pub const KEBAB: &str = "\u{2026}";
 
 /// Leading dot on a data table status pill (`Cell::Status`).
 pub const STATUS_DOT: &str = "\u{25CF}";
@@ -52,19 +58,19 @@ pub const TREE_EXPANDED: &str = "\u{25BC}";
 pub const TREE_COLLAPSED: &str = "\u{25BA}";
 
 /// Search box prefix (Maintain Customers/Vendors).
-pub const SEARCH: &str = "\u{1F50D}";
+pub const SEARCH: &str = "\u{25CB}";
 
 /// "Reset all" icon button.
 pub const RESET: &str = "\u{21BB}";
 
 /// "Columns" picker icon button.
-pub const COLUMNS: &str = "\u{2630}";
+pub const COLUMNS: &str = "\u{2261}";
 
 /// "Export" icon button.
 pub const EXPORT: &str = "\u{2193}";
 
 /// Close (X) button on a side panel.
-pub const CLOSE: &str = "\u{2715}";
+pub const CLOSE: &str = "\u{00D7}";
 
 /// Detail-panel field glyphs (Maintain Customers/Vendors).
 pub const FIELD_NAME: &str = "\u{263A}";
@@ -82,7 +88,7 @@ pub const FIELD_OTHER: &str = "\u{2022}";
 pub const ARROW_LEFT: &str = "\u{2190}";
 
 /// Pencil on a row's "edit" icon button.
-pub const EDIT: &str = "\u{270E}";
+pub const EDIT: &str = "\u{203A}";
 
 /// Dash drawn in a partially-checked (tri-state) checkbox.
 pub const INDETERMINATE: &str = "\u{2212}";

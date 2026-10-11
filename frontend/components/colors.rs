@@ -1,5 +1,7 @@
 use iced::Color;
 
+use super::states;
+
 const fn rgb8(r: u8, g: u8, b: u8) -> Color {
     Color {
         r: r as f32 / 255.0,
@@ -41,7 +43,7 @@ impl Theme {
     pub fn neutral_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xE5, 0xE7, 0xEB),
-            Theme::Dark => rgb8(0x2A, 0x2C, 0x31),
+            Theme::Dark => rgb8(0x3A, 0x3D, 0x44),
         }
     }
 
@@ -62,7 +64,7 @@ impl Theme {
     pub fn neutral_border(&self) -> Color {
         match self {
             Theme::Light => rgb8(235, 235, 235),
-            Theme::Dark => rgb8(99, 99, 99),
+            Theme::Dark => rgb8(0x74, 0x74, 0x7C),
         }
     }
 
@@ -77,13 +79,30 @@ impl Theme {
     pub fn primary(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x51, 0xA2, 0xFF),
-            Theme::Dark => rgb8(0x4B, 0x55, 0x63),
+            Theme::Dark => rgb8(0x7B, 0x86, 0x99),
+        }
+    }
+
+    /// `alpha` as drawn for a translucent tint: a dark surface needs twice
+    /// the opacity for the same tint to read, light is used as given.
+    pub fn tint_alpha(&self, alpha: f32) -> f32 {
+        match self {
+            Theme::Light => alpha,
+            Theme::Dark => (alpha * 2.0).min(1.0),
+        }
+    }
+
+    /// Opacity of a disabled control: dimmed, but still readable on dark.
+    pub fn disabled_alpha(&self) -> f32 {
+        match self {
+            Theme::Light => states::DISABLED_ALPHA,
+            Theme::Dark => states::DISABLED_ALPHA_DARK,
         }
     }
 
     pub fn primary_tint(&self, alpha: f32) -> Color {
         Color {
-            a: alpha,
+            a: self.tint_alpha(alpha),
             ..self.primary()
         }
     }
@@ -92,7 +111,7 @@ impl Theme {
     pub fn primary_hover(&self) -> Color {
         match self {
             Theme::Light => rgb8(0x56, 0xAE, 0xD7),
-            Theme::Dark => rgb8(107, 114, 128),
+            Theme::Dark => rgb8(0x5F, 0x69, 0x7A),
         }
     }
 
@@ -132,7 +151,7 @@ impl Theme {
     pub fn positive_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xC6, 0xF1, 0xCE),
-            Theme::Dark => rgb8(0x22, 0xC5, 0x5E),
+            Theme::Dark => rgb8(0x16, 0x4A, 0x2B),
         }
     }
 
@@ -156,7 +175,7 @@ impl Theme {
     pub fn negative_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
-            Theme::Dark => rgb8(0xEF, 0x44, 0x44),
+            Theme::Dark => rgb8(0x5A, 0x1E, 0x24),
         }
     }
 

@@ -15,3 +15,5 @@ pub const TEXTBOX_WIDTH_ALPHA: f32 = 1.2;
 pub const TEXTBOX_SELECTION_TINT_ALPHA: f32 = 0.25;
 /// Disabled controls are drawn at this fraction of their normal opacity.
 pub const DISABLED_ALPHA: f32 = 0.45;
+/// Disabled opacity on the dark theme, where 0.45 leaves text unreadable.
+pub const DISABLED_ALPHA_DARK: f32 = 0.65;

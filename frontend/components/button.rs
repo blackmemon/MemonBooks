@@ -211,7 +211,7 @@ pub fn nav_item(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> St
     move |_iced_theme: &IcedTheme, status: Status| {
         let background = if active {
             Color {
-                a: states::SELECTED_ALPHA,
+                a: theme.tint_alpha(states::SELECTED_ALPHA),
                 ..theme.primary()
             }
         } else if matches!(status, Status::Hovered) {
@@ -269,7 +269,7 @@ pub fn outlined(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> St
         let accent = active || matches!(status, Status::Hovered | Status::Pressed);
         let dim = |color: Color| {
             if matches!(status, Status::Disabled) {
-                color.scale_alpha(states::DISABLED_ALPHA)
+                color.scale_alpha(theme.disabled_alpha())
             } else {
                 color
             }

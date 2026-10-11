@@ -43,14 +43,14 @@ pub fn row(
     move |_iced_theme: &IcedTheme, status: button::Status| {
         let background = if highlighted {
             Some(Background::Color(Color {
-                a: states::SELECTED_ALPHA,
+                a: theme.tint_alpha(states::SELECTED_ALPHA),
                 ..theme.primary()
             }))
         } else {
             match status {
                 button::Status::Hovered | button::Status::Pressed => {
                     Some(Background::Color(Color {
-                        a: states::TABLE_ROW_HOVER_ALPHA,
+                        a: theme.tint_alpha(states::TABLE_ROW_HOVER_ALPHA),
                         ..theme.neutral_bg()
                     }))
                 }

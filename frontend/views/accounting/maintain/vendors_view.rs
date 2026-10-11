@@ -773,6 +773,26 @@ fn bold_button<'a, M: 'a>(
     .padding(padding)
 }
 
+/// A bold-labelled button with an icon before the label.
+fn icon_label_button<'a, M: 'a>(
+    glyph: &'static str,
+    label: &'a str,
+    padding: impl Into<iced::Padding>,
+) -> iced::widget::Button<'a, M> {
+    button(
+        row![
+            icons::icon(glyph).size(typography::label()),
+            text(label)
+                .size(typography::label())
+                .font(fonts::BOLD)
+                .wrapping(Wrapping::None),
+        ]
+        .spacing(spacing::SPACE_6)
+        .align_y(Alignment::Center),
+    )
+    .padding(padding)
+}
+
 /// Small count pill: primary tint when `active`, neutral otherwise.
 fn count_badge(theme: Theme, label: String, active: bool) -> Element<'static, Message> {
     container(
@@ -802,7 +822,7 @@ fn icon_button(
     let outlined = button_style::outlined(theme, false);
     let plain = button_style::plain(theme);
     tooltip(
-        button(text(glyph).size(typography::emphasis()).center())
+        button(icons::icon(glyph).size(typography::emphasis()).center())
             .width(Length::Fixed(spacing::ICON_BUTTON_SIZE))
             .height(Length::Fixed(spacing::ICON_BUTTON_SIZE))
             .style(move |iced_theme, status| {
@@ -830,7 +850,7 @@ fn check_box(theme: Theme, state: CheckState, on_press: Message) -> Element<'sta
         CheckState::Unchecked => "",
     };
     container(
-        button(text(glyph).size(typography::micro()).center())
+        button(icons::icon(glyph).size(typography::micro()).center())
             .width(Length::Fixed(typography::checkbox_size()))
             .height(Length::Fixed(typography::checkbox_size()))
             .padding(0)
@@ -868,11 +888,11 @@ fn column_label(
     .spacing(spacing::SPACE_4)
     .align_y(Alignment::Center);
     if sorted {
-        cell = cell.push(labels::muted(
-            theme,
-            icons::SORT_ASCENDING,
-            typography::micro(),
-        ));
+        cell = cell.push(
+            icons::icon(icons::SORT_ASCENDING)
+                .size(typography::micro())
+                .color(theme.neutral_front()),
+        );
     }
     container(cell).width(width).into()
 }
@@ -1551,8 +1571,9 @@ fn side_panel(
             Message::ToggleColumns
         };
         side = side.push(
-            bold_button(
-                format!("{}  Back", icons::ARROW_LEFT),
+            icon_label_button(
+                icons::ARROW_LEFT,
+                "Back",
                 [spacing::SPACE_6, spacing::SPACE_14],
             )
             .style(button_style::outlined(theme, false))
@@ -1584,7 +1605,11 @@ fn search_box(state: &State, theme: Theme) -> Element<'_, Message> {
         .width(Length::Fill);
     stack![
         input,
-        container(labels::muted(theme, icons::SEARCH, typography::label()))
+        container(
+            icons::icon(icons::SEARCH)
+                .size(typography::label())
+                .color(theme.neutral_front()),
+        )
             .padding([spacing::SPACE_10, spacing::SPACE_12])
     ]
     .width(Length::Fill)
@@ -1704,7 +1729,7 @@ fn vendor_card<'a, M: Clone + 'a>(
     .spacing(spacing::SPACE_4)
     .into();
     let add = lift(
-        bold_button("Add", [spacing::SPACE_10, spacing::MD])
+        icon_label_button(icons::ADD, "Add", [spacing::SPACE_10, spacing::MD])
             .style(button_style::mode(theme, true))
             .on_press(Message::OpenForm)
             .into(),

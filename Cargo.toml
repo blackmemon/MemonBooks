@@ -35,6 +35,9 @@ dark-light = "1"
 # `update` signatures threaded through every view to use.
 rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
 
+[dev-dependencies]
+ttf-parser = "0.25"
+
 [[test]]
 name = "accounting"
 path = "tests/accounting/main.rs"

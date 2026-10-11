@@ -203,6 +203,7 @@ fn main() -> iced::Result {
     font_scale::set(font_scale);
 
     iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
+        .font(include_bytes!("../assets/fonts/lucide.ttf").as_slice())
         .default_font(fonts::DEFAULT)
         .theme(|state: &MemonBooks| match state.theme {
             Theme::Light => iced::Theme::Light,

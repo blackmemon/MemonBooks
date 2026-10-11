@@ -2245,6 +2245,7 @@ dependencies = [
  "simplelog",
  "thiserror 2.0.20",
  "totp-rs",
+ "ttf-parser 0.25.1",
  "zip",
 ]
 

@@ -58,7 +58,7 @@ pub fn view<'a, Message: Clone + 'a>(
         },
         Space::with_width(Length::Fill),
         button(
-            text(if collapsed {
+            icons::icon(if collapsed {
                 icons::CHEVRON_RIGHT
             } else {
                 icons::CHEVRON_LEFT
@@ -101,7 +101,7 @@ pub fn view<'a, Message: Clone + 'a>(
             ]
             .spacing(spacing::SPACE_2),
             Space::with_width(Length::Fill),
-            text(icons::CARET_DOWN)
+            icons::icon(icons::CARET_DOWN)
                 .size(typography::caption())
                 .color(theme.neutral_front()),
         ]
@@ -123,7 +123,7 @@ pub fn view<'a, Message: Clone + 'a>(
     // the profile card so it's always reachable regardless of collapse
     // state.
     let theme_toggle = button(
-        text(if theme == Theme::Dark {
+        icons::icon(if theme == Theme::Dark {
             icons::SUN
         } else {
             icons::MOON

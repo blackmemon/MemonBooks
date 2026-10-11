@@ -336,14 +336,23 @@ fn build_header<'a, Message: Clone + 'a>(
         }
         is_first_column = false;
         let arrow = match column_def.sort {
-            SortDirection::Ascending => format!(" {}", icons::SORT_ASCENDING),
-            SortDirection::Descending => format!(" {}", icons::SORT_DESCENDING),
-            SortDirection::None => String::new(),
+            SortDirection::Ascending => Some(icons::SORT_ASCENDING),
+            SortDirection::Descending => Some(icons::SORT_DESCENDING),
+            SortDirection::None => None,
         };
-        let label = text(format!("{}{}", column_def.label, arrow))
+        let mut label = row![text(column_def.label)
             .size(typography::body())
-            .color(theme.neutral_front());
-        header = header.push(label.width(column_def.width));
+            .color(theme.neutral_front())]
+        .spacing(spacing::SPACE_4)
+        .align_y(Alignment::Center);
+        if let Some(arrow) = arrow {
+            label = label.push(
+                icons::icon(arrow)
+                    .size(typography::body())
+                    .color(theme.neutral_front()),
+            );
+        }
+        header = header.push(container(label).width(column_def.width));
     }
     header = header.push(Space::with_width(Length::Fixed(PRIMARY_ACTION_WIDTH)));
     header = header.push(Space::with_width(Length::Fixed(32.0)));
@@ -442,7 +451,7 @@ fn build_body<'a, Message: Clone + 'a>(
         cells_row = cells_row.push(
             container(
                 button(
-                    text(icons::KEBAB)
+                    icons::icon(icons::KEBAB)
                         .size(typography::emphasis())
                         .color(theme.neutral_front()),
                 )
@@ -543,7 +552,7 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
             let (bg, front) = tone_colors(theme, tone);
             container(
                 row![
-                    text(icons::STATUS_DOT)
+                    icons::icon(icons::STATUS_DOT)
                         .size(typography::micro())
                         .color(front),
                     text(label).size(typography::body()).color(front)

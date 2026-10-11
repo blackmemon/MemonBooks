@@ -591,7 +591,7 @@ fn icon_button(
     message: Message,
 ) -> Element<'static, Message> {
     tooltip(
-        button(text(glyph).size(typography::emphasis()).center())
+        button(icons::icon(glyph).size(typography::emphasis()).center())
             .width(Length::Fixed(36.0))
             .height(Length::Fixed(36.0))
             .style(outlined_button(theme, false))
@@ -692,7 +692,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
     let search_box = stack![
         search_input,
         container(
-            text(GLYPH_SEARCH)
+            icons::icon(GLYPH_SEARCH)
                 .size(typography::label())
                 .color(theme.neutral_front())
         )
@@ -802,7 +802,7 @@ fn body(state: &State, theme: Theme) -> Element<'_, Message> {
             .font(fonts::BOLD)
             .color(theme.neutral_font()),
         Space::with_width(Length::Fill),
-        button(text(GLYPH_CLOSE).size(typography::label()))
+        button(icons::icon(GLYPH_CLOSE).size(typography::label()))
             .padding([spacing::SPACE_4, spacing::SPACE_8])
             .style(button_style::plain(theme))
             .on_press(Message::CancelEdit),

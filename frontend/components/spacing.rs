@@ -73,3 +73,40 @@ pub const CONTENT_PADDING: Padding = Padding {
     bottom: LG,
     left: LG,
 };
+
+/// Responsive breakpoints, defined once for every page. A width below
+/// `BREAKPOINT_NARROW` is [`LayoutClass::Narrow`], one below
+/// `BREAKPOINT_WIDE` is [`LayoutClass::Medium`], anything else is
+/// [`LayoutClass::Wide`].
+pub const BREAKPOINT_NARROW: f32 = 800.0;
+pub const BREAKPOINT_WIDE: f32 = 1200.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutClass {
+    Narrow,
+    Medium,
+    Wide,
+}
+
+pub fn layout_class(width: f32) -> LayoutClass {
+    if width < BREAKPOINT_NARROW {
+        LayoutClass::Narrow
+    } else if width < BREAKPOINT_WIDE {
+        LayoutClass::Medium
+    } else {
+        LayoutClass::Wide
+    }
+}
+
+/// Side panel next to a table: never narrower than `PANEL_MIN_WIDTH` (so
+/// inputs never clip), one third of the page when wide, and
+/// `PANEL_MEDIUM_SHARE` of it when medium.
+pub const PANEL_MIN_WIDTH: f32 = 420.0;
+pub const PANEL_WIDE_SHARE: f32 = 1.0 / 3.0;
+pub const PANEL_MEDIUM_SHARE: f32 = 0.45;
+/// A panel at least this wide lays its fields out in two columns.
+pub const PANEL_TWO_COLUMN_MIN_WIDTH: f32 = 520.0;
+/// Smallest width of a header or footer button, so its label never wraps.
+pub const BUTTON_MIN_WIDTH: f32 = 72.0;
+/// Narrowest the header search box is allowed to shrink to.
+pub const SEARCH_MIN_WIDTH: f32 = 140.0;

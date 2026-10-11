@@ -1,5 +1,5 @@
 use super::{
-    badges, borders, button as button_style, colors::Theme, fonts, panels, spacing, states, tabs,
+    badges, borders, button as button_style, colors::Theme, fonts, panels, scrollbar, spacing, states, tabs,
     typography,
 };
 use iced::widget::{Space, button, column, container, row, scrollable, text};
@@ -87,7 +87,7 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
         .push(tab_bar(theme, tab_labels, active_tab, on_select_tab))
         .push(
             scrollable(container(content).width(Length::Fill))
-                .direction(scrollable::Direction::Vertical(scrollable::Scrollbar::new()))
+                .direction(scrollbar::vertical())
                 .height(Length::Fill),
         )
         .push(footer);

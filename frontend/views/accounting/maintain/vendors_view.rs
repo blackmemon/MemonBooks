@@ -13,15 +13,19 @@ use crate::frontend::components::forms;
 use crate::frontend::components::icons;
 use crate::frontend::components::inputs;
 use crate::frontend::components::labels;
+use crate::frontend::components::scrollbar;
 use crate::frontend::components::spacing;
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::StatusFilter;
 use crate::frontend::components::typography;
 use crate::frontend::components::{panels, states};
 use crate::frontend::views::Ctx;
+use iced::widget::text::Wrapping;
 use iced::widget::{
-    button, column, container, pick_list, row, scrollable, stack, text, text_input, tooltip, Space,
+    button, column, container, pick_list, responsive, row, scrollable, stack, text, text_input,
+    tooltip, Space,
 };
+use iced::widget::Row;
 use iced::{Alignment, Element, Length};
 use std::collections::HashSet;
 
@@ -681,27 +685,6 @@ fn column_width_px(label: &str) -> f32 {
     }
 }
 
-fn column_width(label: &str) -> Length {
-    Length::Fixed(column_width_px(label))
-}
-
-fn table_widths(state: &State) -> (f32, f32) {
-    let (field_width, field_count) = VENDOR_HEADERS
-        .iter()
-        .enumerate()
-        .skip(2)
-        .filter(|(index, _)| column_visible(state, *index))
-        .fold((0.0, 0.0), |(width, count), (_, label)| {
-            (width + column_width_px(label), count + 1.0)
-        });
-    let row_width = 68.0
-        + 44.0
-        + spacing::ACTION_COLUMN_WIDTH
-        + field_width
-        + spacing::MD * (field_count + 2.0);
-    let table_width = row_width + spacing::MD * 2.0 + spacing::SCROLLBAR_WIDTH;
-    (table_width, row_width)
-}
 
 fn vendor_preview(state: &State, theme: Theme) -> Element<'static, Message> {
     let saved = state
@@ -776,30 +759,18 @@ fn vendor_preview(state: &State, theme: Theme) -> Element<'static, Message> {
     )
 }
 
-pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    body(state, theme, None, |message| message)
-}
-
-/// Same as [`view`], except the title sits inline with `switcher` (a
-/// type-switcher dropdown, e.g. "Maintain"'s section picker) in the
-/// card header -- `wrap` converts this module's own `Message` into
-/// whatever the caller's `switcher` produces, so the two can share one
-/// `Element` tree despite having different message types.
-pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
-    state: &'a State,
-    theme: Theme,
-    switcher: Element<'a, ParentMessage>,
-    wrap: impl Fn(Message) -> ParentMessage + Clone + 'a,
-) -> Element<'a, ParentMessage> {
-    body(state, theme, Some(switcher), wrap)
-}
-
 /// A button with a bold label; callers add the style and the press.
 fn bold_button<'a, M: 'a>(
-    label: &'a str,
+    label: impl text::IntoFragment<'a>,
     padding: impl Into<iced::Padding>,
 ) -> iced::widget::Button<'a, M> {
-    button(text(label).size(typography::label()).font(fonts::BOLD)).padding(padding)
+    button(
+        text(label)
+            .size(typography::label())
+            .font(fonts::BOLD)
+            .wrapping(Wrapping::None),
+    )
+    .padding(padding)
 }
 
 /// Small count pill: primary tint when `active`, neutral otherwise.
@@ -906,39 +877,154 @@ fn column_label(
     container(cell).width(width).into()
 }
 
-/// The light header row above the rows: tri-state box, column labels,
-/// and room on the right for the scrollbar gutter so labels stay aligned
-/// with the cells below.
+/// Horizontal geometry of the table: the fixed width of every shown
+/// column plus how much the "Vendor Name" column grows so the table
+/// fills the card when the columns would otherwise fall short of it.
+struct TableLayout {
+    row_width: f32,
+    name_extra: f32,
+}
+
+impl TableLayout {
+    /// Width of the header and of every row, edge padding included.
+    fn total_width(&self) -> f32 {
+        self.row_width + spacing::MD * 2.0
+    }
+
+    fn cell(&self, label: &str) -> Length {
+        let extra = if label == "Vendor Name" {
+            self.name_extra
+        } else {
+            0.0
+        };
+        Length::Fixed(column_width_px(label) + extra)
+    }
+}
+
+fn table_layout(state: &State, available: f32) -> TableLayout {
+    let (field_width, field_count) = VENDOR_HEADERS
+        .iter()
+        .enumerate()
+        .skip(2)
+        .filter(|(index, _)| column_visible(state, *index))
+        .fold((0.0, 0.0), |(width, count), (_, label)| {
+            (width + column_width_px(label), count + 1.0)
+        });
+    let row_width = column_width_px("S.No")
+        + 44.0
+        + spacing::ACTION_COLUMN_WIDTH
+        + field_width
+        + spacing::MD * (field_count + 2.0);
+    let fixed_total = row_width + spacing::MD * 2.0;
+    TableLayout {
+        row_width,
+        name_extra: (available - fixed_total).max(0.0),
+    }
+}
+
+/// How the page's width is shared between the table card and the side
+/// panel; `None` means that part is not shown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PageSplit {
+    card: Option<f32>,
+    panel: Option<f32>,
+}
+
+/// Wide and medium pages show the card beside the panel (the panel never
+/// narrower than `PANEL_MIN_WIDTH`); a narrow page shows only one of them,
+/// the panel replacing the card while it is open.
+fn page_split(inner: f32, panel_open: bool) -> PageSplit {
+    let class = spacing::layout_class(inner);
+    match (panel_open, class) {
+        (false, _) => PageSplit {
+            card: Some(inner),
+            panel: None,
+        },
+        (true, spacing::LayoutClass::Narrow) => PageSplit {
+            card: None,
+            panel: Some(inner),
+        },
+        (true, class) => {
+            let share = if class == spacing::LayoutClass::Wide {
+                spacing::PANEL_WIDE_SHARE
+            } else {
+                spacing::PANEL_MEDIUM_SHARE
+            };
+            let panel = (inner * share).max(spacing::PANEL_MIN_WIDTH);
+            PageSplit {
+                card: Some((inner - panel - spacing::SPACE_20).max(0.0)),
+                panel: Some(panel),
+            }
+        }
+    }
+}
+
+/// The filtered rows and paging numbers behind the table and its footer.
+struct VendorPage<'a> {
+    rows: Vec<&'a Vendor>,
+    total: usize,
+    pages: usize,
+    page: usize,
+    size: usize,
+}
+
+fn vendor_page(state: &State) -> VendorPage<'_> {
+    let query = state.search.trim().to_lowercase();
+    let vendor_type = if state.vendor_type_filter.is_empty() {
+        "All"
+    } else {
+        state.vendor_type_filter.as_str()
+    };
+    let filtered: Vec<&Vendor> = state
+        .vendors
+        .iter()
+        .filter(|vendor| matches_filters(vendor, &query, state.status_filter, vendor_type))
+        .collect();
+    let total = filtered.len();
+    let size = state.rows_per_page();
+    let pages = total.div_ceil(size).max(1);
+    let page = state.page.min(pages - 1);
+    let rows = filtered.into_iter().skip(page * size).take(size).collect();
+    VendorPage {
+        rows,
+        total,
+        pages,
+        page,
+        size,
+    }
+}
+
+fn results_label(shown: usize, total: usize) -> String {
+    format!("Showing {shown} of {total} results")
+}
+
+/// The light header row above the rows: tri-state box and column labels,
+/// padded exactly like a row so every label sits over its cells.
 fn table_header(
     theme: Theme,
     check: CheckState,
     on_toggle: Message,
     visible: &dyn Fn(usize) -> bool,
-    row_width: f32,
+    layout: &TableLayout,
 ) -> Element<'static, Message> {
     let mut header = row![
         container(text("S.No").size(typography::caption()).font(fonts::BOLD))
-            .width(column_width("S.No")),
+            .width(layout.cell("S.No")),
         container(check_box(theme, check, on_toggle)).width(Length::Fixed(44.0)),
     ]
-        .spacing(spacing::MD)
-        .align_y(Alignment::Center);
+    .spacing(spacing::MD)
+    .align_y(Alignment::Center);
     for (index, label) in VENDOR_HEADERS.iter().enumerate().skip(2) {
         if visible(index) {
-            header = header.push(column_label(theme, label, false, column_width(label)));
+            header = header.push(column_label(theme, label, false, layout.cell(label)));
         }
     }
     header = header.push(Space::with_width(Length::Fixed(
         spacing::ACTION_COLUMN_WIDTH,
     )));
     container(header)
-        .padding(iced::Padding {
-            top: spacing::SPACE_10,
-            right: spacing::MD + spacing::SCROLLBAR_WIDTH,
-            bottom: spacing::SPACE_10,
-            left: spacing::MD,
-        })
-        .width(Length::Fixed(row_width + spacing::MD * 2.0 + spacing::SCROLLBAR_WIDTH))
+        .padding([spacing::SPACE_10, spacing::MD])
+        .width(Length::Fixed(layout.total_width()))
         .style(table_style::header_row(theme, 0.0))
         .into()
 }
@@ -949,7 +1035,7 @@ fn vendor_row(
     theme: Theme,
     vendor: &Vendor,
     serial_number: usize,
-    row_width: f32,
+    layout: &TableLayout,
     selected: bool,
     highlighted: bool,
     visible: &dyn Fn(usize) -> bool,
@@ -957,7 +1043,7 @@ fn vendor_row(
     let id = vendor.id.unwrap_or_default();
     let mut cells = row![
         container(text(serial_number.to_string()).size(typography::body()))
-            .width(column_width("S.No")),
+            .width(layout.cell("S.No")),
         container(check_box(
             theme,
             if selected {
@@ -977,7 +1063,9 @@ fn vendor_row(
             continue;
         }
         let cell: Element<'static, Message> = match *label {
-            "Vendor Name" => labels::strong(theme, vendor.name.clone(), typography::label()).into(),
+            "Vendor Name" => labels::strong(theme, vendor.name.clone(), typography::label())
+                .wrapping(Wrapping::None)
+                .into(),
             "Status" => {
                 let (label, tone) = if vendor.is_active {
                     ("Active", BadgeTone::Positive)
@@ -991,9 +1079,10 @@ fn vendor_row(
                 vendor_column_value(vendor, label),
                 typography::body(),
             )
+            .wrapping(Wrapping::None)
             .into(),
         };
-        cells = cells.push(container(cell).width(column_width(label)));
+        cells = cells.push(container(cell).width(layout.cell(label)).clip(true));
     }
     cells = cells.push(
         container(icon_button(
@@ -1007,8 +1096,8 @@ fn vendor_row(
         .align_x(iced::alignment::Horizontal::Right),
     );
     button(cells)
-        .padding(0)
-        .width(Length::Fixed(row_width))
+        .padding([0.0, spacing::MD])
+        .width(Length::Fixed(layout.total_width()))
         .style(table_style::row(theme, highlighted))
         .on_press(Message::EditRow(id))
         .into()
@@ -1091,16 +1180,15 @@ fn page_number(theme: Theme, index: usize, current: bool) -> Element<'static, Me
     .into()
 }
 
-/// Card footer: Previous, numbered pages, Next on the left; result count
-/// and the rows-per-page selector on the right.
+/// Card footer: Previous, numbered pages, Next; result count and the
+/// rows-per-page selector. A narrow card stacks the two groups on two
+/// lines instead of overflowing.
 fn footer(
     theme: Theme,
-    page: usize,
-    pages: usize,
-    shown: usize,
-    total: usize,
-    size: usize,
+    class: spacing::LayoutClass,
+    vendors: &VendorPage<'_>,
 ) -> Element<'static, Message> {
+    let (page, pages) = (vendors.page, vendors.pages);
     let mut numbers = row![].spacing(spacing::SPACE_4).align_y(Alignment::Center);
     for item in page_items(page, pages) {
         numbers = numbers.push(match item {
@@ -1108,7 +1196,7 @@ fn footer(
             None => labels::muted(theme, "...", typography::label()).into(),
         });
     }
-    row![
+    let pager = row![
         pager_button(theme, "Previous", (page > 0).then_some(Message::PrevPage)),
         numbers,
         pager_button(
@@ -1116,22 +1204,74 @@ fn footer(
             "Next",
             (page + 1 < pages).then_some(Message::GoToPage(page + 1))
         ),
-        Space::with_width(Length::Fill),
+    ]
+    .spacing(spacing::SPACE_12)
+    .align_y(Alignment::Center);
+    let summary = row![
         labels::muted(
             theme,
-            format!("Showing {shown} of {total} results"),
+            results_label(vendors.rows.len(), vendors.total),
             typography::label()
-        ),
-        pick_list(PAGE_SIZES, Some(size), Message::PageSizeChanged)
+        )
+        .wrapping(Wrapping::None),
+        pick_list(PAGE_SIZES, Some(vendors.size), Message::PageSizeChanged)
             .padding([spacing::SPACE_6, spacing::SPACE_12])
             .text_size(typography::label())
             .style(dropdown::style(theme))
             .menu_style(dropdown::dropdown_menu(theme)),
     ]
     .spacing(spacing::SPACE_12)
-    .align_y(Alignment::Center)
-    .padding(spacing::MD)
-    .into()
+    .align_y(Alignment::Center);
+    if class == spacing::LayoutClass::Narrow {
+        column![pager, summary]
+            .spacing(spacing::SPACE_12)
+            .padding(spacing::SPACE_20)
+            .into()
+    } else {
+        row![pager, Space::with_width(Length::Fill), summary]
+            .align_y(Alignment::Center)
+            .padding(spacing::SPACE_20)
+            .into()
+    }
+}
+
+/// The card's top block. Wide: one line. Medium: title and Add on the
+/// first line, search, filters and tools on the second. Narrow: the
+/// filters drop to a third line. Buttons keep their natural width and the
+/// search box takes whatever space is left.
+fn card_header<'a, M: 'a>(
+    class: spacing::LayoutClass,
+    title: Element<'a, M>,
+    search: Element<'a, M>,
+    filters: Element<'a, M>,
+    tools: Element<'a, M>,
+    add: Element<'a, M>,
+) -> Element<'a, M> {
+    let line = |items: Vec<Element<'a, M>>| {
+        Row::with_children(items)
+            .spacing(spacing::SPACE_12)
+            .align_y(Alignment::Center)
+    };
+    match class {
+        spacing::LayoutClass::Wide => line(vec![title, search, filters, tools, add])
+            .padding(spacing::SPACE_20)
+            .into(),
+        spacing::LayoutClass::Medium => column![
+            line(vec![container(title).width(Length::Fill).into(), add]),
+            line(vec![search, filters, tools]),
+        ]
+        .spacing(spacing::SPACE_12)
+        .padding(spacing::SPACE_20)
+        .into(),
+        spacing::LayoutClass::Narrow => column![
+            line(vec![container(title).width(Length::Fill).into(), add]),
+            line(vec![search, tools]),
+            filters,
+        ]
+        .spacing(spacing::SPACE_12)
+        .padding(spacing::SPACE_20)
+        .into(),
+    }
 }
 
 /// A small muted label above a form input.
@@ -1180,72 +1320,279 @@ fn readonly_field(
     )
 }
 
-fn body<'a, M: Clone + 'a>(
-    state: &'a State,
-    theme: Theme,
-    switcher: Option<Element<'a, M>>,
-    wrap: impl Fn(Message) -> M + Clone + 'a,
-) -> Element<'a, M> {
-    let lift = |element: Element<'a, Message>| element.map(wrap.clone());
-    if state.show_preview {
-        let mut preview = column![];
-        if let Some(switcher) = switcher {
-            preview = preview.push(switcher);
+/// Lays `fields` out `columns` to a line; a short last line is padded so
+/// its fields keep the same width as the ones above.
+fn field_grid<'a>(
+    fields: Vec<Element<'a, Message>>,
+    columns: usize,
+) -> Element<'a, Message> {
+    let mut grid = column![].spacing(spacing::MD).width(Length::Fill);
+    let mut remaining = fields.into_iter();
+    loop {
+        let mut line = row![].spacing(spacing::SM).width(Length::Fill);
+        let mut placed = 0;
+        for field in remaining.by_ref().take(columns) {
+            line = line.push(field);
+            placed += 1;
         }
-        return preview
-            .push(lift(vendor_preview(state, theme)))
-            .spacing(spacing::MD)
-            .padding(spacing::SPACE_20)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into();
+        if placed == 0 {
+            break;
+        }
+        for _ in placed..columns {
+            line = line.push(Space::with_width(Length::FillPortion(1)));
+        }
+        grid = grid.push(line);
     }
-    let visible_column = |index: usize| column_visible(state, index);
-    let query = state.search.trim().to_lowercase();
-    let vendor_type = if state.vendor_type_filter.is_empty() {"All"} else {state.vendor_type_filter.as_str()};
-    let filtered: Vec<&Vendor> = state
-        .vendors
-        .iter()
-        .filter(|vendor| matches_filters(vendor, &query, state.status_filter, vendor_type))
-        .collect();
-    let total = filtered.len();
-    let size = state.rows_per_page();
-    let pages = total.div_ceil(size).max(1);
-    let page = state.page.min(pages - 1);
-    let visible: Vec<&Vendor> = filtered
-        .iter()
-        .skip(page * size)
-        .take(size)
-        .copied()
-        .collect();
+    grid.into()
+}
 
-    // Card header: title, count and subtitle on the left; search, the
-    // utility icon buttons and the solid Add button on the right.
-    let mut titles = row![
-        labels::strong(theme, TITLE, typography::panel_title()),
-        lift(count_badge(
-            theme,
-            format!("{} Total", state.vendors.len()),
-            true
-        )),
-    ]
-    .spacing(spacing::SPACE_12)
-    .align_y(Alignment::Center);
-    if let Some(switcher) = switcher {
-        titles = titles.push(switcher);
+/// The fields of the active detail tab, in reading order.
+fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
+    let editing = state
+        .editing_id
+        .and_then(|id| state.vendors.iter().find(|r| r.id == Some(id)));
+    if state.form_tab == 0 {
+        let vendor_id = editing
+            .and_then(|vendor| vendor.reference_code.clone())
+            .unwrap_or_else(|| "Assigned on save".into());
+        return vec![
+            readonly_field(theme, "Vendor ID", vendor_id),
+            field(
+                theme,
+                "Vendor name",
+                text_input("Vendor name", &state.name_input).on_input(Message::NameChanged),
+            ),
+            readonly_field(theme, "Company Name", "--"),
+            field(
+                theme,
+                "Phone (optional)",
+                text_input("Phone (optional)", &state.phone_input)
+                    .on_input(Message::PhoneChanged),
+            ),
+            field(
+                theme,
+                "Email (optional)",
+                text_input("Email (optional)", &state.email_input)
+                    .on_input(Message::EmailChanged),
+            ),
+            readonly_field(theme, "Website", "--"),
+            readonly_field(theme, "Mailing Address", "--"),
+            readonly_field(theme, "Shipping Address", "--"),
+            field(
+                theme,
+                "Tax ID (optional)",
+                text_input("Tax ID (optional)", &state.tax_id_input)
+                    .on_input(Message::TaxIdChanged),
+            ),
+            readonly_field(theme, "Description", "--"),
+            field_element(
+                theme,
+                "Vendor type",
+                pick_list(
+                    VENDOR_TYPES,
+                    Some(state.vendor_type_input.as_str()),
+                    |value| Message::VendorTypeChanged(value.to_string()),
+                )
+                .style(dropdown::style(theme))
+                .padding(spacing::SM)
+                .width(Length::Fill)
+                .into(),
+            ),
+            readonly_field(theme, "Custom Fields", "--"),
+        ];
     }
-    let search_input = text_input("Search vendors by name or email", &state.search)
+    vec![
+        field(
+            theme,
+            "Payment Terms",
+            text_input("30", &state.payment_terms_input).on_input(Message::PaymentTermsChanged),
+        ),
+        readonly_field(theme, "Debit", "--"),
+        readonly_field(theme, "Credit", "--"),
+        readonly_field(theme, "Balance", "--"),
+        readonly_field(theme, "Payment Method", "--"),
+        readonly_field(theme, "Attachments", "--"),
+        field_element(
+            theme,
+            "Status",
+            pick_list(
+                VENDOR_STATUS_OPTIONS,
+                Some(state.status_input.as_str()),
+                |value| Message::StatusChanged(value.to_string()),
+            )
+            .style(dropdown::style(theme))
+            .padding(spacing::SM)
+            .width(Length::Fill)
+            .into(),
+        ),
+        readonly_field(theme, "Create Timestamp", "--"),
+        readonly_field(theme, "Modified Timestamp", "--"),
+    ]
+}
+
+/// Name, contact line and status pill at the top of the detail panel.
+fn vendor_summary(state: &State, theme: Theme) -> Element<'static, Message> {
+    let name = if state.name_input.is_empty() {
+        "New Vendor".to_string()
+    } else {
+        state.name_input.clone()
+    };
+    let archived = state.status_input == "Inactive";
+    container(
+        row![
+            column![
+                labels::strong(theme, name, typography::emphasis()),
+                labels::muted(
+                    theme,
+                    format!(
+                        "{}  ·  {}",
+                        if state.phone_input.is_empty() {
+                            "--"
+                        } else {
+                            &state.phone_input
+                        },
+                        if state.email_input.is_empty() {
+                            "--"
+                        } else {
+                            &state.email_input
+                        }
+                    ),
+                    typography::caption(),
+                ),
+            ]
+            .spacing(spacing::SPACE_4)
+            .width(Length::Fill),
+            status_pill(
+                theme,
+                if archived { "Archived" } else { "Active" },
+                if archived {
+                    BadgeTone::Neutral
+                } else {
+                    BadgeTone::Positive
+                },
+            ),
+        ]
+        .spacing(spacing::MD)
+        .align_y(Alignment::Center),
+    )
+    .padding(spacing::MD)
+    .width(Length::Fill)
+    .style(panels::flat_card(theme, states::RADIUS_MD))
+    .into()
+}
+
+/// The Vendor Details card: tabs, `columns` columns of fields, Save/Close.
+fn detail_form(state: &State, theme: Theme, columns: usize) -> Element<'_, Message> {
+    let footer = row![
+        bold_button("Save", [spacing::SM, spacing::MD])
+            .style(button_style::mode(theme, true))
+            .on_press(Message::Create),
+        bold_button("Close", [spacing::SM, spacing::MD])
+            .style(button_style::outlined(theme, false))
+            .on_press(Message::CancelEdit),
+    ]
+    .spacing(spacing::SM)
+    .into();
+    forms::detail_panel(forms::DetailPanel {
+        theme,
+        title: "Vendor Details",
+        tab_labels: &VENDOR_FORM_TABS,
+        active_tab: state.form_tab,
+        on_select_tab: Message::FormTabChanged,
+        summary: Some(vendor_summary(state, theme)),
+        content: field_grid(detail_fields(state, theme), columns),
+        footer,
+        on_preview: Message::Preview,
+    })
+}
+
+/// The column picker in its own card.
+fn columns_card(state: &State, theme: Theme) -> Element<'_, Message> {
+    let optional_visibility = optional_column_visibility(state);
+    container(data_table::columns_panel(
+        theme,
+        &VENDOR_OPTIONAL_COLUMNS,
+        &optional_visibility,
+        Message::ColumnToggled,
+        Message::SelectAllColumns,
+        Message::DeselectAllColumns,
+        Message::ResetColumns,
+    ))
+    .padding(spacing::MD)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(panels::flat_card(theme, states::RADIUS_LG))
+    .into()
+}
+
+/// Everything right of (or, when narrow, instead of) the table: the detail
+/// form and/or the column picker, with a Back button when it replaces the
+/// table.
+fn side_panel(
+    state: &State,
+    theme: Theme,
+    class: spacing::LayoutClass,
+    width: f32,
+) -> Element<'_, Message> {
+    let narrow = class == spacing::LayoutClass::Narrow;
+    let columns = if !narrow && width >= spacing::PANEL_TWO_COLUMN_MIN_WIDTH {
+        2
+    } else {
+        1
+    };
+    let mut side = column![]
+        .spacing(spacing::SPACE_20)
+        .width(Length::Fixed(width))
+        .height(Length::Fill);
+    if narrow {
+        let close = if state.form_open {
+            Message::CancelEdit
+        } else {
+            Message::ToggleColumns
+        };
+        side = side.push(
+            bold_button(
+                format!("{}  Back", icons::ARROW_LEFT),
+                [spacing::SPACE_6, spacing::SPACE_14],
+            )
+            .style(button_style::outlined(theme, false))
+            .on_press(close),
+        );
+    }
+    if state.form_open {
+        side = side.push(detail_form(state, theme, columns));
+    }
+    if state.columns_open {
+        side = side.push(columns_card(state, theme));
+    }
+    side.into()
+}
+
+/// Search field with the magnifier glyph laid over its left inset; takes
+/// all the width its row leaves over.
+fn search_box(state: &State, theme: Theme) -> Element<'_, Message> {
+    let input = text_input("Search vendors by name or email", &state.search)
         .style(inputs::text(theme))
         .on_input(Message::SearchChanged)
-        .padding(iced::Padding {top: spacing::SM,right: spacing::SPACE_12,bottom: spacing::SM,left: spacing::SEARCH_ICON_INSET,})
+        .padding(iced::Padding {
+            top: spacing::SM,
+            right: spacing::SPACE_12,
+            bottom: spacing::SM,
+            left: spacing::SEARCH_ICON_INSET,
+        })
         .size(typography::label())
         .width(Length::Fill);
-    let search_box = stack![
-        search_input,
+    stack![
+        input,
         container(labels::muted(theme, icons::SEARCH, typography::label()))
             .padding([spacing::SPACE_10, spacing::SPACE_12])
     ]
-    .width(Length::Fixed(spacing::SEARCH_WIDTH));
+    .width(Length::Fill)
+    .into()
+}
+
+/// The vendor-type and status dropdowns, each showing its counts.
+fn filter_row(state: &State, theme: Theme) -> Element<'static, Message> {
     let selected_vendor_type = if state.vendor_type_filter.is_empty() {
         "All"
     } else {
@@ -1292,10 +1639,18 @@ fn body<'a, M: Clone + 'a>(
             state.status_filter == StatusFilter::Inactive,
         ),
     ];
-    let controls = row![
-        search_box,
+    row![
         filter_dropdown(theme, "Vendor type", vendor_type_options),
         filter_dropdown(theme, "Status", status_options),
+    ]
+    .spacing(spacing::SPACE_12)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// Reset, Columns and Export icon buttons.
+fn tool_buttons(theme: Theme) -> Element<'static, Message> {
+    row![
         icon_button(theme, icons::RESET, "Reset all", Message::ResetAll, true),
         icon_button(
             theme,
@@ -1304,37 +1659,124 @@ fn body<'a, M: Clone + 'a>(
             Message::ToggleColumns,
             true
         ),
-        icon_button(theme,icons::EXPORT,"Export CSV",Message::BulkExportCsv,true),
-        bold_button("Add", [spacing::SPACE_10, spacing::MD])
-            .style(button_style::mode(theme, true))
-            .on_press(Message::OpenForm),
+        icon_button(
+            theme,
+            icons::EXPORT,
+            "Export CSV",
+            Message::BulkExportCsv,
+            true
+        ),
+    ]
+    .spacing(spacing::SPACE_12)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// Header, table and footer inside one card, `card_width` wide.
+fn vendor_card<'a, M: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    card_width: f32,
+    switcher: Option<Element<'a, M>>,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
+) -> Element<'a, M> {
+    let lift = |element: Element<'a, Message>| element.map(wrap.clone());
+    let class = spacing::layout_class(card_width);
+    let vendors = vendor_page(state);
+
+    let mut titles = row![
+        labels::strong(theme, TITLE, typography::panel_title()).wrapping(Wrapping::None),
+        lift(count_badge(
+            theme,
+            format!("{} Total", state.vendors.len()),
+            true
+        )),
     ]
     .spacing(spacing::SPACE_12)
     .align_y(Alignment::Center);
-    let card_header = row![
-        column![
-            titles,
-            labels::muted(theme, SUBTITLE, typography::caption())
-        ]
-        .spacing(spacing::SPACE_4),
-        Space::with_width(Length::Fill),
-        lift(controls.into()),
+    if let Some(switcher) = switcher {
+        titles = titles.push(switcher);
+    }
+    let title: Element<'a, M> = column![
+        titles,
+        labels::muted(theme, SUBTITLE, typography::caption()).wrapping(Wrapping::None)
     ]
-    .align_y(Alignment::Center)
-    .padding(spacing::MD);
+    .spacing(spacing::SPACE_4)
+    .into();
+    let add = lift(
+        bold_button("Add", [spacing::SPACE_10, spacing::MD])
+            .style(button_style::mode(theme, true))
+            .on_press(Message::OpenForm)
+            .into(),
+    );
+    let header = card_header(
+        class,
+        title,
+        lift(search_box(state, theme)),
+        lift(filter_row(state, theme)),
+        lift(tool_buttons(theme)),
+        add,
+    );
 
-    let row_ids: Vec<i64> = visible.iter().map(|v| v.id.unwrap_or_default()).collect();
+    let row_ids: Vec<i64> = vendors
+        .rows
+        .iter()
+        .map(|v| v.id.unwrap_or_default())
+        .collect();
     let selected_here = row_ids
         .iter()
         .filter(|id| state.selected.contains(id))
         .count();
     let check = CheckState::from_counts(selected_here, row_ids.len());
     let toggle_all = Message::SelectAllChanged(row_ids, check != CheckState::Checked);
-    let (table_width, row_width) = table_widths(state);
-    let header_row = table_header(theme, check, toggle_all, &visible_column, row_width);
+    let layout = table_layout(
+        state,
+        card_width - spacing::SCROLLBAR_WIDTH - spacing::SPACE_2,
+    );
+    let table = table_area(state, theme, &vendors, check, toggle_all, &layout);
 
+    let mut card = column![header, lift(table)];
+    if let Some(message) = &state.message {
+        card = card.push(lift(
+            container(text(message.clone()).color(theme.positive_front()))
+                .padding([spacing::SPACE_6, spacing::SPACE_20])
+                .into(),
+        ));
+    }
+    if let Some(error) = &state.error {
+        card = card.push(lift(
+            container(text(error.clone()).color(theme.negative_front()))
+                .padding([spacing::SPACE_6, spacing::SPACE_20])
+                .into(),
+        ));
+    }
+    card = card.push(lift(
+        container(Space::with_height(Length::Fixed(spacing::SPACE_1)))
+            .width(Length::Fill)
+            .style(table_style::divider(theme))
+            .into(),
+    ));
+    card = card.push(lift(footer(theme, class, &vendors)));
+    container(card)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(panels::card(theme, states::RADIUS_LG))
+        .into()
+}
+
+/// Header plus the visible rows, scrolling both ways inside the card.
+fn table_area(
+    state: &State,
+    theme: Theme,
+    vendors: &VendorPage<'_>,
+    check: CheckState,
+    toggle_all: Message,
+    layout: &TableLayout,
+) -> Element<'static, Message> {
+    let visible_column = |index: usize| column_visible(state, index);
+    let header_row = table_header(theme, check, toggle_all, &visible_column, layout);
     let mut rows = column![];
-    for (index, vendor) in visible.iter().enumerate() {
+    for (index, vendor) in vendors.rows.iter().enumerate() {
         if index > 0 {
             rows = rows.push(
                 container(Space::with_height(Length::Fixed(spacing::SPACE_1)))
@@ -1346,301 +1788,286 @@ fn body<'a, M: Clone + 'a>(
         rows = rows.push(vendor_row(
             theme,
             vendor,
-            page * size + index + 1,
-            row_width,
+            vendors.page * vendors.size + index + 1,
+            layout,
             state.selected.contains(&id),
             state.selected.contains(&id) || (state.form_open && state.editing_id == vendor.id),
             &visible_column,
         ));
     }
-    let table_area = scrollable(
-        column![header_row, rows.width(Length::Fixed(row_width))]
-            .width(Length::Fixed(table_width))
+    scrollable(
+        column![header_row, rows.width(Length::Fixed(layout.total_width()))]
+            .width(Length::Fixed(layout.total_width()))
             .spacing(spacing::SPACE_1),
     )
-        .direction(scrollable::Direction::Both {
-            vertical: scrollable::Scrollbar::new()
-                .width(spacing::SCROLLBAR_WIDTH)
-                .scroller_width(spacing::SCROLLBAR_WIDTH)
-                .spacing(0.0),
-            horizontal: scrollable::Scrollbar::new()
-                .width(spacing::SCROLLBAR_WIDTH)
-                .scroller_width(spacing::SCROLLBAR_WIDTH)
-                .spacing(0.0),
-        })
-        .height(Length::Fill);
+    .direction(scrollable::Direction::Both {
+        vertical: scrollbar::bar(),
+        horizontal: scrollbar::bar(),
+    })
+    .height(Length::Fill)
+    .into()
+}
 
-    let mut card = column![card_header];
-    // Removed the conditional block for bulk actions as it is no longer needed
-    card = card.push(lift(table_area.into()));
-    if let Some(message) = &state.message {
-        card = card.push(lift(
-            container(text(message.clone()).color(theme.positive_front()))
-                .padding([spacing::SPACE_6, spacing::MD])
-                .into(),
-        ));
-    }
-    if let Some(error) = &state.error {
-        card = card.push(lift(
-            container(text(error.clone()).color(theme.negative_front()))
-                .padding([spacing::SPACE_6, spacing::MD])
-                .into(),
-        ));
-    }
-    card = card.push(lift(
-        container(Space::with_height(Length::Fixed(spacing::SPACE_1)))
+/// The whole Vendors page for a page area `width` wide.
+fn page<'a, M: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    width: f32,
+    switcher: Option<Element<'a, M>>,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
+) -> Element<'a, M> {
+    let lift = |element: Element<'a, Message>| element.map(wrap.clone());
+    if state.show_preview {
+        let mut preview = column![];
+        if let Some(switcher) = switcher {
+            preview = preview.push(switcher);
+        }
+        return preview
+            .push(lift(vendor_preview(state, theme)))
+            .spacing(spacing::MD)
+            .padding(spacing::SPACE_20)
             .width(Length::Fill)
-            .style(table_style::divider(theme))
-            .into(),
-    ));
-    card = card.push(lift(footer(theme, page, pages, visible.len(), total, size)));
-    let card = container(card)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(panels::card(theme, states::RADIUS_LG));
-
-    // Detail panel: header with close, a summary card when editing, the
-    // fields in a two-column grid, then Save / Cancel.
-    let editing = state
-        .editing_id
-        .and_then(|id| state.vendors.iter().find(|r| r.id == Some(id)));
-    let summary_name = if state.name_input.is_empty() {
-        "New Vendor".to_string()
-    } else {
-        state.name_input.clone()
-    };
-    let summary = container(
-        row![
-            column![
-                labels::strong(theme, summary_name, typography::emphasis()),
-                labels::muted(
-                    theme,
-                    format!(
-                        "{}  ·  {}",
-                        if state.phone_input.is_empty() { "--" } else { &state.phone_input },
-                        if state.email_input.is_empty() { "--" } else { &state.email_input }
-                    ),
-                    typography::caption(),
-                ),
-            ]
-            .spacing(spacing::SPACE_4)
-            .width(Length::Fill),
-            status_pill(
-                theme,
-                if state.status_input == "Inactive" {
-                    "Archived"
-                } else {
-                    "Active"
-                },
-                if state.status_input == "Inactive" {
-                    BadgeTone::Neutral
-                } else {
-                    BadgeTone::Positive
-                },
-            ),
-        ]
-        .spacing(spacing::MD)
-        .align_y(Alignment::Center),
-    )
-    .padding(spacing::MD)
-    .width(Length::Fill)
-    .style(panels::flat_card(theme, states::RADIUS_MD))
-    .into();
-    let mut form = column![].spacing(spacing::MD);
-    match state.form_tab {
-        0 => {
-            let vendor_id = editing
-                .and_then(|vendor| vendor.reference_code.clone())
-                .unwrap_or_else(|| "Assigned on save".into());
-            form = form
-                .push(
-                    row![
-                        readonly_field(theme, "Vendor ID", vendor_id),
-                        field(
-                            theme,
-                            "Vendor name",
-                            text_input("Vendor name", &state.name_input)
-                                .on_input(Message::NameChanged)
-                        ),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        readonly_field(theme, "Company Name", "--"),
-                        field(
-                            theme,
-                            "Phone (optional)",
-                            text_input("Phone (optional)", &state.phone_input)
-                                .on_input(Message::PhoneChanged)
-                        ),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        field(
-                            theme,
-                            "Email (optional)",
-                            text_input("Email (optional)", &state.email_input)
-                                .on_input(Message::EmailChanged)
-                        ),
-                        readonly_field(theme, "Website", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        readonly_field(theme, "Mailing Address", "--"),
-                        readonly_field(theme, "Shipping Address", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        field(
-                            theme,
-                            "Tax ID (optional)",
-                            text_input("Tax ID (optional)", &state.tax_id_input)
-                                .on_input(Message::TaxIdChanged)
-                        ),
-                        readonly_field(theme, "Description", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        field_element(
-                            theme,
-                            "Vendor type",
-                            pick_list(VENDOR_TYPES, Some(state.vendor_type_input.as_str()), |value| {
-                                Message::VendorTypeChanged(value.to_string())
-                            })
-                            .style(dropdown::style(theme))
-                            .padding(spacing::SM)
-                            .width(Length::Fill)
-                            .into(),
-                        ),
-                        readonly_field(theme, "Custom Fields", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                );
-        }
-        _ => {
-            form = form
-                .push(
-                    row![
-                        field(
-                            theme,
-                            "Payment Terms",
-                            text_input("30", &state.payment_terms_input)
-                                .on_input(Message::PaymentTermsChanged)
-                        ),
-                        readonly_field(theme, "Debit", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        readonly_field(theme, "Credit", "--"),
-                        readonly_field(theme, "Balance", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        readonly_field(theme, "Payment Method", "--"),
-                        readonly_field(theme, "Attachments", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(
-                    row![
-                        field_element(
-                            theme,
-                            "Status",
-                            pick_list(
-                                VENDOR_STATUS_OPTIONS,
-                                Some(state.status_input.as_str()),
-                                |value| Message::StatusChanged(value.to_string()),
-                            )
-                            .style(dropdown::style(theme))
-                            .padding(spacing::SM)
-                            .width(Length::Fill)
-                            .into(),
-                        ),
-                        readonly_field(theme, "Create Timestamp", "--"),
-                    ]
-                    .spacing(spacing::SM),
-                )
-                .push(row![
-                    readonly_field(theme, "Modified Timestamp", "--"),
-                    Space::with_width(Length::Fill),
-                ]);
-        }
+            .height(Length::Fill)
+            .into();
     }
-    let footer = row![
-        bold_button("Save", [spacing::SM, spacing::MD])
-            .style(button_style::mode(theme, true))
-            .on_press(Message::Create),
-        bold_button("Close", [spacing::SM, spacing::MD])
-            .style(button_style::outlined(theme, false))
-            .on_press(Message::CancelEdit),
-    ]
-    .spacing(spacing::SM)
-    .into();
-    let form = forms::detail_panel(forms::DetailPanel {
-        theme,
-        title: "Vendor Details",
-        tab_labels: &VENDOR_FORM_TABS,
-        active_tab: state.form_tab,
-        on_select_tab: Message::FormTabChanged,
-        summary: Some(summary),
-        content: form.into(),
-        footer,
-        on_preview: Message::Preview,
-    });
-
-    // The right-hand third: the detail panel and/or the columns picker,
-    // hidden until one of them is opened.
-    let mut side = column![].spacing(spacing::SPACE_20).height(Length::Fill);
-    if state.form_open {
-        side = side.push(form);
+    let inner = (width - spacing::SPACE_20 * 2.0).max(0.0);
+    let class = spacing::layout_class(inner);
+    let split = page_split(inner, state.form_open || state.columns_open);
+    let mut main = row![].spacing(spacing::SPACE_20).height(Length::Fill);
+    if let Some(card_width) = split.card {
+        main = main.push(vendor_card(state, theme, card_width, switcher, wrap.clone()));
     }
-    if state.columns_open {
-        let optional_visibility = optional_column_visibility(state);
-        side = side.push(data_table::columns_panel(
-            theme,
-            &VENDOR_OPTIONAL_COLUMNS,
-            &optional_visibility,
-            Message::ColumnToggled,
-            Message::SelectAllColumns,
-            Message::DeselectAllColumns,
-            Message::ResetColumns,
-        ));
-    }
-
-    let panel_open = state.form_open || state.columns_open;
-    let mut main = row![container(card).width(if panel_open {
-        Length::FillPortion(2)
-    } else {
-        Length::Fill
-    })]
-    .spacing(spacing::SPACE_20)
-    .height(Length::Fill);
-    if panel_open {
-        main = main.push(lift(
-            container(side)
-                .padding(spacing::MD)
-                .width(Length::FillPortion(1))
-                .height(Length::Fill)
-                .style(panels::flat_card(theme, states::RADIUS_LG))
-                .into(),
-        ));
+    if let Some(panel_width) = split.panel {
+        main = main.push(lift(side_panel(state, theme, class, panel_width)));
     }
     container(main)
         .padding(spacing::SPACE_20)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
+    body(state, theme, || None, |message| message)
+}
+
+/// Same as [`view`], except the title sits inline with the switcher (a
+/// type-switcher dropdown, e.g. "Maintain"'s section picker) in the
+/// card header -- `wrap` converts this module's own `Message` into
+/// whatever the caller's `switcher` produces, so the two can share one
+/// `Element` tree despite having different message types. `switcher`
+/// builds a fresh dropdown each time the page is laid out.
+pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    switcher: impl Fn() -> Element<'a, ParentMessage> + 'a,
+    wrap: impl Fn(Message) -> ParentMessage + Clone + 'a,
+) -> Element<'a, ParentMessage> {
+    body(state, theme, move || Some(switcher()), wrap)
+}
+
+/// Rebuilds the page whenever the available size changes.
+fn body<'a, M: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    switcher: impl Fn() -> Option<Element<'a, M>> + 'a,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
+) -> Element<'a, M> {
+    responsive(move |size| page(state, theme, size.width, switcher(), wrap.clone())).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::organization::companies::Company;
+    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
+    use crate::backend::repositories::party_repository;
+    use crate::database::database::Database;
+    use std::path::PathBuf;
+
+    const WIDTHS: [f32; 4] = [640.0, 900.0, 1366.0, 1920.0];
+    const THEMES: [Theme; 2] = [Theme::Light, Theme::Dark];
+
+    fn ctx_with_company() -> Ctx {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        db.run_migrations(party_repository::MIGRATIONS).unwrap();
+        let company_id = OrganizationRepository::new(db.clone())
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
+        Ctx {
+            db,
+            company_id,
+            current_user_id: None,
+            export_dir: PathBuf::from("."),
+            uploads_dir: PathBuf::from("."),
+        }
+    }
+
+    fn vendors(count: usize, long_name: bool) -> Vec<Vendor> {
+        (0..count)
+            .map(|index| {
+                let name = if long_name {
+                    "A Very Long Vendor Name Trading And Distribution Company Limited ".repeat(3)
+                } else {
+                    format!("Vendor {index}")
+                };
+                let mut vendor = Vendor::new(1, name);
+                vendor.id = Some(index as i64 + 1);
+                vendor.is_active = index % 3 != 0;
+                vendor
+            })
+            .collect()
+    }
+
+    fn state_with(vendors: Vec<Vendor>) -> State {
+        State {
+            vendors,
+            column_visible: default_column_visibility(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn one_active_vendor_shows_one_row_and_a_one_of_one_footer() {
+        let ctx = ctx_with_company();
+        let mut state = load(&ctx);
+        update(&mut state, Message::OpenForm, &ctx);
+        update(&mut state, Message::NameChanged("Acme Supplies".into()), &ctx);
+        update(&mut state, Message::Create, &ctx);
+        assert!(state.error.is_none(), "{:?}", state.error);
+
+        // Reload from the database, as the app does when the page opens.
+        let state = load(&ctx);
+        assert_eq!(state.vendors.len(), 1);
+        let page = vendor_page(&state);
+
+        assert_eq!(page.rows.len(), 1);
+        assert_eq!(page.total, 1);
+        assert_eq!(results_label(page.rows.len(), page.total), "Showing 1 of 1 results");
+    }
+
+    #[test]
+    fn the_default_state_filters_nothing_out() {
+        let state = state_with(vendors(1, false));
+        let page = vendor_page(&state);
+
+        assert_eq!(state.status_filter, StatusFilter::All);
+        assert_eq!(page.rows.len(), 1);
+        assert_eq!(results_label(page.rows.len(), page.total), "Showing 1 of 1 results");
+    }
+
+    #[test]
+    fn a_status_filter_with_no_matches_empties_the_table_until_reset() {
+        let mut state = state_with(vendors(1, false));
+        state.vendors[0].is_active = true;
+        let ctx = ctx_with_company();
+
+        update(&mut state, Message::StatusFilterChanged(StatusFilter::Inactive), &ctx);
+        let page = vendor_page(&state);
+        assert_eq!(results_label(page.rows.len(), page.total), "Showing 0 of 0 results");
+
+        update(&mut state, Message::ResetAll, &ctx);
+        assert_eq!(vendor_page(&state).rows.len(), 1);
+    }
+
+    #[test]
+    fn paging_clamps_a_stale_page_index() {
+        let mut state = state_with(vendors(30, false));
+        state.page_size = 10;
+        state.page = 99;
+        let page = vendor_page(&state);
+
+        assert_eq!(page.pages, 3);
+        assert_eq!(page.page, 2);
+        assert_eq!(page.rows.len(), 10);
+    }
+
+    #[test]
+    fn layout_class_switches_at_the_shared_breakpoints() {
+        use spacing::{layout_class, LayoutClass};
+        assert_eq!(layout_class(799.0), LayoutClass::Narrow);
+        assert_eq!(layout_class(800.0), LayoutClass::Medium);
+        assert_eq!(layout_class(1199.0), LayoutClass::Medium);
+        assert_eq!(layout_class(1200.0), LayoutClass::Wide);
+    }
+
+    #[test]
+    fn the_panel_replaces_the_table_when_narrow_and_sits_beside_it_otherwise() {
+        let closed = page_split(600.0, false);
+        assert_eq!((closed.card, closed.panel), (Some(600.0), None));
+
+        let narrow = page_split(600.0, true);
+        assert_eq!((narrow.card, narrow.panel), (None, Some(600.0)));
+
+        for inner in [800.0, 1000.0, 1326.0, 1880.0] {
+            let split = page_split(inner, true);
+            let (card, panel) = (split.card.unwrap(), split.panel.unwrap());
+            assert!(panel >= spacing::PANEL_MIN_WIDTH, "panel clips at {inner}");
+            assert!((card + panel + spacing::SPACE_20 - inner).abs() < 0.01);
+        }
+        let wide = page_split(1500.0, true);
+        assert!((wide.panel.unwrap() - 500.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn the_name_column_grows_to_fill_spare_width_and_never_shrinks() {
+        let state = state_with(vendors(1, false));
+        let tight = table_layout(&state, 0.0);
+        let roomy = table_layout(&state, tight.total_width() + 300.0);
+
+        assert_eq!(tight.name_extra, 0.0);
+        assert!((roomy.name_extra - 300.0).abs() < 0.01);
+        assert_eq!(roomy.cell("Vendor ID"), tight.cell("Vendor ID"));
+    }
+
+    #[test]
+    fn the_page_builds_at_every_width_theme_panel_state_and_record_count() {
+        for theme in THEMES {
+            for width in WIDTHS {
+                for (count, long_name) in [(0, false), (1, false), (60, false), (3, true)] {
+                    for (form, columns) in [(false, false), (true, false), (false, true), (true, true)] {
+                        for tab in 0..VENDOR_FORM_TABS.len() {
+                            let mut state = state_with(vendors(count, long_name));
+                            state.form_open = form;
+                            state.columns_open = columns;
+                            state.form_tab = tab;
+                            state.page_size = 10;
+                            let _: Element<'_, Message> =
+                                page(&state, theme, width, None, |message| message);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_page_builds_with_a_switcher_a_selection_and_the_preview_open() {
+        for theme in THEMES {
+            let mut state = state_with(vendors(2, false));
+            state.selected.insert(1);
+            state.editing_id = Some(1);
+            state.form_open = true;
+            let switcher: Element<'_, Message> = Space::with_width(Length::Fixed(220.0)).into();
+            let _: Element<'_, Message> =
+                page(&state, theme, 1366.0, Some(switcher), |message| message);
+
+            state.show_preview = true;
+            let _: Element<'_, Message> = page(&state, theme, 640.0, None, |message| message);
+            let _: Element<'_, Message> = view(&state, theme);
+        }
+    }
+
+    #[test]
+    fn the_field_grid_pads_a_short_last_line() {
+        let fields = (0..5)
+            .map(|index| readonly_field(Theme::Light, "Label", index.to_string()))
+            .collect();
+        let _: Element<'_, Message> = field_grid(fields, 2);
+        let _: Element<'_, Message> = field_grid(Vec::new(), 2);
+    }
 }

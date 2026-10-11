@@ -8,11 +8,13 @@ use iced::widget::scrollable::{Direction, Scrollbar};
 
 use crate::frontend::components::spacing;
 
+pub fn bar() -> Scrollbar {
+    Scrollbar::new()
+        .width(spacing::SCROLLBAR_WIDTH)
+        .scroller_width(spacing::SCROLLBAR_WIDTH)
+        .spacing(0.0)
+}
+
 pub fn vertical() -> Direction {
-    Direction::Vertical(
-        Scrollbar::new()
-            .width(spacing::SCROLLBAR_WIDTH)
-            .scroller_width(spacing::SCROLLBAR_WIDTH)
-            .spacing(0.0),
-    )
+    Direction::Vertical(bar())
 }

@@ -1255,10 +1255,11 @@ fn footer(
     }
 }
 
-/// The card's top block. Wide: one line. Medium: title and Add on the
-/// first line, search, filters and tools on the second. Narrow: the
-/// filters drop to a third line. Buttons keep their natural width and the
-/// search box takes whatever space is left.
+/// The card's top block, two rows `SPACE_20` apart. Row 1 is the title
+/// block with the Add button on the right; row 2 is the toolbar: search
+/// (taking the spare width), the filter dropdowns, then the tool buttons.
+/// A narrow card wraps the toolbar: search on its own line, filters and
+/// tools below it.
 fn card_header<'a, M: 'a>(
     class: spacing::LayoutClass,
     title: Element<'a, M>,
@@ -1272,26 +1273,18 @@ fn card_header<'a, M: 'a>(
             .spacing(spacing::SPACE_12)
             .align_y(Alignment::Center)
     };
-    match class {
-        spacing::LayoutClass::Wide => line(vec![title, search, filters, tools, add])
-            .padding(spacing::SPACE_20)
-            .into(),
-        spacing::LayoutClass::Medium => column![
-            line(vec![container(title).width(Length::Fill).into(), add]),
-            line(vec![search, filters, tools]),
-        ]
-        .spacing(spacing::SPACE_12)
+    let page_header = line(vec![container(title).width(Length::Fill).clip(true).into(), add]);
+    let toolbar: Element<'a, M> = if class == spacing::LayoutClass::Narrow {
+        column![search, line(vec![filters, tools])]
+            .spacing(spacing::SPACE_12)
+            .into()
+    } else {
+        line(vec![search, filters, tools]).into()
+    };
+    column![page_header, toolbar]
+        .spacing(spacing::SPACE_20)
         .padding(spacing::SPACE_20)
-        .into(),
-        spacing::LayoutClass::Narrow => column![
-            line(vec![container(title).width(Length::Fill).into(), add]),
-            line(vec![search, tools]),
-            filters,
-        ]
-        .spacing(spacing::SPACE_12)
-        .padding(spacing::SPACE_20)
-        .into(),
-    }
+        .into()
 }
 
 /// A small muted label above a form input.
@@ -2084,6 +2077,30 @@ mod tests {
             state.show_preview = true;
             let _: Element<'_, Message> = page(&state, theme, 640.0, None, |message| message);
             let _: Element<'_, Message> = view(&state, theme);
+        }
+    }
+
+    #[test]
+    fn the_header_builds_in_two_rows_at_every_width_theme_and_panel_state() {
+        for theme in THEMES {
+            for width in WIDTHS {
+                for panel_open in [false, true] {
+                    let mut state = state_with(vendors(1, true));
+                    state.form_open = panel_open;
+                    for card_width in [width, page_split(width, panel_open).card.unwrap_or(width)] {
+                        let _: Element<'_, Message> =
+                            vendor_card(&state, theme, card_width, None, |message| message);
+                    }
+                }
+            }
+        }
+        for class in [
+            spacing::LayoutClass::Narrow,
+            spacing::LayoutClass::Medium,
+            spacing::LayoutClass::Wide,
+        ] {
+            let item = || -> Element<'static, Message> { Space::with_width(Length::Fill).into() };
+            let _: Element<'_, Message> = card_header(class, item(), item(), item(), item(), item());
         }
     }
 

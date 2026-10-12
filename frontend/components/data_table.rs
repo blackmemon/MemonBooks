@@ -9,7 +9,7 @@ use crate::frontend::components::checkbox as checkbox_style;
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::fonts;
 use crate::frontend::components::typography;
-use crate::frontend::components::{icons, panels, spacing, states, table as table_style};
+use crate::frontend::components::{icons, spacing, states, table as table_style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -111,6 +111,7 @@ impl Row {
 }
 
 const PRIMARY_ACTION_WIDTH: f32 = 132.0;
+const TABLE_MAX_HEIGHT: f32 = 480.0;
 
 /// `on_row_action(row_index)` fires from either the row itself or its
 /// trailing kebab (⋮) button -- callers decide what that opens; this is
@@ -133,7 +134,7 @@ pub fn view<'a, Message: Clone + 'a>(
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
     on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
-    view_with_column_visibility(
+    view_with_frozen_header(
         theme,
         columns,
         &[],
@@ -148,10 +149,9 @@ pub fn view<'a, Message: Clone + 'a>(
 
 /// Same as [`view`], except `visible_columns[i]` (columns past the end
 /// of a shorter slice default to visible) controls whether column `i`'s
-/// header cell and every row's cell for it are rendered at all -- the
-/// live-apply side of a "Columns" show/hide toggle. Lives here (rather
-/// than on any one view) so any list view can wire a column toggle up
-/// against the same table without reimplementing the filtering.
+/// header cell and every row's cell for it are rendered at all. The
+/// header remains fixed while the rows scroll, including when columns
+/// are shown or hidden.
 #[allow(clippy::too_many_arguments)]
 pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     theme: Theme,
@@ -164,49 +164,22 @@ pub fn view_with_column_visibility<'a, Message: Clone + 'a>(
     on_row_action: impl Fn(usize) -> Message + Clone + 'a,
     on_primary_action: impl Fn(usize) -> Message + Clone + 'a,
 ) -> Element<'a, Message> {
-    let header_container = build_header(
+    view_with_frozen_header(
         theme,
-        &columns,
-        visible_columns,
-        &selected,
-        on_select_all,
-        false,
-    );
-    let body = build_body(
-        theme,
-        &columns,
+        columns,
         visible_columns,
         rows,
         selected,
         on_row_select,
+        on_select_all,
         on_row_action,
         on_primary_action,
-        false,
-    );
-
-    let card = column![header_container, body].width(Length::Fill);
-
-    // Same radius token as `side_panel`'s card (RADIUS_LG), so the table
-    // and an open side panel show matching rounded corners -- applied
-    // unconditionally here since this component has no notion of
-    // whether a panel is open next to it.
-    //
-    // Uses the shadowed `panels::card` (not `flat_card`): this is a
-    // top-level panel sitting directly on the page background, not
-    // nested inside an already-shadowed ancestor, so the shadow reads
-    // as the card lifting off the page. Confirmed with the user in
-    // Batch 12 rather than applied silently, since it's the one
-    // visible change in the whole consistency-audit pass.
-    container(card)
-        .style(panels::card(theme, states::RADIUS_LG))
-        .width(Length::Fill)
-        .into()
+    )
 }
 
-/// Same as [`view_with_column_visibility`], except the header row stays
-/// fixed in place while the rows beneath it scroll independently -- for
-/// tables with enough rows that keeping the column headers on screen
-/// while scrolling matters.
+/// Renders a table with a fixed header and an independently scrolling
+/// body. This is the shared implementation used by [`view`] and
+/// [`view_with_column_visibility`].
 #[allow(clippy::too_many_arguments)]
 pub fn view_with_frozen_header<'a, Message: Clone + 'a>(
     theme: Theme,
@@ -248,15 +221,52 @@ pub fn view_with_frozen_header<'a, Message: Clone + 'a>(
     let card = column![
         header_container,
         header_divider,
-        scrollable(body).height(Length::Fill)
+        scrollable(body)
+            .height(Length::Shrink)
+            .direction(scrollable::Direction::Vertical(
+                scrollable::Scrollbar::new()
+                    .width(10.0)
+                    .scroller_width(10.0)
+                    .spacing(0.0),
+            ))
+            .style(move |_iced_theme, status| {
+                let mut style = scrollable::default(_iced_theme, status);
+                let thumb_color = match status {
+                    scrollable::Status::Hovered {
+                        is_horizontal_scrollbar_hovered: true,
+                        ..
+                    }
+                    | scrollable::Status::Hovered {
+                        is_vertical_scrollbar_hovered: true,
+                        ..
+                    }
+                    | scrollable::Status::Dragged {
+                        is_horizontal_scrollbar_dragged: true,
+                        ..
+                    }
+                    | scrollable::Status::Dragged {
+                        is_vertical_scrollbar_dragged: true,
+                        ..
+                    } => table_style::scrollbar_thumb_hover(theme),
+                    _ => table_style::scrollbar_thumb(theme),
+                };
+                for rail in [&mut style.vertical_rail, &mut style.horizontal_rail] {
+                    rail.background = Some(Background::Color(table_style::scrollbar_track(theme)));
+                    rail.border.radius = states::RADIUS_PILL.into();
+                    rail.scroller.color = thumb_color;
+                    rail.scroller.border.radius = states::RADIUS_PILL.into();
+                }
+                style.gap = Some(Background::Color(table_style::scrollbar_track(theme)));
+                style
+            })
     ]
-    .width(Length::Fill)
-    .height(Length::Fill);
+    .width(Length::Fill);
 
     container(card)
-        .style(panels::card(theme, states::RADIUS_LG))
+        .style(table_style::card(theme, states::RADIUS_LG))
+        .padding(1)
         .width(Length::Fill)
-        .height(Length::Fill)
+        .max_height(TABLE_MAX_HEIGHT)
         .into()
 }
 
@@ -317,14 +327,15 @@ fn build_header<'a, Message: Clone + 'a>(
         .align_y(Alignment::Center);
     if let Some(selected) = selected {
         let all_selected = !selected.is_empty() && selected.iter().all(|&value| value);
-        header = header.push(
-            container(
-                checkbox("", all_selected)
-                    .style(checkbox_style::style(theme))
-                    .on_toggle(on_select_all),
-            )
-            .width(Length::Fixed(24.0)),
-        );
+        header = header.push(checkbox_style::select_box(
+            theme,
+            if all_selected {
+                checkbox_style::CheckState::Checked
+            } else {
+                checkbox_style::CheckState::Unchecked
+            },
+            on_select_all(!all_selected),
+        ));
     }
     let mut is_first_column = true;
     for (index, column_def) in columns.iter().enumerate() {
@@ -341,8 +352,9 @@ fn build_header<'a, Message: Clone + 'a>(
             SortDirection::None => None,
         };
         let mut label = row![text(column_def.label)
-            .size(typography::body())
-            .color(theme.neutral_front())]
+            .size(typography::label() + 1.0)
+            .color(theme.neutral_front())
+            .font(fonts::BOLD)]
         .spacing(spacing::SPACE_4)
         .align_y(Alignment::Center);
         if let Some(arrow) = arrow {
@@ -365,7 +377,7 @@ fn build_header<'a, Message: Clone + 'a>(
     header = header.height(Length::Shrink);
 
     container(header)
-        .style(table_style::header_row(theme, states::RADIUS_LG))
+        .style(table_style::header_row(theme, states::RADIUS_LG - 1.0))
         .into()
 }
 
@@ -412,14 +424,15 @@ fn build_body<'a, Message: Clone + 'a>(
                 .copied()
                 .unwrap_or(false);
             let select_this_row = on_row_select.clone();
-            cells_row = cells_row.push(
-                container(
-                    checkbox("", is_checked)
-                        .style(checkbox_style::style(theme))
-                        .on_toggle(move |value| select_this_row(row_index, value)),
-                )
-                .width(Length::Fixed(24.0)),
-            );
+            cells_row = cells_row.push(checkbox_style::select_box(
+                theme,
+                if is_checked {
+                    checkbox_style::CheckState::Checked
+                } else {
+                    checkbox_style::CheckState::Unchecked
+                },
+                select_this_row(row_index, !is_checked),
+            ));
         }
         let mut is_first_column = true;
         for (index, (cell, column_def)) in
@@ -471,8 +484,17 @@ fn build_body<'a, Message: Clone + 'a>(
         // `Shrink` explicitly now that every child (dividers included)
         // has been pushed.
         cells_row = cells_row.height(Length::Shrink);
+        let is_selected = selected
+            .as_ref()
+            .and_then(|selection| selection.get(row_index))
+            .copied()
+            .unwrap_or(false);
         let interactive_row = button(cells_row)
-            .style(table_style::row(theme, highlighted))
+            .style(table_style::row_with_selection(
+                theme,
+                highlighted,
+                is_selected,
+            ))
             .on_press(on_row_action(row_index))
             .width(Length::Fill);
 

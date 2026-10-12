@@ -1,6 +1,6 @@
 use iced::widget::checkbox::{Status, Style};
-use iced::widget::button;
-use iced::{Background, Border, Color};
+use iced::widget::{button, container, Space};
+use iced::{Background, Border, Color, Element, Length};
 
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::states;
@@ -73,37 +73,65 @@ impl CheckState {
     }
 }
 
-/// A button drawn like [`style`]'s checkbox, for the tri-state header
-/// box (iced's checkbox has no partial state): filled primary when
-/// checked or partial, outlined when empty.
-pub fn tri_state(
+/// Width and height of the flat table indicator (the reference
+/// design's 26x12 `table_checkbox`).
+pub const INDICATOR_WIDTH: f32 = 26.0;
+pub const INDICATOR_HEIGHT: f32 = 15.0;
+pub const COLUMN_WIDTH: f32 = 32.0;
+
+/// Flat pill-less indicator style: primary (#2C8FBD) when checked or
+/// partial, grey (#D1D5DB) when empty.
+fn indicator_style(
     theme: Theme,
     state: CheckState,
 ) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     move |_iced_theme: &iced::Theme, status: button::Status| {
         let filled = state != CheckState::Unchecked;
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let light = matches!(theme, Theme::Light);
+        let empty = if light {
+            Color::from_rgb8(0xD1, 0xD5, 0xDB)
+        } else {
+            theme.neutral_border()
+        };
+        let fill = if filled { theme.primary() } else { empty };
+        let background = if hovered && filled {
+            Color {
+                a: states::SOLID_BUTTON_HOVER_ALPHA,
+                ..fill
+            }
+        } else {
+            fill
+        };
+        let outline = if filled { theme.primary() } else { empty };
         button::Style {
-            background: Some(Background::Color(match (filled, hovered) {
-                (true, true) => Color {
-                    a: states::SOLID_BUTTON_HOVER_ALPHA,
-                    ..theme.primary()
-                },
-                (true, false) => theme.primary(),
-                (false, true) => theme.surface_hover(),
-                (false, false) => theme.surface(),
-            })),
+            background: Some(Background::Color(background)),
             text_color: theme.accent_front(),
             border: Border {
-                color: if filled {
-                    theme.primary()
-                } else {
-                    theme.neutral_border()
-                },
-                width: 1.0,
-                radius: 2.0.into(),
+                color: outline,
+                width: 0.0,
+                radius: 1.0.into(),
             },
             shadow: iced::Shadow::default(),
         }
     }
+}
+
+/// The select box every table uses (header and rows): a flat indicator
+/// inside the fixed-width checkbox column.
+pub fn select_box<'a, M: Clone + 'a>(
+    theme: Theme,
+    state: CheckState,
+    on_press: M,
+) -> Element<'a, M> {
+    container(
+        button(Space::new(Length::Fill, Length::Fill))
+            .width(Length::Fixed(INDICATOR_WIDTH))
+            .height(Length::Fixed(INDICATOR_HEIGHT))
+            .padding(0)
+            .style(indicator_style(theme, state))
+            .on_press(on_press),
+    )
+    .width(Length::Fixed(COLUMN_WIDTH))
+    .into()
 }

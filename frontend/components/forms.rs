@@ -1,18 +1,21 @@
 use super::{
-    badges, borders, button as button_style, colors::Theme, fonts, panels, scrollbar, spacing, states, tabs,
-    typography,
+    badges, borders, button as button_style, colors::Theme, fonts, icons, labels, panels, spacing,
+    states, tabs, typography,
 };
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{button, column, container, row, scrollable, text, Space};
 use iced::{Alignment, Background, Element, Length};
 
-/// A reusable underlined tab strip for form sections.
+/// A reusable underlined tab strip for form sections: a single scrolling
+/// row (no wrapping), with a trailing chevron hinting that more tabs sit
+/// off-screen. The row only grows a scrollbar once the tabs actually
+/// overflow the available width.
 pub fn tab_bar<'a, Message: Clone + 'a>(
     theme: Theme,
     labels: &'a [&'static str],
     active: usize,
     on_select: impl Fn(usize) -> Message + 'a,
 ) -> Element<'a, Message> {
-    let mut items = row![].spacing(spacing::LG);
+    let mut tab_row = row![].spacing(spacing::SPACE_2).width(Length::Shrink);
     for (index, label) in labels.iter().enumerate() {
         let selected = index == active;
         let mut label_text = text(*label)
@@ -21,11 +24,11 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
         if selected {
             label_text = label_text.font(fonts::BOLD);
         }
-        items = items.push(
+        tab_row = tab_row.push(
             column![
                 button(label_text)
                     .style(tabs::tab_button(theme))
-                    .padding([spacing::SPACE_6, spacing::SPACE_4])
+                    .padding([spacing::SPACE_6, spacing::SPACE_10])
                     .on_press(on_select(index)),
                 container(Space::with_height(Length::Fixed(2.0)))
                     .width(Length::Fill)
@@ -35,7 +38,63 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
             .width(Length::Shrink),
         );
     }
-    items.align_y(Alignment::Center).into()
+    row![
+        scrollable(tab_row)
+            .direction(iced::widget::scrollable::Direction::Horizontal(
+                scrollable::Scrollbar::new()
+                    .width(spacing::SCROLLBAR_WIDTH)
+                    .scroller_width(spacing::SCROLLBAR_WIDTH),
+            ))
+            .width(Length::Fill),
+        icons::icon(icons::CHEVRON_RIGHT)
+            .size(typography::label())
+            .color(theme.neutral_font()),
+    ]
+    .spacing(spacing::SPACE_6)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// An icon-labelled value card (two fit side by side), echoing the
+/// "vitals" style field layout: a small icon chip, a muted label above
+/// the value.
+pub fn field_box<'a, Message: 'a>(
+    theme: Theme,
+    icon: &'static str,
+    label: &'a str,
+    value: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let chip = container(
+        icons::icon(icon)
+            .size(typography::body())
+            .color(theme.primary()),
+    )
+    .padding(spacing::SPACE_8)
+    .style(move |_iced_theme: &iced::Theme| container::Style {
+        background: Some(Background::Color(
+            theme.primary_tint(states::SELECTED_ALPHA),
+        )),
+        border: iced::Border {
+            radius: states::RADIUS_SM.into(),
+            ..iced::Border::default()
+        },
+        ..container::Style::default()
+    });
+    container(
+        row![
+            chip,
+            column![labels::muted(theme, label, typography::caption()), value,]
+                .spacing(spacing::SPACE_4)
+                .width(Length::Fill),
+        ]
+        .spacing(spacing::SM)
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+    )
+    .padding(spacing::SM)
+    .width(Length::FillPortion(1))
+    .style(panels::flat_card(theme, states::RADIUS_MD))
+    .into()
 }
 
 pub struct DetailPanel<'a, Message, Select> {
@@ -86,9 +145,20 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
     body = body
         .push(tab_bar(theme, tab_labels, active_tab, on_select_tab))
         .push(
-            scrollable(container(content).width(Length::Fill))
-                .direction(scrollbar::vertical())
-                .height(Length::Fill),
+            scrollable(
+                container(content)
+                    .padding(iced::Padding {
+                        right: spacing::SCROLLBAR_WIDTH * 2.0,
+                        ..iced::Padding::default()
+                    })
+                    .width(Length::Fill),
+            )
+            .direction(iced::widget::scrollable::Direction::Vertical(
+                scrollable::Scrollbar::new()
+                    .width(spacing::SCROLLBAR_WIDTH)
+                    .scroller_width(spacing::SCROLLBAR_WIDTH),
+            ))
+            .height(Length::Fill),
         )
         .push(footer);
 

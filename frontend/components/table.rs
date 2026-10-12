@@ -6,7 +6,71 @@ use iced::widget::{button, container};
 use iced::{Background, Border, Color, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::states;
+use crate::frontend::components::shadows;
+
+const fn rgb8(r: u8, g: u8, b: u8) -> Color {
+    Color {
+        r: r as f32 / 255.0,
+        g: g as f32 / 255.0,
+        b: b as f32 / 255.0,
+        a: 1.0,
+    }
+}
+
+pub fn card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.page_bg())),
+        border: Border {
+            color: border_color(theme),
+            width: 1.0,
+            radius: radius.into(),
+        },
+        shadow: shadows::card(theme),
+        ..container::Style::default()
+    }
+}
+
+pub fn border_color(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0xD1, 0xD5, 0xDB),
+        Theme::Dark => theme.neutral_border(),
+    }
+}
+
+pub fn header_background(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+        Theme::Dark => theme.surface_hover(),
+    }
+}
+
+pub fn hover_background(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0xF0, 0xF9, 0xFF),
+        Theme::Dark => theme.primary_tint(0.18),
+    }
+}
+
+pub fn scrollbar_track(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0xF8, 0xFA, 0xFC),
+        Theme::Dark => theme.surface_hover(),
+    }
+}
+
+pub fn scrollbar_thumb(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0x56, 0xAE, 0xD7),
+        Theme::Dark => theme.primary_hover(),
+    }
+}
+
+pub fn scrollbar_thumb_hover(theme: Theme) -> Color {
+    match theme {
+        Theme::Light => rgb8(0x2C, 0x8F, 0xBD),
+        Theme::Dark => theme.primary(),
+    }
+}
 
 /// `radius` must match the enclosing card's own corner radius (e.g.
 /// `borders::RADIUS_LG`, as `data_table` passes) -- the header sits flush
@@ -21,7 +85,7 @@ use crate::frontend::components::states;
 /// doesn't extend there).
 pub fn header_row(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container::Style {
     move |_iced_theme: &IcedTheme| container::Style {
-        background: Some(Background::Color(theme.neutral_bg())),
+        background: Some(Background::Color(header_background(theme))),
         border: Border {
             radius: iced::border::top(radius),
             ..Border::default()
@@ -40,23 +104,18 @@ pub fn row(
     theme: Theme,
     highlighted: bool,
 ) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
+    row_with_selection(theme, highlighted, false)
+}
+
+pub fn row_with_selection(
+    theme: Theme,
+    highlighted: bool,
+    selected: bool,
+) -> impl Fn(&IcedTheme, button::Status) -> button::Style {
     move |_iced_theme: &IcedTheme, status: button::Status| {
-        let background = if highlighted {
-            Some(Background::Color(Color {
-                a: theme.tint_alpha(states::SELECTED_ALPHA),
-                ..theme.primary()
-            }))
-        } else {
-            match status {
-                button::Status::Hovered | button::Status::Pressed => {
-                    Some(Background::Color(Color {
-                        a: theme.tint_alpha(states::TABLE_ROW_HOVER_ALPHA),
-                        ..theme.neutral_bg()
-                    }))
-                }
-                _ => None,
-            }
-        };
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let background = (highlighted || selected || hovered)
+            .then(|| Background::Color(hover_background(theme)));
         button::Style {
             background,
             text_color: theme.text_primary(),
@@ -67,7 +126,10 @@ pub fn row(
 }
 
 pub fn divider_color(theme: Theme) -> Color {
-    theme.neutral_bg()
+    match theme {
+        Theme::Light => rgb8(0xF0, 0xF2, 0xF5),
+        Theme::Dark => theme.neutral_bg(),
+    }
 }
 
 /// The 1px hairline drawn between two plain table rows.
@@ -78,14 +140,11 @@ pub fn divider(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
     }
 }
 
-/// The 1px grid-line color drawn between columns and between rows in a
-/// `bordered` table (e.g. `view_with_frozen_header`) -- a visible line,
-/// unlike the barely-there `divider_color` hairline the plain table uses
-/// between rows. Used as a thin `Space`'s background on both axes so the
-/// grid reads as continuous lines between cells rather than a border
-/// boxing in every individual cell.
+/// The 1px grid-line color drawn between columns and rows in a bordered
+/// table. Used as a thin `Space`'s background on both axes so the grid
+/// reads as continuous lines between cells rather than boxing each cell.
 pub fn grid_line_color(theme: Theme) -> Color {
-    theme.neutral_border()
+    divider_color(theme)
 }
 
 #[cfg(test)]
@@ -108,5 +167,16 @@ mod tests {
         assert_eq!(style.border.radius.top_right, 14.0);
         assert_eq!(style.border.radius.bottom_left, 0.0);
         assert_eq!(style.border.radius.bottom_right, 0.0);
+    }
+
+    #[test]
+    fn light_table_palette_matches_the_reference_colors() {
+        assert_eq!(border_color(Theme::Light), rgb8(0xD1, 0xD5, 0xDB));
+        assert_eq!(header_background(Theme::Light), rgb8(0xF8, 0xFA, 0xFC));
+        assert_eq!(divider_color(Theme::Light), rgb8(0xF0, 0xF2, 0xF5));
+        assert_eq!(hover_background(Theme::Light), rgb8(0xF0, 0xF9, 0xFF));
+        assert_eq!(scrollbar_track(Theme::Light), rgb8(0xF8, 0xFA, 0xFC));
+        assert_eq!(scrollbar_thumb(Theme::Light), rgb8(0x56, 0xAE, 0xD7));
+        assert_eq!(scrollbar_thumb_hover(Theme::Light), rgb8(0x2C, 0x8F, 0xBD));
     }
 }

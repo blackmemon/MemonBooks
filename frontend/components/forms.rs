@@ -223,9 +223,13 @@ pub struct RecordPreview {
 }
 
 /// Reusable full-page profile preview, modeled after a master-record overview.
+/// `summary` is placed right under the hero card and `footer` after the
+/// overview sections, for records that carry extra (e.g. accounting) panels.
 pub fn record_preview<'a, Message: Clone + 'a>(
     theme: Theme,
     preview: RecordPreview,
+    summary: Option<Element<'a, Message>>,
+    footer: Option<Element<'a, Message>>,
     on_back: Message,
     on_edit: Message,
 ) -> Element<'a, Message> {
@@ -342,13 +346,18 @@ pub fn record_preview<'a, Message: Clone + 'a>(
         .spacing(spacing::SPACE_8)
         .align_y(Alignment::Center),
         hero,
+    ]
+    .spacing(spacing::MD)
+    .width(Length::Fill);
+    if let Some(summary) = summary {
+        content = content.push(summary);
+    }
+    content = content.push(
         text("Overview")
             .size(typography::panel_title())
             .font(fonts::BOLD)
             .color(theme.neutral_font()),
-    ]
-    .spacing(spacing::MD)
-    .width(Length::Fill);
+    );
 
     for section in sections {
         let mut fields = column![].spacing(spacing::SPACE_6);
@@ -386,6 +395,10 @@ pub fn record_preview<'a, Message: Clone + 'a>(
             .width(Length::Fill)
             .style(panels::flat_card(theme, states::RADIUS_MD)),
         );
+    }
+
+    if let Some(footer) = footer {
+        content = content.push(footer);
     }
 
     scrollable(content.padding(spacing::SPACE_20))

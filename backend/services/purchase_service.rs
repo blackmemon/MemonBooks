@@ -37,6 +37,15 @@ impl PurchaseService {
         self.party_repo.list_vendors_for_company(company_id)
     }
 
+    /// Read-only AP ledger for one vendor; see `PurchaseRepository::vendor_ledger`.
+    pub fn vendor_ledger(
+        &self,
+        company_id: i64,
+        vendor_id: i64,
+    ) -> AppResult<crate::backend::purchases::vendor_ledger::VendorLedger> {
+        self.purchase_repo.vendor_ledger(company_id, vendor_id)
+    }
+
     pub fn list_gl_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.accounting_repo.list_accounts_for_company(company_id)
     }

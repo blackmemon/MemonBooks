@@ -13,6 +13,9 @@ use crate::backend::purchases::payments::VendorPayment;
 use crate::backend::purchases::purchase_orders::{
     PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus,
 };
+use crate::backend::purchases::vendor_ledger::{
+    with_running_balances, VendorAccountTotal, VendorLedger, VendorLedgerEntry,
+};
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::transactions::transaction::Transaction;
 use crate::database::database::{Database, Migration};
@@ -528,6 +531,150 @@ impl PurchaseRepository {
             .ok_or_else(|| AppError::Validation(format!("bill {bill_id} has no open payable")))
     }
 
+    // -- vendor ledger ----------------------------------------------------
+
+    /// The vendor's AP ledger, built from the posted transactions behind
+    /// their bills, debit notes and payments (plus any reversals of
+    /// them). Read-only; nothing is posted or modified.
+    pub fn vendor_ledger(&self, company_id: i64, vendor_id: i64) -> AppResult<VendorLedger> {
+        // (transaction id, kind, reference)
+        let origins: Vec<(i64, &'static str, String)> = self.db.with_connection(|conn| {
+            let mut found = Vec::new();
+            for (sql, kind, prefix) in [
+                ("SELECT id, transaction_id FROM bills WHERE company_id = ?1 AND vendor_id = ?2 AND transaction_id IS NOT NULL", "Bill", "BILL"),
+                ("SELECT id, transaction_id FROM debit_notes WHERE company_id = ?1 AND vendor_id = ?2 AND transaction_id IS NOT NULL", "Debit Note", "DN"),
+                ("SELECT id, transaction_id FROM vendor_payments WHERE company_id = ?1 AND vendor_id = ?2 AND transaction_id IS NOT NULL", "Payment", "PAY"),
+            ] {
+                let mut stmt = conn.prepare(sql)?;
+                let rows = stmt.query_map(params![company_id, vendor_id], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
+                })?;
+                for row in rows {
+                    let (doc_id, tx_id) = row?;
+                    found.push((tx_id, kind, format!("{prefix}-{doc_id}")));
+                }
+            }
+            Ok(found)
+        })?;
+
+        let mut entries = Vec::new();
+        let mut totals: Vec<VendorAccountTotal> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        self.db.with_connection(|conn| {
+            for (tx_id, kind, reference) in &origins {
+                // The AP account is the one credited by a bill and the
+                // one debited by a payment or debit note.
+                let ap_account: Option<i64> = {
+                    let column = if *kind == "Bill" { "credit" } else { "debit" };
+                    let mut stmt = conn.prepare(&format!(
+                        "SELECT account_id, {column} FROM transaction_lines WHERE transaction_id = ?1 ORDER BY line_number"
+                    ))?;
+                    let rows = stmt.query_map(params![tx_id], |r| {
+                        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+                    })?;
+                    let mut ap = None;
+                    for row in rows {
+                        let (account, amount) = row?;
+                        if amount.parse::<Decimal>().unwrap_or(Decimal::ZERO) > Decimal::ZERO {
+                            ap = Some(account);
+                            break;
+                        }
+                    }
+                    ap
+                };
+                let Some(ap_account) = ap_account else { continue };
+
+                let mut related = vec![(*tx_id, kind.to_string(), reference.clone())];
+                let mut stmt = conn.prepare(
+                    "SELECT id FROM transactions WHERE reverses_transaction_id = ?1",
+                )?;
+                let reversals = stmt.query_map(params![tx_id], |r| r.get::<_, i64>(0))?;
+                for reversal in reversals {
+                    related.push((reversal?, "Reversal".to_string(), format!("Reverses {reference}")));
+                }
+
+                for (id, kind, reference) in related {
+                    if !seen.insert(id) {
+                        continue;
+                    }
+                    let header: Option<(chrono::NaiveDate, Option<String>)> = conn
+                        .query_row(
+                            "SELECT transaction_date, description FROM transactions WHERE id = ?1 AND status != 'draft'",
+                            params![id],
+                            |r| Ok((r.get(0)?, r.get(1)?)),
+                        )
+                        .optional()?;
+                    let Some((date, description)) = header else { continue };
+                    let mut stmt = conn.prepare(
+                        "SELECT tl.account_id, a.account_code, a.account_name, tl.debit, tl.credit
+                         FROM transaction_lines tl JOIN accounts a ON a.id = tl.account_id
+                         WHERE tl.transaction_id = ?1",
+                    )?;
+                    let lines = stmt.query_map(params![id], |r| {
+                        let debit: String = r.get(3)?;
+                        let credit: String = r.get(4)?;
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, String>(2)?,
+                            debit.parse::<Decimal>().unwrap_or(Decimal::ZERO),
+                            credit.parse::<Decimal>().unwrap_or(Decimal::ZERO),
+                        ))
+                    })?;
+                    let (mut ap_debit, mut ap_credit) = (Decimal::ZERO, Decimal::ZERO);
+                    for line in lines {
+                        let (account, code, name, debit, credit) = line?;
+                        if account == ap_account {
+                            ap_debit += debit;
+                            ap_credit += credit;
+                        }
+                        match totals.iter_mut().find(|t| t.code == code) {
+                            Some(total) => {
+                                total.debit += debit;
+                                total.credit += credit;
+                            }
+                            None => totals.push(VendorAccountTotal { code, name, debit, credit }),
+                        }
+                    }
+                    entries.push(VendorLedgerEntry {
+                        transaction_id: id,
+                        date,
+                        kind,
+                        reference,
+                        description: description.unwrap_or_default(),
+                        debit: ap_debit,
+                        credit: ap_credit,
+                        running_balance: Decimal::ZERO,
+                    });
+                }
+            }
+            Ok(())
+        })?;
+        totals.sort_by(|a, b| a.code.cmp(&b.code));
+
+        let currency: String = self.db.with_connection(|conn| {
+            conn.query_row(
+                "SELECT base_currency_code FROM companies WHERE id = ?1",
+                params![company_id],
+                |r| r.get(0),
+            )
+            .map_err(AppError::from)
+        })?;
+        let open_payables = self
+            .accounting
+            .list_open_payables_for_company(company_id)?
+            .into_iter()
+            .filter(|p| p.vendor_id == vendor_id)
+            .collect();
+
+        Ok(VendorLedger {
+            currency,
+            entries: with_running_balances(entries),
+            accounts: totals,
+            open_payables,
+        })
+    }
+
     /// The bill's own remaining balance -- for prefilling a payment or
     /// debit-note form before it's actually submitted.
     pub fn bill_remaining_balance(&self, bill_id: i64) -> AppResult<Decimal> {
@@ -877,5 +1024,78 @@ mod tests {
             .purchases
             .post_debit_note(debit_note.id.unwrap(), f.ap_account_id);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn vendor_ledger_reflects_only_this_vendors_bills_payments_and_debit_notes() {
+        let f = fixture();
+        let other = PartyRepository::new(f.purchases.db.clone())
+            .create_vendor(&Vendor::new(f.company_id, "Other Vendor"))
+            .unwrap();
+        for (vendor, price) in [(f.vendor_id, dec!(300)), (other.id.unwrap(), dec!(999))] {
+            let mut bill = Bill::new(f.company_id, vendor, date(2026, 1, 10), date(2026, 2, 9));
+            bill.lines.push(BillLine::new(
+                f.expense_account_id,
+                "Supplies",
+                dec!(1),
+                price,
+            ));
+            let bill = f.purchases.create_bill(&bill).unwrap();
+            f.purchases
+                .post_bill(bill.id.unwrap(), f.ap_account_id)
+                .unwrap();
+        }
+        let payment = VendorPayment::new(f.company_id, f.vendor_id, date(2026, 1, 20), dec!(120));
+        f.purchases
+            .record_vendor_payment(&payment, f.ap_account_id, f.cash_account_id)
+            .unwrap();
+
+        let ledger = f
+            .purchases
+            .vendor_ledger(f.company_id, f.vendor_id)
+            .unwrap();
+        assert_eq!(ledger.currency, "USD");
+        assert_eq!(ledger.entries.len(), 2);
+        assert_eq!(ledger.total_credit(), dec!(300));
+        assert_eq!(ledger.total_debit(), dec!(120));
+        assert_eq!(ledger.outstanding(), dec!(180));
+        assert_eq!(ledger.entries[1].running_balance, dec!(180));
+        assert_eq!(ledger.last_transaction_date(), Some(date(2026, 1, 20)));
+        // The subledger agrees with the GL-derived balance.
+        let open: Decimal = ledger.open_payables.iter().map(|p| p.balance()).sum();
+        assert_eq!(open, ledger.outstanding());
+        // Vendor trial balance balances and covers AP, expense and cash.
+        assert_eq!(ledger.accounts.len(), 3);
+        let debits: Decimal = ledger.accounts.iter().map(|a| a.debit).sum();
+        let credits: Decimal = ledger.accounts.iter().map(|a| a.credit).sum();
+        assert_eq!(debits, credits);
+
+        let empty = f.purchases.vendor_ledger(f.company_id, 9999).unwrap();
+        assert!(empty.entries.is_empty() && empty.outstanding() == Decimal::ZERO);
+    }
+
+    #[test]
+    fn vendor_outstanding_is_positive_payable_and_settles_to_zero() {
+        // Sign convention: outstanding = credits - debits on the AP account,
+        // so a positive amount is payable to the vendor (a bill credits AP,
+        // a payment debits it) and zero is settled.
+        let f = fixture();
+        let mut bill = Bill::new(f.company_id, f.vendor_id, date(2026, 1, 10), date(2026, 2, 9));
+        bill.lines
+            .push(BillLine::new(f.expense_account_id, "Supplies", dec!(1), dec!(1000)));
+        let bill = f.purchases.create_bill(&bill).unwrap();
+        f.purchases.post_bill(bill.id.unwrap(), f.ap_account_id).unwrap();
+
+        let outstanding = |f: &TestFixture| {
+            f.purchases.vendor_ledger(f.company_id, f.vendor_id).unwrap().outstanding()
+        };
+        assert_eq!(outstanding(&f), dec!(1000.00));
+        for (amount, expected) in [(dec!(400.00), dec!(600.00)), (dec!(600.00), dec!(0))] {
+            let payment = VendorPayment::new(f.company_id, f.vendor_id, date(2026, 1, 20), amount);
+            f.purchases
+                .record_vendor_payment(&payment, f.ap_account_id, f.cash_account_id)
+                .unwrap();
+            assert_eq!(outstanding(&f), expected);
+        }
     }
 }

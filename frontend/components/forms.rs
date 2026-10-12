@@ -5,20 +5,27 @@ use super::{
 use iced::widget::{button, column, container, row, scrollable, text, Space};
 use iced::{Alignment, Background, Element, Length};
 
-/// A reusable underlined tab strip for form sections: a single scrolling
-/// row (no wrapping), with a trailing chevron hinting that more tabs sit
-/// off-screen. The row only grows a scrollbar once the tabs actually
-/// overflow the available width.
+/// A reusable underlined tab strip for form sections. Only one page of
+/// tabs is shown (the page holding the active tab); a trailing "More"
+/// button jumps to the first tab of the next page, wrapping back to the
+/// start from the last page. No scrollbar is ever drawn.
 pub fn tab_bar<'a, Message: Clone + 'a>(
     theme: Theme,
     labels: &'a [&'static str],
     active: usize,
     on_select: impl Fn(usize) -> Message + 'a,
 ) -> Element<'a, Message> {
-    let mut tab_row = row![].spacing(spacing::SPACE_2).width(Length::Shrink);
-    for (index, label) in labels.iter().enumerate() {
+    const TABS_PER_PAGE: usize = 3;
+    let page = active / TABS_PER_PAGE;
+    let start = page * TABS_PER_PAGE;
+    let end = (start + TABS_PER_PAGE).min(labels.len());
+    let has_more = labels.len() > TABS_PER_PAGE;
+    let more_target = if end < labels.len() { end } else { 0 };
+
+    let mut tab_row = row![].spacing(spacing::SPACE_8).align_y(Alignment::Center);
+    for index in start..end {
         let selected = index == active;
-        let mut label_text = text(*label)
+        let mut label_text = text(labels[index])
             .size(typography::label())
             .color(tabs::text_color(theme, selected));
         if selected {
@@ -38,21 +45,28 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
             .width(Length::Shrink),
         );
     }
-    row![
-        scrollable(tab_row)
-            .direction(iced::widget::scrollable::Direction::Horizontal(
-                scrollable::Scrollbar::new()
-                    .width(spacing::SCROLLBAR_WIDTH)
-                    .scroller_width(spacing::SCROLLBAR_WIDTH),
-            ))
-            .width(Length::Fill),
-        icons::icon(icons::CHEVRON_RIGHT)
-            .size(typography::label())
-            .color(theme.neutral_font()),
-    ]
-    .spacing(spacing::SPACE_6)
-    .align_y(Alignment::Center)
-    .into()
+    tab_row = tab_row.push(Space::with_width(Length::Fill));
+    if has_more {
+        let (caption, glyph) = if end < labels.len() {
+            ("More", icons::CHEVRON_RIGHT)
+        } else {
+            ("Back", icons::CHEVRON_LEFT)
+        };
+        tab_row = tab_row.push(
+            button(
+                row![
+                    text(caption).size(typography::label()),
+                    icons::icon(glyph).size(typography::label()),
+                ]
+                .spacing(spacing::SPACE_4)
+                .align_y(Alignment::Center),
+            )
+            .style(button_style::outlined(theme, false))
+            .padding([spacing::SPACE_4, spacing::SPACE_8])
+            .on_press(on_select(more_target)),
+        );
+    }
+    tab_row.width(Length::Fill).into()
 }
 
 /// An icon-labelled value card (two fit side by side), echoing the

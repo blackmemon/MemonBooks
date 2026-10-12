@@ -1671,7 +1671,7 @@ fn detail_form(state: &State, theme: Theme) -> Element<'_, Message> {
         active_tab: state.form_tab,
         on_select_tab: Message::FormTabChanged,
         summary: Some(summary.into()),
-        content: field_grid(detail_fields(state, theme), 2),
+        content: field_grid(detail_fields(state, theme), 1),
         footer,
         on_preview: Message::Preview,
     })

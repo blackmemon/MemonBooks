@@ -1,3 +1,4 @@
+use crate::backend::core::reference_code;
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::vendors::{Vendor, VENDOR_TYPES};
 use crate::backend::purchases::vendor_ledger::VendorLedger;
@@ -135,52 +136,12 @@ const VENDOR_FORM_TABS: [&str; 6] = [
     "Customization",
 ];
 
-/// Dropdown entry showing "Label (count)"; equality is by label only so the
-/// selected entry still matches when the count changes.
-#[derive(Debug, Clone)]
-struct CountedOption {
-    label: &'static str,
-    count: usize,
-    message: Message,
-}
-
-impl PartialEq for CountedOption {
-    fn eq(&self, other: &Self) -> bool {
-        self.label == other.label
-    }
-}
-
-impl std::fmt::Display for CountedOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.label, self.count)
-    }
-}
-
-fn filter_dropdown(
-    theme: Theme,
-    placeholder: &'static str,
-    options: Vec<(&'static str, usize, Message, bool)>,
-) -> Element<'static, Message> {
-    let selected = options.iter().position(|option| option.3);
-    let entries: Vec<CountedOption> = options
-        .into_iter()
-        .map(|(label, count, message, _)| CountedOption {
-            label,
-            count,
-            message,
-        })
-        .collect();
-    let current = selected.map(|index| entries[index].clone());
-    pick_list(entries, current, |option| option.message)
-        .placeholder(placeholder)
-        .style(dropdown::style(theme))
-        .menu_style(dropdown::dropdown_menu(theme))
-        .into()
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct State {
     vendors: Vec<Vendor>,
+    /// Vendor ID shown in the form; generated when "New Vendor" opens so it
+    /// is the same code that gets saved.
+    reference_code_input: String,
     name_input: String,
     email_input: String,
     phone_input: String,
@@ -310,6 +271,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.message = None;
             state.error = None;
             state.editing_id = None;
+            state.reference_code_input = reference_code::generate_code("VEND");
             state.name_input.clear();
             state.email_input.clear();
             state.phone_input.clear();
@@ -381,6 +343,9 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
 
             let mut vendor = Vendor::new(ctx.company_id, state.name_input.clone());
+            if !state.reference_code_input.is_empty() {
+                vendor.reference_code = Some(state.reference_code_input.clone());
+            }
             vendor.email = optional_input(&state.email_input);
             vendor.phone = optional_input(&state.phone_input);
             vendor.tax_id = optional_input(&state.tax_id_input);
@@ -417,6 +382,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.error = None;
             if let Some(vendor) = state.vendors.iter().find(|v| v.id == Some(id)) {
                 state.editing_id = Some(id);
+                state.reference_code_input = vendor.reference_code.clone().unwrap_or_default();
                 state.form_open = true;
                 state.show_preview = false;
                 state.name_input = vendor.name.clone();
@@ -441,6 +407,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.editing_id = None;
             state.form_open = false;
             state.show_preview = false;
+            state.reference_code_input.clear();
             state.name_input.clear();
             state.email_input.clear();
             state.phone_input.clear();
@@ -1911,46 +1878,48 @@ fn card_header<'a, M: 'a>(
         .into()
 }
 
-/// A small muted label above a form input.
+/// Text size and padding of the detail-form inputs; larger than the body
+/// text so the boxes are taller and easier to read.
+fn input_text_size() -> f32 {
+    typography::body() + 2.0
+}
+
+/// A form input with its label on the left.
 fn field<'a>(
     theme: Theme,
-    icon: &'static str,
     label: &'a str,
     input: iced::widget::TextInput<'a, Message>,
 ) -> Element<'a, Message> {
     field_element(
         theme,
-        icon,
         label,
         input
             .style(inputs::text(theme))
+            .size(input_text_size())
             .width(Length::Fill)
-            .padding(spacing::SM)
+            .padding(spacing::MD)
             .into(),
     )
 }
 
 fn field_element<'a>(
     theme: Theme,
-    icon: &'static str,
     label: &'a str,
     input: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    forms::field_box(theme, icon, label, input)
+    forms::field_row(theme, label, input)
 }
 
 fn readonly_field(
     theme: Theme,
-    icon: &'static str,
     label: &'static str,
     value: impl Into<String>,
 ) -> Element<'static, Message> {
     field_element(
         theme,
-        icon,
         label,
         text(value.into())
-            .size(typography::body())
+            .size(input_text_size())
             .color(theme.neutral_font())
             .into(),
     )
@@ -1981,26 +1950,21 @@ fn field_grid<'a>(fields: Vec<Element<'a, Message>>, columns: usize) -> Element<
 
 /// The fields of the active detail tab, in reading order.
 fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
-    let editing = state
-        .editing_id
-        .and_then(|id| state.vendors.iter().find(|r| r.id == Some(id)));
-    let vendor_id = editing
-        .and_then(|vendor| vendor.reference_code.clone())
-        .unwrap_or_else(|| "Assigned on save".into());
     match state.form_tab {
         0 => vec![
-            readonly_field(theme, icons::FIELD_OTHER, "S.No", "Auto-generated"),
-            readonly_field(theme, icons::FIELD_OTHER, "Vendor ID", vendor_id),
             field(
                 theme,
-                icons::FIELD_NAME,
+                "Vendor ID",
+                text_input("", &state.reference_code_input),
+            ),
+            field(
+                theme,
                 "Vendor name",
                 text_input("Vendor name", &state.name_input).on_input(Message::NameChanged),
             ),
-            readonly_field(theme, icons::FIELD_COMPANY, "Company Name", "--"),
+            readonly_field(theme, "Company Name", "--"),
             field_element(
                 theme,
-                icons::FIELD_OTHER,
                 "Vendor type",
                 pick_list(
                     VENDOR_TYPES,
@@ -2008,7 +1972,8 @@ fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
                     |value| Message::VendorTypeChanged(value.to_string()),
                 )
                 .style(dropdown::style(theme))
-                .padding(spacing::SM)
+                .text_size(input_text_size())
+                .padding(spacing::MD)
                 .width(Length::Fill)
                 .into(),
             ),
@@ -2016,62 +1981,54 @@ fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
         1 => vec![
             field(
                 theme,
-                icons::FIELD_PHONE,
                 "Phone (optional)",
                 text_input("Phone (optional)", &state.phone_input).on_input(Message::PhoneChanged),
             ),
             field(
                 theme,
-                icons::FIELD_EMAIL,
                 "Email (optional)",
                 text_input("Email (optional)", &state.email_input).on_input(Message::EmailChanged),
             ),
-            readonly_field(theme, icons::FIELD_WEBSITE, "Website", "--"),
+            readonly_field(theme, "Website", "--"),
         ],
         2 => vec![
             field(
                 theme,
-                icons::FIELD_ADDRESS,
                 "Mailing Address",
                 text_input("Mailing Address", &state.mailing_address_input)
                     .on_input(Message::MailingAddressChanged),
             ),
-            readonly_field(theme, icons::FIELD_ADDRESS, "Shipping Address", "--"),
+            readonly_field(theme, "Shipping Address", "--"),
         ],
         3 => vec![
             field(
                 theme,
-                icons::FIELD_PAYMENT,
                 "Payment Terms",
                 text_input("30", &state.payment_terms_input).on_input(Message::PaymentTermsChanged),
             ),
             field(
                 theme,
-                icons::FIELD_PAYMENT,
                 "Payment Method",
                 text_input("Payment Method", &state.payment_method_input)
                     .on_input(Message::PaymentMethodChanged),
             ),
             field(
                 theme,
-                icons::FIELD_OTHER,
                 "Tax ID (optional)",
                 text_input("Tax ID (optional)", &state.tax_id_input)
                     .on_input(Message::TaxIdChanged),
             ),
             field(
                 theme,
-                icons::FIELD_NOTE,
                 "Description",
                 text_input("Description", &state.description_input)
                     .on_input(Message::DescriptionChanged),
             ),
-            readonly_field(theme, icons::FIELD_OTHER, "Attachments", "--"),
+            readonly_field(theme, "Attachments", "--"),
         ],
         4 => vec![
             field_element(
                 theme,
-                icons::FIELD_STATUS,
                 "Status",
                 pick_list(
                     VENDOR_STATUS_OPTIONS,
@@ -2079,20 +2036,51 @@ fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
                     |value| Message::StatusChanged(value.to_string()),
                 )
                 .style(dropdown::style(theme))
-                .padding(spacing::SM)
+                .text_size(input_text_size())
+                .padding(spacing::MD)
                 .width(Length::Fill)
                 .into(),
             ),
-            readonly_field(theme, icons::FIELD_OTHER, "Create Timestamp", "--"),
-            readonly_field(theme, icons::FIELD_OTHER, "Modified Timestamp", "--"),
+            readonly_field(theme, "Create Timestamp", "--"),
+            readonly_field(theme, "Modified Timestamp", "--"),
         ],
         _ => vec![readonly_field(
             theme,
-            icons::FIELD_OTHER,
             "Custom Fields",
             "--",
         )],
     }
+}
+
+/// The Vendor Details card: two field columns, Save/Close.
+fn detail_form(state: &State, theme: Theme) -> Element<'_, Message> {
+    let footer = row![
+        bold_button("Save", [spacing::SM, spacing::MD])
+            .style(button_style::mode(theme, true))
+            .on_press(Message::Create),
+        bold_button("Close", [spacing::SM, spacing::MD])
+            .style(button_style::outlined(theme, false))
+            .on_press(Message::CancelEdit),
+    ]
+    .spacing(spacing::SM)
+    .into();
+    let summary = column![
+        vendor_summary(state, theme),
+        vendor_live_preview(state, theme)
+    ]
+    .spacing(spacing::MD)
+    .width(Length::Fill);
+    forms::detail_panel(forms::DetailPanel {
+        theme,
+        title: "Vendor Details",
+        tab_labels: &VENDOR_FORM_TABS,
+        active_tab: state.form_tab,
+        on_select_tab: Message::FormTabChanged,
+        summary: Some(summary.into()),
+        content: field_grid(detail_fields(state, theme), 1),
+        footer,
+        on_preview: Message::Preview,
+    })
 }
 
 /// Name, contact line and status pill at the top of the detail panel.
@@ -2184,37 +2172,6 @@ fn vendor_live_preview(state: &State, theme: Theme) -> Element<'static, Message>
         ],
         2,
     )
-}
-
-/// The Vendor Details card: two field columns, Save/Close.
-fn detail_form(state: &State, theme: Theme) -> Element<'_, Message> {
-    let footer = row![
-        bold_button("Save", [spacing::SM, spacing::MD])
-            .style(button_style::mode(theme, true))
-            .on_press(Message::Create),
-        bold_button("Close", [spacing::SM, spacing::MD])
-            .style(button_style::outlined(theme, false))
-            .on_press(Message::CancelEdit),
-    ]
-    .spacing(spacing::SM)
-    .into();
-    let summary = column![
-        vendor_summary(state, theme),
-        vendor_live_preview(state, theme)
-    ]
-    .spacing(spacing::MD)
-    .width(Length::Fill);
-    forms::detail_panel(forms::DetailPanel {
-        theme,
-        title: "Vendor Details",
-        tab_labels: &VENDOR_FORM_TABS,
-        active_tab: state.form_tab,
-        on_select_tab: Message::FormTabChanged,
-        summary: Some(summary.into()),
-        content: field_grid(detail_fields(state, theme), 1),
-        footer,
-        on_preview: Message::Preview,
-    })
 }
 
 /// The column picker in its own card.
@@ -2355,8 +2312,8 @@ fn filter_row(state: &State, theme: Theme) -> Element<'static, Message> {
         ),
     ];
     row![
-        filter_dropdown(theme, "Vendor type", vendor_type_options),
-        filter_dropdown(theme, "Status", status_options),
+        dropdown::counted_filter(theme, "Vendor type", vendor_type_options),
+        dropdown::counted_filter(theme, "Status", status_options),
     ]
     .spacing(spacing::SPACE_12)
     .align_y(Alignment::Center)
@@ -2858,7 +2815,7 @@ mod tests {
     fn the_field_grid_pads_a_short_last_line() {
         let fields = (0..5)
             .map(|index| {
-                readonly_field(Theme::Light, icons::FIELD_OTHER, "Label", index.to_string())
+                readonly_field(Theme::Light, "Label", index.to_string())
             })
             .collect();
         let _: Element<'_, Message> = field_grid(fields, 2);

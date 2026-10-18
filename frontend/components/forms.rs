@@ -98,16 +98,44 @@ pub fn field_box<'a, Message: 'a>(
         row![
             chip,
             column![labels::muted(theme, label, typography::caption()), value,]
-                .spacing(spacing::SPACE_4)
+                .spacing(spacing::SPACE_2)
                 .width(Length::Fill),
         ]
-        .spacing(spacing::SM)
+        .spacing(spacing::XS)
         .align_y(Alignment::Center)
         .width(Length::Fill),
     )
-    .padding(spacing::SM)
+    .padding(spacing::XS)
     .width(Length::FillPortion(1))
     .style(panels::flat_card(theme, states::RADIUS_MD))
+    .into()
+}
+
+/// A field with no icon: the label sits to the left of the value, in a
+/// fixed-width column so the values line up down the form.
+pub fn field_row<'a, Message: 'a>(
+    theme: Theme,
+    label: &'a str,
+    value: Element<'a, Message>,
+) -> Element<'a, Message> {
+    container(
+        row![
+            container(
+                labels::muted(theme, label, typography::body() + 1.0).font(fonts::BOLD)
+            )
+                .width(Length::Fixed(spacing::FIELD_LABEL_WIDTH_130)),
+            value,
+        ]
+        .spacing(spacing::XS)
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+    )
+    .padding(spacing::XS)
+    .width(Length::FillPortion(1))
+    .style(move |_iced_theme: &iced::Theme| container::Style {
+        background: Some(Background::Color(theme.page_bg())),
+        ..container::Style::default()
+    })
     .into()
 }
 

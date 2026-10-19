@@ -59,6 +59,12 @@ pub const EDIT: &str = "\u{e1f8}";
 pub const INDETERMINATE: &str = "\u{e11f}";
 /// Tick drawn in a checked box.
 pub const CHECK: &str = "\u{e070}";
+/// Paperclip on an "Add Attachment" button.
+pub const ATTACH: &str = "\u{e130}";
+/// Document glyph leading an attached file's row.
+pub const FILE: &str = "\u{e0d0}";
+/// Trash can on a row's "remove" icon button.
+pub const REMOVE: &str = "\u{e18d}";
 
 #[cfg(test)]
 mod tests {
@@ -97,6 +103,9 @@ mod tests {
         ("EDIT", EDIT),
         ("INDETERMINATE", INDETERMINATE),
         ("CHECK", CHECK),
+        ("ATTACH", ATTACH),
+        ("FILE", FILE),
+        ("REMOVE", REMOVE),
     ];
 
     #[test]

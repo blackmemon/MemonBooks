@@ -1,8 +1,89 @@
 use iced::widget::button::{Status, Style};
-use iced::{Background, Border, Color, Theme as IcedTheme};
+use iced::widget::text::{IntoFragment, Wrapping};
+use iced::widget::{button as button_widget, container, row, text, tooltip, Button};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::states;
+use crate::frontend::components::{fonts, icons, panels, spacing, states, typography};
+
+/// A button with a bold, single-line label; callers add the style and
+/// the press.
+pub fn bold<'a, M: 'a>(label: impl IntoFragment<'a>, padding: impl Into<Padding>) -> Button<'a, M> {
+    button_widget(
+        text(label)
+            .size(typography::label())
+            .font(fonts::BOLD)
+            .wrapping(Wrapping::None),
+    )
+    .padding(padding)
+}
+
+/// A bold-labelled button with an icon before the label.
+pub fn icon_label<'a, M: 'a>(
+    glyph: &'static str,
+    label: impl IntoFragment<'a>,
+    padding: impl Into<Padding>,
+) -> Button<'a, M> {
+    button_widget(
+        row![
+            icons::icon(glyph).size(typography::label()),
+            text(label)
+                .size(typography::label())
+                .font(fonts::BOLD)
+                .wrapping(Wrapping::None),
+        ]
+        .spacing(spacing::SPACE_6)
+        .align_y(Alignment::Center),
+    )
+    .padding(padding)
+}
+
+/// Small square icon-only button with a hover tooltip: outlined when
+/// `bordered`, bare (tinted on hover) otherwise.
+pub fn icon_tool<'a, M: Clone + 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    tip: &'a str,
+    on_press: M,
+    bordered: bool,
+) -> Element<'a, M> {
+    tooltip(
+        button_widget(icons::icon(glyph).size(typography::emphasis()).center())
+            .width(Length::Fixed(spacing::ICON_BUTTON_SIZE))
+            .height(Length::Fixed(spacing::ICON_BUTTON_SIZE))
+            .style(outlined_or_plain(theme, bordered, false))
+            .on_press(on_press),
+        container(text(tip).size(typography::caption()))
+            .padding([spacing::SPACE_4, spacing::SPACE_8])
+            .style(panels::flat_card(theme, states::RADIUS_MD)),
+        tooltip::Position::Bottom,
+    )
+    .into()
+}
+
+/// [`outlined`] (selected when `active`) when `bordered`, [`plain`]
+/// otherwise -- for buttons that switch between the two looks.
+pub fn outlined_or_plain(
+    theme: Theme,
+    bordered: bool,
+    active: bool,
+) -> impl Fn(&IcedTheme, Status) -> Style {
+    let outlined = outlined(theme, active);
+    let plain = plain(theme);
+    move |iced_theme: &IcedTheme, status: Status| {
+        if bordered {
+            outlined(iced_theme, status)
+        } else {
+            plain(iced_theme, status)
+        }
+    }
+}
+
+/// A button with no background, border or padding of its own -- for a
+/// clickable label such as a sortable column header.
+pub fn bare(_theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
+    |_iced_theme: &IcedTheme, _status: Status| Style::default()
+}
 
 pub fn neutral(theme: Theme) -> impl Fn(&IcedTheme, Status) -> Style {
     move |_iced_theme: &IcedTheme, status: Status| {

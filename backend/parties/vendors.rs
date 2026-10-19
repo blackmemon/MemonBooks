@@ -13,6 +13,35 @@ pub const VENDOR_TYPES: [&str; 5] = [
     "Other",
 ];
 
+/// How the company pays this vendor. A plain choice for the vendor
+/// profile; it is not tied to the POS tender types.
+pub const VENDOR_PAYMENT_METHODS: [&str; 4] = ["Cash", "Bank", "Cheque", "Online"];
+
+/// One user-defined name/value pair on a vendor profile.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CustomField {
+    pub name: String,
+    pub value: String,
+}
+
+impl CustomField {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
+/// A file attached to a vendor: the copy kept in the uploads directory
+/// (`file_name`), the name shown to the user, and the copy's size.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VendorAttachment {
+    pub file_name: String,
+    pub display_name: String,
+    pub size_bytes: u64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vendor {
     pub id: Option<i64>,
@@ -30,6 +59,13 @@ pub struct Vendor {
     /// for vendors created before this field existed; every vendor
     /// created through `Vendor::new` gets one automatically.
     pub reference_code: Option<String>,
+    pub website: Option<String>,
+    pub mailing_address: Option<String>,
+    pub shipping_address: Option<String>,
+    pub payment_method: Option<String>,
+    pub description: Option<String>,
+    pub custom_fields: Vec<CustomField>,
+    pub attachments: Vec<VendorAttachment>,
 }
 
 impl Vendor {
@@ -46,6 +82,13 @@ impl Vendor {
             payment_terms_days: 30,
             is_active: true,
             reference_code: Some(reference_code::generate_code("VEND")),
+            website: None,
+            mailing_address: None,
+            shipping_address: None,
+            payment_method: None,
+            description: None,
+            custom_fields: Vec::new(),
+            attachments: Vec::new(),
         }
     }
 }

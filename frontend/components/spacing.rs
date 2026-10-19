@@ -55,6 +55,10 @@ pub const TABLE_ROW_HEIGHT: f32 = 52.0;
 pub const AVATAR_SIZE: f32 = 36.0;
 pub const CHECKBOX_COLUMN_WIDTH: f32 = 32.0;
 pub const ACTION_COLUMN_WIDTH: f32 = 48.0;
+/// The select-box column of a wide table, the box plus its gutter.
+pub const SELECT_COLUMN_WIDTH: f32 = 44.0;
+/// Height of a multi-line text input (e.g. a Description editor).
+pub const TEXT_AREA_HEIGHT: f32 = 96.0;
 pub const SEARCH_WIDTH: f32 = 260.0;
 pub const SCROLLBAR_WIDTH: f32 = 8.0;
 pub const HEADER_PADDING: Padding = Padding {

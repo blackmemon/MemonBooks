@@ -27,6 +27,12 @@ pub fn body() -> f32 {
     scaled(12.0)
 }
 
+/// Text inside a detail-form input or dropdown: a step above [`body`]
+/// so the boxes are taller and easier to read.
+pub fn form_input() -> f32 {
+    body() + 2.0
+}
+
 /// Native checkbox control dimension (not a text size).
 pub fn checkbox_size() -> f32 {
     16.0

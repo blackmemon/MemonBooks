@@ -12,6 +12,21 @@ use rust_decimal::Decimal;
 use crate::backend::accounting::accounts_payable::aging::{self, PayablesAgingSummary};
 use crate::backend::accounting::accounts_payable::payables::Payable;
 
+/// Column titles of the ledger's views: the transaction history, each
+/// side of the T-account, the trial balance and the open bills.
+pub const HISTORY_COLUMNS: [&str; 7] = [
+    "Date",
+    "Reference",
+    "Type",
+    "Description",
+    "Debit",
+    "Credit",
+    "Balance",
+];
+pub const T_ACCOUNT_COLUMNS: [&str; 3] = ["Date", "Reference", "Amount"];
+pub const TRIAL_BALANCE_COLUMNS: [&str; 4] = ["Code", "Account", "Debit", "Credit"];
+pub const OPEN_BILL_COLUMNS: [&str; 5] = ["Bill", "Due Date", "Status", "Amount", "Balance"];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct VendorLedgerEntry {
     pub transaction_id: i64,

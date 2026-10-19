@@ -1,10 +1,33 @@
+use std::borrow::Borrow;
+
 use iced::widget::overlay::menu as menu_widget;
 use iced::widget::pick_list;
 use iced::widget::pick_list::{Status, Style};
-use iced::{Background, Color, Element, Theme as IcedTheme};
+use iced::widget::PickList;
+use iced::{Background, Color, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::{borders, states};
+use crate::frontend::components::{borders, spacing, states, typography};
+
+/// A full-width detail-form dropdown, sized like the form's text inputs.
+pub fn form_select<'a, T, L, V, M>(
+    theme: Theme,
+    options: L,
+    selected: Option<V>,
+    on_select: impl Fn(T) -> M + 'a,
+) -> PickList<'a, T, L, V, M>
+where
+    T: ToString + PartialEq + Clone + 'a,
+    L: Borrow<[T]> + 'a,
+    V: Borrow<T> + 'a,
+    M: Clone + 'a,
+{
+    pick_list(options, selected, on_select)
+        .style(style(theme))
+        .text_size(typography::form_input())
+        .padding(spacing::MD)
+        .width(Length::Fill)
+}
 
 #[derive(Debug, Clone)]
 struct CountedOption<Message> {

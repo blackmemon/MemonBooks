@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, pick_list, row, text, text_input, Space};
+use iced::widget::{button, column, container, pick_list, row, text, text_input, Row, Space};
 use iced::{Alignment, Element, Length};
 
 use crate::frontend::components::button as button_style;
@@ -174,4 +174,39 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     .height(Length::Fixed(CONTROL_HEIGHT))
     .width(Length::Fill)
     .into()
+}
+
+/// A table card's top block, two rows `SPACE_20` apart. Row 1 is the
+/// title block with the Add button on the right; row 2 is the toolbar:
+/// search (taking the spare width), the filter dropdowns, then the tool
+/// buttons. A narrow card wraps the toolbar: search on its own line,
+/// filters and tools below it.
+pub fn card_header<'a, M: 'a>(
+    class: spacing::LayoutClass,
+    title: Element<'a, M>,
+    search: Element<'a, M>,
+    filters: Element<'a, M>,
+    tools: Element<'a, M>,
+    add: Element<'a, M>,
+) -> Element<'a, M> {
+    let line = |items: Vec<Element<'a, M>>| {
+        Row::with_children(items)
+            .spacing(spacing::SPACE_12)
+            .align_y(Alignment::Center)
+    };
+    let page_header = line(vec![
+        container(title).width(Length::Fill).clip(true).into(),
+        add,
+    ]);
+    let toolbar: Element<'a, M> = if class == spacing::LayoutClass::Narrow {
+        column![search, line(vec![filters, tools])]
+            .spacing(spacing::SPACE_12)
+            .into()
+    } else {
+        line(vec![search, filters, tools]).into()
+    };
+    column![page_header, toolbar]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::SPACE_20)
+        .into()
 }

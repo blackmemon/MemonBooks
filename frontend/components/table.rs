@@ -2,11 +2,150 @@
 //! highlights subtly on hover, and the hairline divider drawn between
 //! rows instead of full alternating stripes.
 
-use iced::widget::{button, container};
-use iced::{Background, Border, Color, Theme as IcedTheme};
+use iced::alignment::Horizontal;
+use iced::widget::{button, column, container, text, Row, Space};
+use iced::{Alignment, Background, Border, Color, Element, Length, Theme as IcedTheme};
 
+use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::shadows;
+use crate::frontend::components::{fonts, icons, shadows, spacing, typography};
+
+/// A compact read-only table: bold caption headers over a rule, the body
+/// rows, then an optional bold totals row. `widths` are the columns'
+/// fill portions; the columns listed in `right` are right-aligned.
+pub fn grid<'a, M: 'a>(
+    theme: Theme,
+    labels: &[&str],
+    widths: &[u16],
+    right: &[usize],
+    rows: Vec<Vec<String>>,
+    totals: Option<Vec<String>>,
+) -> Element<'a, M> {
+    let mut body = column![grid_header(theme, labels, widths, right)].spacing(spacing::SPACE_6);
+    for cells in rows {
+        body = body.push(grid_row(theme, cells, widths, right, false));
+    }
+    if let Some(cells) = totals {
+        body = body.push(grid_row(theme, cells, widths, right, true));
+    }
+    body.into()
+}
+
+/// One cell of a [`grid`] column, right-aligned when listed in `right`.
+fn grid_cell<'a, M: 'a>(
+    content: impl Into<Element<'a, M>>,
+    index: usize,
+    widths: &[u16],
+    right: &[usize],
+) -> Element<'a, M> {
+    let cell = container(content).width(Length::FillPortion(widths[index]));
+    if right.contains(&index) {
+        cell.align_x(Horizontal::Right).into()
+    } else {
+        cell.into()
+    }
+}
+
+fn grid_header<'a, M: 'a>(
+    theme: Theme,
+    labels: &[&str],
+    widths: &[u16],
+    right: &[usize],
+) -> Element<'a, M> {
+    let mut line = Row::new().spacing(spacing::SM);
+    for (index, label) in labels.iter().enumerate() {
+        line = line.push(grid_cell(
+            text(label.to_string())
+                .size(typography::caption())
+                .font(fonts::BOLD)
+                .color(theme.neutral_front()),
+            index,
+            widths,
+            right,
+        ));
+    }
+    column![
+        line,
+        container(Space::with_height(Length::Fixed(spacing::SPACE_1)))
+            .width(Length::Fill)
+            .style(rule(theme)),
+    ]
+    .spacing(spacing::SPACE_4)
+    .into()
+}
+
+fn grid_row<'a, M: 'a>(
+    theme: Theme,
+    cells: Vec<String>,
+    widths: &[u16],
+    right: &[usize],
+    bold: bool,
+) -> Element<'a, M> {
+    let mut line = Row::new().spacing(spacing::SM).align_y(Alignment::Center);
+    for (index, cell) in cells.into_iter().enumerate() {
+        let mut label = text(cell)
+            .size(typography::body())
+            .color(theme.neutral_font());
+        if bold {
+            label = label.font(fonts::BOLD);
+        }
+        line = line.push(grid_cell(label, index, widths, right));
+    }
+    line.into()
+}
+
+/// A clickable column label for a wide table's header row, followed by
+/// the sort arrow when the column is sorted (`Some(ascending)`).
+pub fn sort_header<'a, M: Clone + 'a>(
+    theme: Theme,
+    label: &'a str,
+    sorted: Option<bool>,
+    width: Length,
+    on_press: M,
+) -> Element<'a, M> {
+    let mut cell = Row::new()
+        .push(
+            text(label)
+                .size(typography::label() + 1.0)
+                .font(fonts::BOLD)
+                .color(theme.neutral_front()),
+        )
+        .spacing(spacing::SPACE_4)
+        .align_y(Alignment::Center);
+    if let Some(ascending) = sorted {
+        cell = cell.push(
+            icons::icon(if ascending {
+                icons::SORT_ASCENDING
+            } else {
+                icons::SORT_DESCENDING
+            })
+            .size(typography::micro())
+            .color(theme.neutral_front()),
+        );
+    }
+    button(cell)
+        .padding(0)
+        .width(width)
+        .style(button_style::bare(theme))
+        .on_press(on_press)
+        .into()
+}
+
+/// The [`divider`] hairline itself, spanning the width.
+pub fn divider_line<'a, M: 'a>(theme: Theme) -> Element<'a, M> {
+    container(Space::with_height(Length::Fixed(spacing::SPACE_1)))
+        .width(Length::Fill)
+        .style(divider(theme))
+        .into()
+}
+
+/// The 1px rule under a [`grid`]'s headers: the regular border color.
+pub fn rule(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
+    move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(theme.neutral_border())),
+        ..container::Style::default()
+    }
+}
 
 const fn rgb8(r: u8, g: u8, b: u8) -> Color {
     Color {

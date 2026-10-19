@@ -2,11 +2,29 @@
 //! Theme background/front color pair. No new colors -- this only picks
 //! which existing pair applies, plus the one new neutral pair.
 
-use iced::widget::container;
-use iced::{Background, Border, Color, Theme as IcedTheme};
+use iced::widget::text::IntoFragment;
+use iced::widget::{container, text};
+use iced::{Background, Border, Color, Element, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::states;
+use crate::frontend::components::{fonts, spacing, states, typography};
+
+/// Small tinted status pill: bold caption text on the tone's background.
+pub fn status_pill<'a, M: 'a>(
+    theme: Theme,
+    label: impl IntoFragment<'a>,
+    tone: BadgeTone,
+) -> Element<'a, M> {
+    container(
+        text(label)
+            .size(typography::caption())
+            .font(fonts::BOLD)
+            .color(tone_colors(theme, tone).1),
+    )
+    .padding([spacing::SPACE_2, spacing::SPACE_10])
+    .style(pill(theme, tone))
+    .into()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BadgeTone {

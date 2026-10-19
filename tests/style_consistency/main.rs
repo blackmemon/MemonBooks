@@ -258,6 +258,79 @@ fn only_fonts_rs_names_a_font_family() {
     );
 }
 
+/// Where the vendor table's columns are named, and the files that work
+/// with vendor columns.
+const VENDOR_VIEW: &str = "frontend/views/accounting/maintain/vendors_view.rs";
+const VENDOR_CODE: &[&str] = &[
+    VENDOR_VIEW,
+    "backend/parties/vendors.rs",
+    "backend/repositories/party_repository.rs",
+];
+
+/// The names written in `vendors_view.rs`'s `VENDOR_HEADERS` array, and
+/// the (zero-based) lines the array spans.
+fn vendor_headers(content: &str) -> (Vec<String>, std::ops::Range<usize>) {
+    let lines: Vec<&str> = content.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| line.starts_with("const VENDOR_HEADERS"))
+        .expect("vendors_view.rs defines VENDOR_HEADERS");
+    let end = start
+        + lines[start..]
+            .iter()
+            .position(|line| line.trim() == "];")
+            .expect("VENDOR_HEADERS is closed");
+    let names = lines[start + 1..end]
+        .iter()
+        .filter_map(|line| line.trim().strip_prefix('"')?.strip_suffix("\","))
+        .filter(|name| !name.is_empty())
+        .map(String::from)
+        .collect();
+    (names, start..end + 1)
+}
+
+#[test]
+fn vendor_column_names_are_written_only_in_vendor_headers() {
+    let root = crate_root();
+    let view = fs::read_to_string(root.join(VENDOR_VIEW)).expect("vendors_view.rs is readable");
+    let (names, header_lines) = vendor_headers(&view);
+    assert!(
+        names.len() > 10,
+        "expected to read VENDOR_HEADERS' names, got {names:?}"
+    );
+
+    let mut findings = Vec::new();
+    for path in VENDOR_CODE {
+        let content = fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+        for (index, line) in production_source(&content).lines().enumerate() {
+            if *path == VENDOR_VIEW && header_lines.contains(&index) {
+                continue;
+            }
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            for name in &names {
+                if line.contains(&format!("\"{name}\"")) {
+                    findings.push(format!(
+                        "{path}:{}: \"{name}\"\n    {}",
+                        index + 1,
+                        line.trim()
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        findings.is_empty(),
+        "\n\nFound {} vendor column name(s) written outside VENDOR_HEADERS -- refer \
+        to the column by index (a COL_* constant, or VENDOR_HEADERS[COL_*]) instead:\n\n{}\n",
+        findings.len(),
+        findings.join("\n\n")
+    );
+}
+
 #[test]
 fn views_and_components_source_all_styling_from_styles_rs() {
     let root = crate_root();

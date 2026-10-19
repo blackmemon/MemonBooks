@@ -1,13 +1,13 @@
 //! Persistence for customers, vendors, and their addresses/contacts.
 
-use rusqlite::{params, OptionalExtension, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::backend::core::errors::{AppError, AppResult};
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::addresses::{Address, AddressLabel};
 use crate::backend::parties::contacts::Contact;
 use crate::backend::parties::customers::Customer;
-use crate::backend::parties::vendors::Vendor;
+use crate::backend::parties::vendors::{CustomField, Vendor, VendorAttachment};
 use crate::backend::parties::PartyType;
 use crate::database::database::{Database, Migration};
 
@@ -86,7 +86,38 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     version: 904,
     name: "vendor_company_name_column",
     sql: "ALTER TABLE vendors ADD COLUMN company_name TEXT;",
+}, Migration {
+    // Vendor profile fields. The new columns are nullable so existing
+    // vendors load unchanged; custom fields and attachments are child
+    // tables, like `account_attachments`, rather than packed columns.
+    version: 905,
+    name: "vendor_profile_fields_custom_fields_and_attachments",
+    sql: "
+        ALTER TABLE vendors ADD COLUMN website TEXT;
+        ALTER TABLE vendors ADD COLUMN mailing_address TEXT;
+        ALTER TABLE vendors ADD COLUMN shipping_address TEXT;
+        ALTER TABLE vendors ADD COLUMN payment_method TEXT;
+        ALTER TABLE vendors ADD COLUMN description TEXT;
+
+        CREATE TABLE vendor_custom_fields (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            vendor_id   INTEGER NOT NULL REFERENCES vendors(id),
+            name        TEXT NOT NULL,
+            value       TEXT NOT NULL
+        );
+
+        CREATE TABLE vendor_attachments (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            vendor_id     INTEGER NOT NULL REFERENCES vendors(id),
+            file_name     TEXT NOT NULL,
+            display_name  TEXT NOT NULL,
+            size_bytes    INTEGER NOT NULL DEFAULT 0
+        );
+    ",
 }];
+
+/// Every vendor column `map_vendor` reads, in its order.
+const VENDOR_COLUMNS: &str = "id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type, company_name, website, mailing_address, shipping_address, payment_method, description";
 
 #[derive(Clone)]
 pub struct PartyRepository {
@@ -200,12 +231,19 @@ impl PartyRepository {
 
     // -- vendors ------------------------------------------------------
 
+    /// Stores the website trimmed (blank becomes `None`) and returns the
+    /// vendor exactly as stored.
     pub fn create_vendor(&self, vendor: &Vendor) -> AppResult<Vendor> {
         vendor.validate()?;
-        self.db.with_connection(|conn| {
-            conn.execute(
-                "INSERT INTO vendors (company_id, name, company_name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        let vendor = Vendor {
+            website: trimmed(&vendor.website),
+            ..vendor.clone()
+        };
+        self.db.with_transaction(|tx| {
+            tx.execute(
+                "INSERT INTO vendors (company_id, name, company_name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type,
+                 website, mailing_address, shipping_address, payment_method, description)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     vendor.company_id,
                     vendor.name,
@@ -217,48 +255,65 @@ impl PartyRepository {
                     vendor.is_active,
                     vendor.reference_code,
                     vendor.vendor_type,
+                    vendor.website,
+                    vendor.mailing_address,
+                    vendor.shipping_address,
+                    vendor.payment_method,
+                    vendor.description,
                 ],
             )?;
+            let id = tx.last_insert_rowid();
+            insert_vendor_children(tx, id, &vendor)?;
             Ok(Vendor {
-                id: Some(conn.last_insert_rowid()),
-                ..vendor.clone()
+                id: Some(id),
+                ..vendor
             })
         })
     }
 
     pub fn get_vendor(&self, id: i64) -> AppResult<Vendor> {
         self.db.with_connection(|conn| {
-            conn.query_row(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type, company_name
-                 FROM vendors WHERE id = ?1",
-                params![id],
-                map_vendor,
-            )
-            .optional()?
-            .ok_or_else(|| AppError::NotFound(format!("vendor {id} not found")))
+            let mut vendor = conn
+                .query_row(
+                    &format!("SELECT {VENDOR_COLUMNS} FROM vendors WHERE id = ?1"),
+                    params![id],
+                    map_vendor,
+                )
+                .optional()?
+                .ok_or_else(|| AppError::NotFound(format!("vendor {id} not found")))?;
+            load_vendor_children(conn, &mut vendor)?;
+            Ok(vendor)
         })
     }
 
     pub fn list_vendors_for_company(&self, company_id: i64) -> AppResult<Vec<Vendor>> {
         self.db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type, company_name
-                 FROM vendors WHERE company_id = ?1 ORDER BY name",
-            )?;
+            let mut stmt = conn.prepare(&format!(
+                "SELECT {VENDOR_COLUMNS} FROM vendors WHERE company_id = ?1 ORDER BY name"
+            ))?;
             let rows = stmt.query_map(params![company_id], map_vendor)?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+            let mut vendors = rows
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(AppError::from)?;
+            for vendor in &mut vendors {
+                load_vendor_children(conn, vendor)?;
+            }
+            Ok(vendors)
         })
     }
 
+    /// Replaces the vendor's custom fields and attachment links with the
+    /// ones on `vendor`, like `update_account` does for its attachments.
     pub fn update_vendor(&self, vendor: &Vendor) -> AppResult<()> {
         vendor.validate()?;
         let id = vendor
             .id
             .ok_or_else(|| AppError::Validation("cannot update a vendor without an id".into()))?;
-        self.db.with_connection(|conn| {
-            let affected = conn.execute(
+        self.db.with_transaction(|tx| {
+            let affected = tx.execute(
                 "UPDATE vendors SET name = ?1, company_name = ?2, email = ?3, phone = ?4, tax_id = ?5,
-                 payment_terms_days = ?6, is_active = ?7, vendor_type = ?8 WHERE id = ?9",
+                 payment_terms_days = ?6, is_active = ?7, vendor_type = ?8, website = ?9, mailing_address = ?10,
+                 shipping_address = ?11, payment_method = ?12, description = ?13 WHERE id = ?14",
                 params![
                     vendor.name,
                     vendor.company_name,
@@ -268,12 +323,19 @@ impl PartyRepository {
                     vendor.payment_terms_days,
                     vendor.is_active,
                     vendor.vendor_type,
+                    trimmed(&vendor.website),
+                    vendor.mailing_address,
+                    vendor.shipping_address,
+                    vendor.payment_method,
+                    vendor.description,
                     id,
                 ],
             )?;
             if affected == 0 {
                 return Err(AppError::NotFound(format!("vendor {id} not found")));
             }
+            delete_vendor_children(tx, id)?;
+            insert_vendor_children(tx, id, vendor)?;
             Ok(())
         })
     }
@@ -282,10 +344,13 @@ impl PartyRepository {
     /// the vendor is still referenced elsewhere -- bills, purchase
     /// orders, debit notes, and payables all reference a vendor by id,
     /// and every one of those foreign keys is enforced.
+    /// Removes the vendor's custom fields and attachment links with it;
+    /// the attached files' stored copies are kept, as for accounts.
     pub fn delete_vendor(&self, id: i64) -> AppResult<()> {
         self.db
-            .with_connection(|conn| {
-                let affected = conn.execute("DELETE FROM vendors WHERE id = ?1", params![id])?;
+            .with_transaction(|tx| {
+                delete_vendor_children(tx, id)?;
+                let affected = tx.execute("DELETE FROM vendors WHERE id = ?1", params![id])?;
                 if affected == 0 {
                     return Err(AppError::NotFound(format!("vendor {id} not found")));
                 }
@@ -417,7 +482,85 @@ fn map_vendor(row: &Row) -> rusqlite::Result<Vendor> {
         reference_code: row.get(8)?,
         vendor_type: row.get(9)?,
         company_name: row.get(10)?,
+        website: row.get(11)?,
+        mailing_address: row.get(12)?,
+        shipping_address: row.get(13)?,
+        payment_method: row.get(14)?,
+        description: row.get(15)?,
+        // Loaded separately from their own tables (see
+        // `load_vendor_children`) -- never part of this row.
+        custom_fields: Vec::new(),
+        attachments: Vec::new(),
     })
+}
+
+/// The website as stored: surrounding spaces removed, blank as `None`.
+fn trimmed(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(String::from)
+}
+
+fn insert_vendor_children(conn: &Connection, vendor_id: i64, vendor: &Vendor) -> AppResult<()> {
+    for field in &vendor.custom_fields {
+        conn.execute(
+            "INSERT INTO vendor_custom_fields (vendor_id, name, value) VALUES (?1, ?2, ?3)",
+            params![vendor_id, field.name, field.value],
+        )?;
+    }
+    for attachment in &vendor.attachments {
+        conn.execute(
+            "INSERT INTO vendor_attachments (vendor_id, file_name, display_name, size_bytes) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                vendor_id,
+                attachment.file_name,
+                attachment.display_name,
+                attachment.size_bytes as i64
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn delete_vendor_children(conn: &Connection, vendor_id: i64) -> AppResult<()> {
+    conn.execute(
+        "DELETE FROM vendor_custom_fields WHERE vendor_id = ?1",
+        params![vendor_id],
+    )?;
+    conn.execute(
+        "DELETE FROM vendor_attachments WHERE vendor_id = ?1",
+        params![vendor_id],
+    )?;
+    Ok(())
+}
+
+fn load_vendor_children(conn: &Connection, vendor: &mut Vendor) -> rusqlite::Result<()> {
+    let id = vendor.id.expect("persisted vendor must have an id");
+    let mut fields = conn
+        .prepare("SELECT name, value FROM vendor_custom_fields WHERE vendor_id = ?1 ORDER BY id")?;
+    vendor.custom_fields = fields
+        .query_map(params![id], |row| {
+            Ok(CustomField {
+                name: row.get(0)?,
+                value: row.get(1)?,
+            })
+        })?
+        .collect::<Result<_, _>>()?;
+    let mut attachments = conn.prepare(
+        "SELECT file_name, display_name, size_bytes FROM vendor_attachments WHERE vendor_id = ?1 ORDER BY id",
+    )?;
+    vendor.attachments = attachments
+        .query_map(params![id], |row| {
+            Ok(VendorAttachment {
+                file_name: row.get(0)?,
+                display_name: row.get(1)?,
+                size_bytes: row.get::<_, i64>(2)?.max(0) as u64,
+            })
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(())
 }
 
 fn map_address(row: &Row) -> rusqlite::Result<Address> {
@@ -614,6 +757,181 @@ mod tests {
                 .as_deref(),
             Some("Acme Holdings")
         );
+    }
+
+    fn vendor_with_every_profile_field(company_id: i64) -> Vendor {
+        let mut vendor = Vendor::new(company_id, "Acme Supplies Ltd");
+        vendor.website = Some("acme.example".into());
+        vendor.mailing_address = Some("1 Mail Road, Karachi".into());
+        vendor.shipping_address = Some("Dock 4, Port Qasim".into());
+        vendor.payment_method = Some("Cheque".into());
+        vendor.description = Some("Office supplies\nand stationery".into());
+        vendor.custom_fields = vec![
+            CustomField::new("NTN", "1234567-8"),
+            CustomField::new("Region", "South"),
+        ];
+        vendor.attachments = vec![
+            VendorAttachment {
+                file_name: "1-contract.pdf".into(),
+                display_name: "Contract".into(),
+                size_bytes: 2048,
+            },
+            VendorAttachment {
+                file_name: "2-license.png".into(),
+                display_name: "license.png".into(),
+                size_bytes: 512,
+            },
+        ];
+        vendor
+    }
+
+    #[test]
+    fn every_vendor_profile_field_survives_save_and_reload() {
+        let (repo, company_id) = repo_with_company();
+        let vendor = vendor_with_every_profile_field(company_id);
+        let created = repo.create_vendor(&vendor).unwrap();
+        let id = created.id.unwrap();
+
+        let expected = Vendor {
+            id: Some(id),
+            ..vendor
+        };
+        assert_eq!(created, expected);
+        assert_eq!(repo.get_vendor(id).unwrap(), expected);
+        assert_eq!(
+            repo.list_vendors_for_company(company_id).unwrap(),
+            vec![expected]
+        );
+    }
+
+    #[test]
+    fn updating_a_vendor_replaces_every_profile_field() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo
+            .create_vendor(&vendor_with_every_profile_field(company_id))
+            .unwrap();
+
+        let mut updated = created.clone();
+        updated.website = Some("new.example".into());
+        updated.mailing_address = Some("2 New Street".into());
+        updated.shipping_address = None;
+        updated.payment_method = Some("Online".into());
+        updated.description = Some("Changed".into());
+        updated.custom_fields = vec![CustomField::new("Region", "North")];
+        updated.attachments.remove(0);
+        updated.attachments[0].display_name = "Renamed licence".into();
+        repo.update_vendor(&updated).unwrap();
+
+        assert_eq!(repo.get_vendor(created.id.unwrap()).unwrap(), updated);
+    }
+
+    #[test]
+    fn the_website_is_stored_trimmed_and_a_blank_one_as_none() {
+        let (repo, company_id) = repo_with_company();
+        let mut vendor = Vendor::new(company_id, "Acme Supplies Ltd");
+        vendor.website = Some("  acme.example  ".into());
+        let created = repo.create_vendor(&vendor).unwrap();
+        assert_eq!(created.website.as_deref(), Some("acme.example"));
+        assert_eq!(
+            repo.get_vendor(created.id.unwrap())
+                .unwrap()
+                .website
+                .as_deref(),
+            Some("acme.example")
+        );
+
+        let mut blank = created;
+        blank.website = Some("   ".into());
+        repo.update_vendor(&blank).unwrap();
+        assert_eq!(repo.get_vendor(blank.id.unwrap()).unwrap().website, None);
+    }
+
+    #[test]
+    fn deleting_a_vendor_also_removes_its_custom_fields_and_attachment_links() {
+        let (repo, company_id) = repo_with_company();
+        let created = repo
+            .create_vendor(&vendor_with_every_profile_field(company_id))
+            .unwrap();
+
+        repo.delete_vendor(created.id.unwrap()).unwrap();
+
+        let leftover: i64 = repo
+            .db
+            .with_connection(|conn| {
+                Ok(conn.query_row(
+                    "SELECT (SELECT COUNT(*) FROM vendor_custom_fields) + (SELECT COUNT(*) FROM vendor_attachments)",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(leftover, 0);
+    }
+
+    #[test]
+    fn a_vendor_saved_before_the_profile_fields_existed_still_loads() {
+        let db = Database::open_in_memory().unwrap();
+        db.run_migrations(organization_repository::MIGRATIONS)
+            .unwrap();
+        let before: Vec<Migration> = MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 905)
+            .copied()
+            .collect();
+        db.run_migrations(&before).unwrap();
+        let company_id = OrganizationRepository::new(db.clone())
+            .create_company(&Company::new("Acme Trading Co", "USD"))
+            .unwrap()
+            .id
+            .unwrap();
+        db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO vendors (company_id, name, payment_terms_days) VALUES (?1, 'Old Vendor', 30)",
+                params![company_id],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+        db.run_migrations(MIGRATIONS).unwrap();
+        let repo = PartyRepository::new(db);
+        let vendors = repo.list_vendors_for_company(company_id).unwrap();
+
+        assert_eq!(vendors.len(), 1);
+        let old = &vendors[0];
+        assert_eq!(old.name, "Old Vendor");
+        assert_eq!(old.website, None);
+        assert_eq!(old.mailing_address, None);
+        assert_eq!(old.shipping_address, None);
+        assert_eq!(old.payment_method, None);
+        assert_eq!(old.description, None);
+        assert!(old.custom_fields.is_empty());
+        assert!(old.attachments.is_empty());
+
+        // The migrated vendor takes the new fields like any other, and
+        // deleting it removes its custom fields and attachment links.
+        let mut updated = old.clone();
+        updated.custom_fields = vec![CustomField::new("Region", "South")];
+        updated.attachments = vec![VendorAttachment {
+            file_name: "1-old.pdf".into(),
+            display_name: "old.pdf".into(),
+            size_bytes: 3,
+        }];
+        repo.update_vendor(&updated).unwrap();
+        assert_eq!(repo.get_vendor(old.id.unwrap()).unwrap(), updated);
+
+        repo.delete_vendor(old.id.unwrap()).unwrap();
+        let leftover: i64 = repo
+            .db
+            .with_connection(|conn| {
+                Ok(conn.query_row(
+                    "SELECT (SELECT COUNT(*) FROM vendor_custom_fields) + (SELECT COUNT(*) FROM vendor_attachments)",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(leftover, 0);
     }
 
     #[test]

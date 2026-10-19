@@ -987,30 +987,37 @@ fn warehouse_list(state: &State, theme: Theme, width: f32) -> Element<'_, Messag
     }
     let shown = cards.rows.len();
     let rows = cards.rows;
+    let (page, pages, total, page_size) = (cards.page, cards.pages, cards.total, state.page_size);
     list = list.push(responsive(move |size| {
-        card_grid(
+        let reserve = if pages > 1 {
+            pagination::footer_height(class)
+        } else {
+            0.0
+        };
+        let mut area = column![card_grid(
             state,
             theme,
             &rows,
             spacing::grid_columns(class),
-            size.height,
-        )
+            size.height - reserve,
+        )];
+        if pages > 1 {
+            area = area.push(pagination::footer(pagination::Footer {
+                theme,
+                class,
+                page,
+                pages,
+                shown,
+                total,
+                page_size,
+                page_sizes: &CARD_PAGE_SIZES,
+                on_previous: Message::PrevPage,
+                on_page: Message::GoToPage,
+                on_page_size: Message::PageSizeChanged,
+            }));
+        }
+        area.into()
     }));
-    if cards.pages > 1 {
-        list = list.push(pagination::footer(pagination::Footer {
-            theme,
-            class,
-            page: cards.page,
-            pages: cards.pages,
-            shown,
-            total: cards.total,
-            page_size: state.page_size,
-            page_sizes: &CARD_PAGE_SIZES,
-            on_previous: Message::PrevPage,
-            on_page: Message::GoToPage,
-            on_page_size: Message::PageSizeChanged,
-        }));
-    }
     list.into()
 }
 

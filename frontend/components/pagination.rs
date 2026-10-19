@@ -86,6 +86,17 @@ where
     }
 }
 
+/// Room to reserve for [`footer`] under a grid, at the current type size:
+/// one line, or two when narrow.
+pub fn footer_height(class: spacing::LayoutClass) -> f32 {
+    let lines = if class == spacing::LayoutClass::Narrow {
+        spacing::FOOTER_LINES_NARROW
+    } else {
+        1.0
+    };
+    spacing::grown(spacing::FOOTER_LINE_HEIGHT) * lines + spacing::SPACE_20 * 2.0
+}
+
 pub fn results_label(shown: usize, total: usize) -> String {
     format!("Showing {shown} of {total} results")
 }

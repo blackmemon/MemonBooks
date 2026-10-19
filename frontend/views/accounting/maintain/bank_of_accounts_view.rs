@@ -6,9 +6,7 @@
 
 use chrono::NaiveDate;
 use iced::widget::text::Wrapping;
-use iced::widget::{
-    button, column, container, responsive, row, scrollable, text, text_input, Space,
-};
+use iced::widget::{button, column, container, responsive, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length};
 use rust_decimal::Decimal;
 
@@ -1016,30 +1014,37 @@ fn account_list(state: &State, theme: Theme, width: f32) -> Element<'_, Message>
     }
     let shown = cards.rows.len();
     let rows = cards.rows;
+    let (page, pages, total, page_size) = (cards.page, cards.pages, cards.total, state.page_size);
     list = list.push(responsive(move |size| {
-        card_grid(
+        let reserve = if pages > 1 {
+            pagination::footer_height(class)
+        } else {
+            0.0
+        };
+        let mut area = column![card_grid(
             state,
             theme,
             &rows,
             spacing::grid_columns(class),
-            size.height,
-        )
+            size.height - reserve,
+        )];
+        if pages > 1 {
+            area = area.push(pagination::footer(pagination::Footer {
+                theme,
+                class,
+                page,
+                pages,
+                shown,
+                total,
+                page_size,
+                page_sizes: &CARD_PAGE_SIZES,
+                on_previous: Message::PrevPage,
+                on_page: Message::GoToPage,
+                on_page_size: Message::PageSizeChanged,
+            }));
+        }
+        area.into()
     }));
-    if cards.pages > 1 {
-        list = list.push(pagination::footer(pagination::Footer {
-            theme,
-            class,
-            page: cards.page,
-            pages: cards.pages,
-            shown,
-            total: cards.total,
-            page_size: state.page_size,
-            page_sizes: &CARD_PAGE_SIZES,
-            on_previous: Message::PrevPage,
-            on_page: Message::GoToPage,
-            on_page_size: Message::PageSizeChanged,
-        }));
-    }
     list.into()
 }
 
@@ -1085,6 +1090,11 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
     let tone = type_tone(account.account_type);
     let money = |amount: Decimal| labels::currency(&account.currency_code, amount);
     let net = summary.balances.net();
+    let actions = row![
+        button_style::icon_tool(theme, icons::EDIT, "Edit", Message::EditRow(id), false),
+        button_style::icon_tool(theme, icons::REMOVE, "Delete", Message::Remove(id), false),
+    ]
+    .spacing(spacing::SPACE_4);
     let heading = row![
         badges::icon_box(theme, icons::LANDMARK, tone),
         column![
@@ -1098,6 +1108,7 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
         .spacing(spacing::SPACE_2)
         .width(Length::Fill),
         row(account_badges(theme, account)).spacing(spacing::SPACE_4),
+        actions,
     ]
     .spacing(spacing::SPACE_12)
     .align_y(Alignment::Center);
@@ -1118,12 +1129,6 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
         ),
     ]
     .spacing(spacing::MD);
-    let actions = row![
-        Space::with_width(Length::Fill),
-        button_style::icon_tool(theme, icons::EDIT, "Edit", Message::EditRow(id), false),
-        button_style::icon_tool(theme, icons::REMOVE, "Delete", Message::Remove(id), false),
-    ]
-    .spacing(spacing::SPACE_4);
     button(
         column![
             heading,
@@ -1136,8 +1141,6 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
                 typography::subtitle(),
             ),
             sides,
-            Space::with_height(Length::Fill),
-            actions,
         ]
         .spacing(spacing::SPACE_12),
     )
@@ -2372,6 +2375,24 @@ mod tests {
                         let _ = card_grid(&state, theme, &rows, columns, height);
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn twelve_cards_show_two_full_rows_when_the_height_allows() {
+        let state = state_with(12);
+        let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
+        let height = 2.0 * spacing::card_height() + spacing::ROW_GAP;
+        for theme in THEMES {
+            for width in WIDTHS {
+                let columns = spacing::grid_columns(spacing::layout_class(width));
+                let visible =
+                    row_snap::visible_rows(height, spacing::card_height(), spacing::ROW_GAP);
+                let shown =
+                    row_snap::visible_cards(state.scroll.first_row(), visible, columns, rows.len());
+                assert_eq!(shown.len(), 2 * columns, "{width}");
+                let _ = card_grid(&state, theme, &rows, columns, height);
             }
         }
     }

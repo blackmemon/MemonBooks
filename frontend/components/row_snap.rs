@@ -118,6 +118,19 @@ pub fn last_first_row(total_rows: usize, visible_rows: usize) -> usize {
     total_rows.saturating_sub(visible_rows.max(1))
 }
 
+/// Indexes of the cards in the window: `visible` rows starting at
+/// `first_row`, `columns` to a row, out of `count` cards.
+pub fn visible_cards(
+    first_row: usize,
+    visible: usize,
+    columns: usize,
+    count: usize,
+) -> std::ops::Range<usize> {
+    let columns = columns.max(1);
+    let start = (first_row * columns).min(count);
+    start..(start + visible * columns).min(count)
+}
+
 /// The card grid for `cells` laid `columns` to a row, in a region
 /// `available` pixels tall, scrolled to `state`'s first row. Each row is
 /// `spacing::card_height()` tall; cells should fill that height.
@@ -140,7 +153,8 @@ pub fn view<'a, M: Clone + 'a>(
     let first = state.first_row.min(last);
 
     let mut window = column![].spacing(gap).width(Length::Fill);
-    let mut remaining = cells.into_iter().skip(first * columns);
+    let range = visible_cards(first, visible, columns, cells.len());
+    let mut remaining = cells.into_iter().skip(range.start).take(range.len());
     for _ in 0..visible {
         let mut line = row![].spacing(spacing::SM).width(Length::Fill);
         let mut placed = 0;
@@ -204,6 +218,45 @@ mod tests {
         assert_eq!(visible_rows(931.0, HEIGHT, GAP), 2);
         assert_eq!(visible_rows(932.0, HEIGHT, GAP), 3);
         assert_eq!(visible_rows(f32::NAN, HEIGHT, GAP), 1);
+    }
+
+    #[test]
+    fn twelve_cards_scroll_one_row_at_a_time_through_two_row_windows() {
+        let tall = 2.0 * HEIGHT + GAP + 40.0;
+        for (columns, per_window) in [(3, 6), (2, 4), (1, 2)] {
+            let total_rows = 12usize.div_ceil(columns);
+            let visible = visible_rows(tall, HEIGHT, GAP);
+            assert_eq!(visible, 2);
+            let mut state = snap(total_rows, visible);
+            assert_eq!(visible_cards(0, visible, columns, 12).len(), per_window);
+            for step in 1..=total_rows - visible {
+                state.scroll(Scroll::Lines(-1.0));
+                assert_eq!(state.first_row(), step);
+                let range = visible_cards(step, visible, columns, 12);
+                assert_eq!(range.start, step * columns);
+                assert_eq!(range.len(), per_window);
+            }
+            state.scroll(Scroll::Lines(-1.0));
+            assert_eq!(state.first_row(), total_rows - visible, "scroll range ends");
+            for step in (0..total_rows - visible).rev() {
+                state.scroll(Scroll::Lines(1.0));
+                assert_eq!(state.first_row(), step);
+            }
+        }
+        // 3 columns: cards 1-6, then 4-9, then 7-12.
+        assert_eq!(visible_cards(0, 2, 3, 12), 0..6);
+        assert_eq!(visible_cards(1, 2, 3, 12), 3..9);
+        assert_eq!(visible_cards(2, 2, 3, 12), 6..12);
+    }
+
+    #[test]
+    fn short_or_resized_areas_show_fewer_rows_and_small_counts_fit() {
+        assert_eq!(visible_rows(HEIGHT + 10.0, HEIGHT, GAP), 1);
+        assert_eq!(visible_rows(3.0 * HEIGHT + 2.0 * GAP, HEIGHT, GAP), 3);
+        for count in [0, 1, 6, 7] {
+            assert_eq!(visible_cards(0, 2, 3, count), 0..count.min(6));
+        }
+        assert_eq!(last_first_row(12usize.div_ceil(3), 2), 2);
     }
 
     #[test]

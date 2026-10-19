@@ -126,7 +126,14 @@ pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 
 /// Height of one card in a card grid, at the base type size; grids scroll
 /// by whole rows of this height. See [`card_height`].
-pub const CARD_HEIGHT: f32 = 300.0;
+pub const CARD_HEIGHT: f32 = 220.0;
+/// Whole card rows a grid shows when the height allows; fewer only when
+/// not even this many fit (never below one), more when more fit.
+pub const VISIBLE_CARD_ROWS: usize = 2;
+/// One line of the pagination footer (a button), before its padding.
+pub const FOOTER_LINE_HEIGHT: f32 = 36.0;
+/// A narrow footer stacks the pager over the summary: two lines plus the gap.
+pub const FOOTER_LINES_NARROW: f32 = 2.4;
 /// Vertical space between two rows of a card grid.
 pub const ROW_GAP: f32 = MD;
 

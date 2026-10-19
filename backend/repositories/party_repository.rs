@@ -82,6 +82,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     version: 903,
     name: "vendor_type_column",
     sql: "ALTER TABLE vendors ADD COLUMN vendor_type TEXT NOT NULL DEFAULT 'Other';",
+}, Migration {
+    version: 904,
+    name: "vendor_company_name_column",
+    sql: "ALTER TABLE vendors ADD COLUMN company_name TEXT;",
 }];
 
 #[derive(Clone)]
@@ -200,11 +204,12 @@ impl PartyRepository {
         vendor.validate()?;
         self.db.with_connection(|conn| {
             conn.execute(
-                "INSERT INTO vendors (company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO vendors (company_id, name, company_name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     vendor.company_id,
                     vendor.name,
+                    vendor.company_name,
                     vendor.email,
                     vendor.phone,
                     vendor.tax_id,
@@ -224,7 +229,7 @@ impl PartyRepository {
     pub fn get_vendor(&self, id: i64) -> AppResult<Vendor> {
         self.db.with_connection(|conn| {
             conn.query_row(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type, company_name
                  FROM vendors WHERE id = ?1",
                 params![id],
                 map_vendor,
@@ -237,7 +242,7 @@ impl PartyRepository {
     pub fn list_vendors_for_company(&self, company_id: i64) -> AppResult<Vec<Vendor>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type
+                "SELECT id, company_id, name, email, phone, tax_id, payment_terms_days, is_active, reference_code, vendor_type, company_name
                  FROM vendors WHERE company_id = ?1 ORDER BY name",
             )?;
             let rows = stmt.query_map(params![company_id], map_vendor)?;
@@ -252,10 +257,11 @@ impl PartyRepository {
             .ok_or_else(|| AppError::Validation("cannot update a vendor without an id".into()))?;
         self.db.with_connection(|conn| {
             let affected = conn.execute(
-                "UPDATE vendors SET name = ?1, email = ?2, phone = ?3, tax_id = ?4,
-                 payment_terms_days = ?5, is_active = ?6, vendor_type = ?7 WHERE id = ?8",
+                "UPDATE vendors SET name = ?1, company_name = ?2, email = ?3, phone = ?4, tax_id = ?5,
+                 payment_terms_days = ?6, is_active = ?7, vendor_type = ?8 WHERE id = ?9",
                 params![
                     vendor.name,
+                    vendor.company_name,
                     vendor.email,
                     vendor.phone,
                     vendor.tax_id,
@@ -410,6 +416,7 @@ fn map_vendor(row: &Row) -> rusqlite::Result<Vendor> {
         is_active: row.get(7)?,
         reference_code: row.get(8)?,
         vendor_type: row.get(9)?,
+        company_name: row.get(10)?,
     })
 }
 
@@ -590,11 +597,23 @@ mod tests {
     fn creates_and_fetches_a_vendor() {
         let (repo, company_id) = repo_with_company();
         let mut vendor = Vendor::new(company_id, "Acme Supplies Ltd");
+        vendor.company_name = Some("Acme Group".into());
         vendor.vendor_type = "Contractor".into();
         let created = repo.create_vendor(&vendor).unwrap();
         let fetched = repo.get_vendor(created.id.unwrap()).unwrap();
         assert_eq!(fetched.name, "Acme Supplies Ltd");
+        assert_eq!(fetched.company_name.as_deref(), Some("Acme Group"));
         assert_eq!(fetched.vendor_type, "Contractor");
+
+        let mut updated = fetched;
+        updated.company_name = Some("Acme Holdings".into());
+        repo.update_vendor(&updated).unwrap();
+        assert_eq!(
+            repo.list_vendors_for_company(company_id).unwrap()[0]
+                .company_name
+                .as_deref(),
+            Some("Acme Holdings")
+        );
     }
 
     #[test]

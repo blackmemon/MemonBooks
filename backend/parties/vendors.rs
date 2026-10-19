@@ -18,6 +18,7 @@ pub struct Vendor {
     pub id: Option<i64>,
     pub company_id: i64,
     pub name: String,
+    pub company_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub tax_id: Option<String>,
@@ -37,6 +38,7 @@ impl Vendor {
             id: None,
             company_id,
             name: name.into(),
+            company_name: None,
             email: None,
             phone: None,
             tax_id: None,
@@ -57,6 +59,9 @@ impl Validate for Vendor {
         }
         require_non_empty("vendor name", &self.name)?;
         require_max_length("vendor name", &self.name, 200)?;
+        if let Some(company_name) = &self.company_name {
+            require_max_length("company name", company_name, 200)?;
+        }
         if self.payment_terms_days < 0 {
             return Err(AppError::Validation(
                 "payment terms (days) must not be negative".into(),

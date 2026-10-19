@@ -143,6 +143,7 @@ pub struct State {
     /// is the same code that gets saved.
     reference_code_input: String,
     name_input: String,
+    company_name_input: String,
     email_input: String,
     phone_input: String,
     tax_id_input: String,
@@ -177,6 +178,7 @@ pub struct State {
 #[derive(Debug, Clone)]
 pub enum Message {
     NameChanged(String),
+    CompanyNameChanged(String),
     EmailChanged(String),
     PhoneChanged(String),
     TaxIdChanged(String),
@@ -245,6 +247,7 @@ pub fn load(ctx: &Ctx) -> State {
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
     match message {
         Message::NameChanged(value) => state.name_input = value,
+        Message::CompanyNameChanged(value) => state.company_name_input = value,
         Message::EmailChanged(value) => state.email_input = value,
         Message::PhoneChanged(value) => state.phone_input = value,
         Message::TaxIdChanged(value) => state.tax_id_input = value,
@@ -273,6 +276,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.editing_id = None;
             state.reference_code_input = reference_code::generate_code("VEND");
             state.name_input.clear();
+            state.company_name_input.clear();
             state.email_input.clear();
             state.phone_input.clear();
             state.tax_id_input.clear();
@@ -303,6 +307,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 };
                 let vendor = Vendor {
                     name: state.name_input.clone(),
+                    company_name: optional_input(&state.company_name_input),
                     email: optional_input(&state.email_input),
                     phone: optional_input(&state.phone_input),
                     tax_id: optional_input(&state.tax_id_input),
@@ -324,6 +329,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                         state.editing_id = None;
                         state.form_open = false;
                         state.name_input.clear();
+                        state.company_name_input.clear();
                         state.email_input.clear();
                         state.phone_input.clear();
                         state.tax_id_input.clear();
@@ -346,6 +352,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             if !state.reference_code_input.is_empty() {
                 vendor.reference_code = Some(state.reference_code_input.clone());
             }
+            vendor.company_name = optional_input(&state.company_name_input);
             vendor.email = optional_input(&state.email_input);
             vendor.phone = optional_input(&state.phone_input);
             vendor.tax_id = optional_input(&state.tax_id_input);
@@ -361,6 +368,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 Ok(created) => {
                     state.vendors.push(created);
                     state.name_input.clear();
+                    state.company_name_input.clear();
                     state.email_input.clear();
                     state.phone_input.clear();
                     state.tax_id_input.clear();
@@ -386,6 +394,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 state.form_open = true;
                 state.show_preview = false;
                 state.name_input = vendor.name.clone();
+                state.company_name_input = vendor.company_name.clone().unwrap_or_default();
                 state.email_input = vendor.email.clone().unwrap_or_default();
                 state.phone_input = vendor.phone.clone().unwrap_or_default();
                 state.tax_id_input = vendor.tax_id.clone().unwrap_or_default();
@@ -409,6 +418,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.show_preview = false;
             state.reference_code_input.clear();
             state.name_input.clear();
+            state.company_name_input.clear();
             state.email_input.clear();
             state.phone_input.clear();
             state.tax_id_input.clear();
@@ -501,6 +511,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             };
             let headers = [
                 "Name",
+                "Company Name",
                 "Email",
                 "Phone",
                 "Vendor Type",
@@ -512,6 +523,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 .map(|v| {
                     vec![
                         v.name.clone(),
+                        v.company_name.clone().unwrap_or_default(),
                         v.email.clone().unwrap_or_default(),
                         v.phone.clone().unwrap_or_default(),
                         v.vendor_type.clone(),
@@ -672,6 +684,12 @@ fn matches_filters(vendor: &Vendor, query: &str, status: StatusFilter, vendor_ty
         && (query.is_empty()
             || vendor.name.to_lowercase().contains(query)
             || vendor
+                .company_name
+                .as_deref()
+                .unwrap_or_default()
+                .to_lowercase()
+                .contains(query)
+            || vendor
                 .email
                 .as_deref()
                 .unwrap_or_default()
@@ -736,7 +754,7 @@ fn vendor_preview(state: &State, theme: Theme) -> Element<'static, Message> {
             forms::PreviewField::new("S.No", "Auto-generated"),
             forms::PreviewField::new("Vendor ID", vendor_id),
             forms::PreviewField::new("Vendor Name", value(&state.name_input)),
-            forms::PreviewField::new("Company Name", "--"),
+            forms::PreviewField::new("Company Name", value(&state.company_name_input)),
             forms::PreviewField::new("Vendor Type", value(&state.vendor_type_input)),
         ],
     );
@@ -1720,9 +1738,10 @@ fn vendor_column_value(vendor: &Vendor, label: &str) -> String {
             .clone()
             .or_else(|| vendor.id.map(|id| id.to_string()))
             .unwrap_or_default(),
-        "Company Name" | "Website" | "Mailing Address" | "Shipping Address" | "Payment Method"
-        | "Attachments" | "Description" | "Create Timestamp" | "Modified Timestamp"
-        | "Custom Fields" | "Debit" | "Credit" | "Balance" => "--".into(),
+        "Website" | "Mailing Address" | "Shipping Address" | "Payment Method" | "Attachments"
+        | "Description" | "Create Timestamp" | "Modified Timestamp" | "Custom Fields" | "Debit"
+        | "Credit" | "Balance" => "--".into(),
+        "Company Name" => vendor.company_name.clone().unwrap_or_default(),
         "Phone" => vendor.phone.clone().unwrap_or_default(),
         "Email" => vendor.email.clone().unwrap_or_default(),
         "Payment Terms" => format!("{} days", vendor.payment_terms_days),
@@ -1925,6 +1944,18 @@ fn readonly_field(
     )
 }
 
+fn disabled_field(
+    theme: Theme,
+    label: &'static str,
+    value: &'static str,
+) -> Element<'static, Message> {
+    field(
+        theme,
+        label,
+        text_input("", value).on_input_maybe(None::<fn(String) -> Message>),
+    )
+}
+
 /// Lays `fields` out `columns` to a line; a short last line is padded so
 /// its fields keep the same width as the ones above.
 fn field_grid<'a>(fields: Vec<Element<'a, Message>>, columns: usize) -> Element<'a, Message> {
@@ -1962,7 +1993,12 @@ fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
                 "Vendor name",
                 text_input("Vendor name", &state.name_input).on_input(Message::NameChanged),
             ),
-            readonly_field(theme, "Company Name", "--"),
+            field(
+                theme,
+                "Company Name",
+                text_input("Company Name", &state.company_name_input)
+                    .on_input(Message::CompanyNameChanged),
+            ),
             field_element(
                 theme,
                 "Vendor type",
@@ -2041,8 +2077,8 @@ fn detail_fields(state: &State, theme: Theme) -> Vec<Element<'_, Message>> {
                 .width(Length::Fill)
                 .into(),
             ),
-            readonly_field(theme, "Create Timestamp", "--"),
-            readonly_field(theme, "Modified Timestamp", "--"),
+            disabled_field(theme, "Create Timestamp", "--"),
+            disabled_field(theme, "Modified Timestamp", "--"),
         ],
         _ => vec![readonly_field(
             theme,
@@ -2365,7 +2401,7 @@ fn vendor_card<'a, M: Clone + 'a>(
     }
     let title: Element<'a, M> = titles.into();
     let add = lift(
-        icon_label_button(icons::ADD, "Add", [spacing::SPACE_10, spacing::MD])
+        icon_label_button(icons::ADD, "New Add", [spacing::SPACE_10, spacing::MD])
             .style(button_style::mode(theme, true))
             .on_press(Message::OpenForm)
             .into(),

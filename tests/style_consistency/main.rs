@@ -205,6 +205,59 @@ fn check_line(line: &str) -> Vec<&'static str> {
     violations
 }
 
+/// Patterns that name or pick a font family directly. Only `fonts.rs`
+/// may do this; everything else references a `fonts::` constant.
+const FONT_FAMILY_PATTERNS: &[&str] = &[
+    "Font::with_name(",
+    "Family::Name(",
+    "Family::Monospace",
+    "Family::Serif",
+    "Family::SansSerif",
+    "Font::MONOSPACE",
+    "include_bytes!(",
+];
+
+#[test]
+fn only_fonts_rs_names_a_font_family() {
+    let root = crate_root();
+    let mut files = Vec::new();
+    collect_rs_files(&root.join("frontend/views"), &mut files);
+    collect_rs_files(&root.join("frontend/components"), &mut files);
+    assert!(!files.is_empty(), "expected to find .rs files under frontend/views and frontend/components -- did the layout move?");
+
+    let fonts_rs = root.join("frontend/components/fonts.rs");
+    let mut findings = Vec::new();
+    for file in files.iter().filter(|file| **file != fonts_rs) {
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", file.display()));
+        for (index, line) in production_source(&content).lines().enumerate() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            if FONT_FAMILY_PATTERNS
+                .iter()
+                .any(|pattern| line.contains(pattern))
+            {
+                findings.push(format!(
+                    "{}:{}\n    {}",
+                    file.strip_prefix(&root).unwrap_or(file).display(),
+                    index + 1,
+                    line.trim()
+                ));
+            }
+        }
+    }
+
+    assert!(
+        findings.is_empty(),
+        "\n\nFound {} hard-coded font family/file reference(s) outside \
+        frontend/components/fonts.rs -- use fonts::DEFAULT / fonts::BOLD / \
+        fonts::ICONS instead:\n\n{}\n",
+        findings.len(),
+        findings.join("\n\n")
+    );
+}
+
 #[test]
 fn views_and_components_source_all_styling_from_styles_rs() {
     let root = crate_root();

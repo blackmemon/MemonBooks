@@ -202,8 +202,12 @@ fn main() -> iced::Result {
     // Settings picker changes it.
     font_scale::set(font_scale);
 
-    iced::application("MemonBooks", MemonBooks::update, MemonBooks::view)
-        .font(include_bytes!("../assets/fonts/lucide.ttf").as_slice())
+    let app = iced::application("MemonBooks", MemonBooks::update, MemonBooks::view);
+    // Every font is compiled into the binary (see `fonts::EMBEDDED`);
+    // nothing is read from disk or the system at runtime.
+    fonts::EMBEDDED
+        .into_iter()
+        .fold(app, |app, bytes| app.font(bytes))
         .default_font(fonts::DEFAULT)
         .theme(|state: &MemonBooks| match state.theme {
             Theme::Light => iced::Theme::Light,

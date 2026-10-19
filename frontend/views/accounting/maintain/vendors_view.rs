@@ -2421,7 +2421,7 @@ fn vendor_card<'a, M: Clone + 'a>(
     container(card)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(1)
+        .padding(spacing::SPACE_1)
         .style(table_style::card(theme, states::RADIUS_LG))
         .into()
 }
@@ -2569,11 +2569,13 @@ mod tests {
 
     #[test]
     fn clicking_a_header_sorts_ascending_then_descending_then_resets() {
-        let mut state = State::default();
-        state.vendors = ["b", "C", "a"]
-            .iter()
-            .map(|name| Vendor::new(1, *name))
-            .collect();
+        let mut state = State {
+            vendors: ["b", "C", "a"]
+                .iter()
+                .map(|name| Vendor::new(1, *name))
+                .collect(),
+            ..State::default()
+        };
         let names = |state: &State| -> Vec<String> {
             vendor_page(state)
                 .rows

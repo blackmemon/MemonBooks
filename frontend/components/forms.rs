@@ -23,9 +23,9 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
     let more_target = if end < labels.len() { end } else { 0 };
 
     let mut tab_row = row![].spacing(spacing::SPACE_8).align_y(Alignment::Center);
-    for index in start..end {
+    for (index, label) in labels.iter().enumerate().take(end).skip(start) {
         let selected = index == active;
-        let mut label_text = text(labels[index])
+        let mut label_text = text(*label)
             .size(typography::label())
             .color(tabs::text_color(theme, selected));
         if selected {

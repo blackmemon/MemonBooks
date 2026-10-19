@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn every_icon_is_one_char_present_in_the_bundled_font() {
-        let data = include_bytes!("../../assets/fonts/lucide.ttf");
+        let data = crate::frontend::components::fonts::ICONS_TTF;
         let face = ttf_parser::Face::parse(data, 0).expect("bundled icon font parses");
         for (name, glyph) in ALL {
             let mut chars = glyph.chars();
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn the_font_constant_names_the_bundled_family() {
-        let data = include_bytes!("../../assets/fonts/lucide.ttf");
+        let data = crate::frontend::components::fonts::ICONS_TTF;
         let face = ttf_parser::Face::parse(data, 0).unwrap();
         let family = face
             .names()

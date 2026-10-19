@@ -264,7 +264,7 @@ pub fn view_with_frozen_header<'a, Message: Clone + 'a>(
 
     container(card)
         .style(table_style::card(theme, states::RADIUS_LG))
-        .padding(1)
+        .padding(spacing::SPACE_1)
         .width(Length::Fill)
         .max_height(TABLE_MAX_HEIGHT)
         .into()

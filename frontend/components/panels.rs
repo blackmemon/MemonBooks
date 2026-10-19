@@ -103,3 +103,50 @@ pub fn empty_state<'a, M: 'a>(
         .style(flat_card(theme, states::RADIUS_LG))
         .into()
 }
+
+/// A thin rounded bar filled to `fraction` (0..=1) in `tone`'s text
+/// color over the neutral track.
+pub fn progress_bar<'a, M: 'a>(
+    theme: Theme,
+    fraction: f32,
+    tone: crate::frontend::components::badges::BadgeTone,
+) -> Element<'a, M> {
+    iced::widget::progress_bar(0.0..=1.0, fraction.clamp(0.0, 1.0))
+        .height(Length::Fixed(spacing::PROGRESS_BAR_HEIGHT))
+        .style(
+            move |_iced_theme: &IcedTheme| iced::widget::progress_bar::Style {
+                background: Background::Color(theme.neutral_bg()),
+                bar: Background::Color(match tone {
+                    crate::frontend::components::badges::BadgeTone::Neutral => theme.primary(),
+                    tone => crate::frontend::components::badges::tone_colors(theme, tone).1,
+                }),
+                border: iced::Border {
+                    radius: states::RADIUS_PILL.into(),
+                    ..iced::Border::default()
+                },
+            },
+        )
+        .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::components::badges::BadgeTone;
+
+    #[test]
+    fn the_progress_bar_and_empty_state_build_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            for fraction in [-1.0, 0.0, 0.5, 1.0, 2.5] {
+                let _: Element<'_, ()> = progress_bar(theme, fraction, BadgeTone::Warning);
+            }
+            let _: Element<'_, ()> = empty_state(
+                theme,
+                crate::frontend::components::icons::LANDMARK,
+                "Nothing yet",
+                Some("hint"),
+                None,
+            );
+        }
+    }
+}

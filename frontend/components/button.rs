@@ -422,10 +422,90 @@ pub fn tile(
     }
 }
 
+/// A small square cell of a layout grid showing `label`, filled with
+/// `tone`'s colors (a neutral tone is the plain surface). `dimmed` fades
+/// it back -- e.g. a cell outside the current filter; `selected` rings it
+/// in the primary color.
+pub fn grid_cell<'a, M: Clone + 'a>(
+    theme: Theme,
+    label: impl IntoFragment<'a>,
+    tone: crate::frontend::components::badges::BadgeTone,
+    dimmed: bool,
+    selected: bool,
+    on_press: M,
+) -> Element<'a, M> {
+    let (_, foreground) = crate::frontend::components::badges::fill_colors(theme, tone);
+    button_widget(
+        text(label)
+            .size(typography::caption())
+            .font(fonts::BOLD)
+            .color(if dimmed {
+                foreground.scale_alpha(theme.disabled_alpha())
+            } else {
+                foreground
+            })
+            .wrapping(Wrapping::None)
+            .center(),
+    )
+    .width(Length::Fixed(spacing::GRID_CELL_SIZE))
+    .height(Length::Fixed(spacing::GRID_CELL_SIZE))
+    .padding(0)
+    .style(cell(theme, tone, dimmed, selected))
+    .on_press(on_press)
+    .into()
+}
+
+/// The style of a [`grid_cell`].
+pub fn cell(
+    theme: Theme,
+    tone: crate::frontend::components::badges::BadgeTone,
+    dimmed: bool,
+    selected: bool,
+) -> impl Fn(&IcedTheme, Status) -> Style {
+    move |_iced_theme: &IcedTheme, status: Status| {
+        let (background, foreground) =
+            crate::frontend::components::badges::fill_colors(theme, tone);
+        let hovered = matches!(status, Status::Hovered | Status::Pressed);
+        let fade = |color: Color| {
+            if dimmed {
+                color.scale_alpha(theme.disabled_alpha())
+            } else {
+                color
+            }
+        };
+        let mut border = crate::frontend::components::borders::card(theme, states::RADIUS_SM);
+        if selected || hovered {
+            border.color = theme.primary();
+            border.width = states::TEXTBOX_WIDTH_ALPHA;
+        }
+        Style {
+            background: Some(Background::Color(fade(background))),
+            text_color: fade(foreground),
+            border,
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::frontend::components::badges::BadgeTone;
+
+    #[test]
+    fn a_grid_cell_fades_when_dimmed_and_rings_when_selected() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let plain =
+                cell(theme, BadgeTone::Warning, false, false)(&IcedTheme::Light, Status::Active);
+            let dimmed =
+                cell(theme, BadgeTone::Warning, true, false)(&IcedTheme::Light, Status::Active);
+            let selected =
+                cell(theme, BadgeTone::Neutral, false, true)(&IcedTheme::Light, Status::Active);
+            assert!(dimmed.text_color.a < plain.text_color.a);
+            assert_eq!(selected.border.color, theme.primary());
+            let _: Element<'_, ()> = grid_cell(theme, "12", BadgeTone::Negative, false, true, ());
+        }
+    }
 
     #[test]
     fn a_tile_turns_its_border_primary_on_hover_in_both_themes() {

@@ -366,21 +366,42 @@ fn named_array(content: &str, name: &str) -> (Vec<String>, std::ops::Range<usize
 
 #[test]
 fn bank_field_names_are_written_only_in_bank_fields() {
+    assert_field_names_only_in_constant(BANK_VIEW, "BANK_FIELDS", BANK_CODE);
+}
+
+/// Where the warehouse fields are named, and the files that work with
+/// warehouse, bin and bin-content fields.
+const WAREHOUSE_VIEW: &str = "frontend/views/accounting/maintain/warehouse_view.rs";
+const WAREHOUSE_CODE: &[&str] = &[
+    WAREHOUSE_VIEW,
+    "backend/warehouse_layout/layout.rs",
+    "backend/warehouse_layout/repository.rs",
+    "backend/warehouse_layout/service.rs",
+];
+
+#[test]
+fn warehouse_field_names_are_written_only_in_warehouse_fields() {
+    assert_field_names_only_in_constant(WAREHOUSE_VIEW, "WAREHOUSE_FIELDS", WAREHOUSE_CODE);
+}
+
+/// Fails when any name in the `constant` string array of `view` is
+/// written as a string literal anywhere else in `files`' production code.
+fn assert_field_names_only_in_constant(view_path: &str, constant: &str, files: &[&str]) {
     let root = crate_root();
-    let view =
-        fs::read_to_string(root.join(BANK_VIEW)).expect("bank_of_accounts_view.rs is readable");
-    let (names, field_lines) = named_array(&view, "BANK_FIELDS");
+    let view = fs::read_to_string(root.join(view_path))
+        .unwrap_or_else(|error| panic!("failed to read {view_path}: {error}"));
+    let (names, field_lines) = named_array(&view, constant);
     assert!(
         names.len() > 10,
-        "expected to read BANK_FIELDS' names, got {names:?}"
+        "expected to read {constant}'s names, got {names:?}"
     );
 
     let mut findings = Vec::new();
-    for path in BANK_CODE {
+    for path in files {
         let content = fs::read_to_string(root.join(path))
             .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
         for (index, line) in production_source(&content).lines().enumerate() {
-            if *path == BANK_VIEW && field_lines.contains(&index) {
+            if *path == view_path && field_lines.contains(&index) {
                 continue;
             }
             if line.trim_start().starts_with("//") {
@@ -400,8 +421,8 @@ fn bank_field_names_are_written_only_in_bank_fields() {
 
     assert!(
         findings.is_empty(),
-        "\n\nFound {} bank account field name(s) written outside BANK_FIELDS -- refer \
-        to the field by index (an F_* constant, or BANK_FIELDS[F_*]) instead:\n\n{}\n",
+        "\n\nFound {} field name(s) written outside {constant} -- refer to the field \
+        by index (an F_* constant, or {constant}[F_*]) instead:\n\n{}\n",
         findings.len(),
         findings.join("\n\n")
     );

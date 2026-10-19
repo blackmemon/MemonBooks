@@ -75,6 +75,12 @@ pub const INFLOW: &str = "\u{e047}";
 pub const OUTFLOW: &str = "\u{e051}";
 /// Archive box on an "archive" icon button.
 pub const ARCHIVE: &str = "\u{e045}";
+/// A warehouse building.
+pub const WAREHOUSE: &str = "\u{e3e9}";
+/// A package -- stock held somewhere.
+pub const PACKAGE: &str = "\u{e12c}";
+/// A grid of squares -- a layout or bin map.
+pub const LAYOUT_GRID: &str = "\u{e104}";
 
 #[cfg(test)]
 mod tests {
@@ -121,6 +127,9 @@ mod tests {
         ("INFLOW", INFLOW),
         ("OUTFLOW", OUTFLOW),
         ("ARCHIVE", ARCHIVE),
+        ("WAREHOUSE", WAREHOUSE),
+        ("PACKAGE", PACKAGE),
+        ("LAYOUT_GRID", LAYOUT_GRID),
     ];
 
     #[test]

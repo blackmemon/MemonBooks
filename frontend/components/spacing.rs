@@ -113,6 +113,15 @@ pub const SEARCH_MIN_WIDTH: f32 = 140.0;
 /// Side of the tinted icon square leading a card or list row.
 pub const ICON_BOX_SIZE: f32 = 44.0;
 
+/// Side of one numbered cell in a layout grid.
+pub const GRID_CELL_SIZE: f32 = 28.0;
+/// Width of a fixed summary column beside a page's main area.
+pub const SUMMARY_PANEL_WIDTH: f32 = 260.0;
+/// Side of the colour swatch in a legend entry.
+pub const LEGEND_SWATCH_SIZE: f32 = 12.0;
+/// Height of a thin progress bar.
+pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
+
 /// Cards per line of a card grid: three when wide, two when medium, one
 /// when narrow.
 pub fn grid_columns(class: LayoutClass) -> usize {

@@ -110,3 +110,45 @@ fn styled(theme: Theme, text_color: Color) -> impl Fn(&IcedTheme, Status) -> Sty
         }
     }
 }
+
+/// A toolbar filter dropdown over options built at run time (names read
+/// from the database), sized like [`counted_filter`]. For a fixed list
+/// of `'static` labels with counts, use [`counted_filter`].
+pub fn filter<'a, T, M>(
+    theme: Theme,
+    placeholder: &'a str,
+    options: Vec<T>,
+    selected: Option<T>,
+    on_select: impl Fn(T) -> M + 'a,
+) -> Element<'a, M>
+where
+    T: ToString + PartialEq + Clone + 'a,
+    M: Clone + 'a,
+{
+    pick_list(options, selected, on_select)
+        .placeholder(placeholder)
+        .style(style(theme))
+        .menu_style(dropdown_menu(theme))
+        .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_filter_dropdown_builds_with_and_without_a_selection() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let options = vec!["All".to_string(), "Acme".to_string()];
+            let _: Element<'_, String> =
+                filter(theme, "Company", options.clone(), None, |value| value);
+            let _: Element<'_, String> = filter(
+                theme,
+                "Company",
+                options,
+                Some("Acme".to_string()),
+                |value| value,
+            );
+        }
+    }
+}

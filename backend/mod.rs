@@ -20,3 +20,4 @@ pub mod services;
 pub mod settings;
 pub mod tax;
 pub mod transactions;
+pub mod warehouse_layout;

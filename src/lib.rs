@@ -39,5 +39,6 @@ pub fn all_migrations() -> Vec<database::database::Migration> {
     migrations.extend_from_slice(backend::repositories::fixed_asset_repository::MIGRATIONS);
     migrations.extend_from_slice(backend::repositories::tax_repository::MIGRATIONS);
     migrations.extend_from_slice(backend::audit::audit_logs::MIGRATIONS);
+    migrations.extend_from_slice(backend::warehouse_layout::repository::MIGRATIONS);
     migrations
 }

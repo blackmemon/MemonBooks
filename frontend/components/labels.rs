@@ -70,6 +70,22 @@ pub fn amount<'a>(
     text(value).size(size).font(fonts::BOLD).color(color)
 }
 
+/// A muted label on the left and a bold value on the right, one line of
+/// a summary list.
+pub fn pair<'a, M: 'a>(
+    theme: Theme,
+    label: impl text::IntoFragment<'a>,
+    value: impl text::IntoFragment<'a>,
+) -> Element<'a, M> {
+    iced::widget::row![
+        muted(theme, label, typography::body()).width(Length::Fill),
+        strong(theme, value, typography::body()),
+    ]
+    .spacing(spacing::SPACE_8)
+    .align_y(iced::Alignment::Center)
+    .into()
+}
+
 /// `1,234.50`, with a leading `-` when negative.
 pub fn money(amount: Decimal) -> String {
     let fixed = format!("{:.2}", amount.abs());
@@ -132,6 +148,7 @@ mod tests {
                 let _: Element<'_, ()> = figure(theme, "Net", "1.00", tone, typography::body());
             }
             let _: Element<'_, ()> = stat(theme, "Net", "1.00");
+            let _: Element<'_, ()> = pair(theme, "Total bins", "12");
         }
     }
 }

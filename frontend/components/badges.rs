@@ -3,7 +3,7 @@
 //! which existing pair applies, plus the one new neutral pair.
 
 use iced::widget::text::IntoFragment;
-use iced::widget::{container, text};
+use iced::widget::{container, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
@@ -123,10 +123,76 @@ pub fn icon_box<'a, M: 'a>(theme: Theme, glyph: &'static str, tone: BadgeTone) -
     .into()
 }
 
+/// `(background, foreground)` for a filled cell or swatch: the tone's
+/// pair, except that a neutral tone is the plain surface.
+pub fn fill_colors(theme: Theme, tone: BadgeTone) -> (Color, Color) {
+    match tone {
+        BadgeTone::Neutral => (theme.surface(), theme.neutral_font()),
+        tone => tone_colors(theme, tone),
+    }
+}
+
+/// One legend entry: a small swatch in `tone`'s fill and its label.
+pub fn legend<'a, M: 'a>(
+    theme: Theme,
+    tone: BadgeTone,
+    label: impl IntoFragment<'a>,
+) -> Element<'a, M> {
+    row![
+        container(Space::new(
+            Length::Fixed(spacing::LEGEND_SWATCH_SIZE),
+            Length::Fixed(spacing::LEGEND_SWATCH_SIZE)
+        ))
+        .style(move |_iced_theme: &IcedTheme| container::Style {
+            background: Some(Background::Color(fill_colors(theme, tone).0)),
+            border: crate::frontend::components::borders::card(theme, states::RADIUS_SM),
+            ..container::Style::default()
+        }),
+        text(label)
+            .size(typography::caption())
+            .color(theme.neutral_front()),
+    ]
+    .spacing(spacing::SPACE_6)
+    .align_y(iced::Alignment::Center)
+    .into()
+}
+
+/// A coloured dot before a muted label -- a record's state at a glance.
+pub fn status_dot<'a, M: 'a>(
+    theme: Theme,
+    label: impl IntoFragment<'a>,
+    tone: BadgeTone,
+) -> Element<'a, M> {
+    row![
+        icons::icon(icons::STATUS_DOT)
+            .size(typography::caption())
+            .color(tone_colors(theme, tone).1),
+        text(label)
+            .size(typography::caption())
+            .color(theme.neutral_front()),
+    ]
+    .spacing(spacing::SPACE_4)
+    .align_y(iced::Alignment::Center)
+    .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;
+
+    #[test]
+    fn legend_status_dot_and_fill_colors_build_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            assert_eq!(fill_colors(theme, BadgeTone::Neutral).0, theme.surface());
+            assert_eq!(
+                fill_colors(theme, BadgeTone::Warning),
+                tone_colors(theme, BadgeTone::Warning)
+            );
+            let _: Element<'_, ()> = legend(theme, BadgeTone::Negative, "Full");
+            let _: Element<'_, ()> = status_dot(theme, "Active", BadgeTone::Positive);
+        }
+    }
 
     #[test]
     fn sign_tone_follows_the_sign() {

@@ -5,6 +5,12 @@
 //! `spacing::SCROLLBAR_WIDTH` on its right.
 
 use iced::widget::scrollable::{Direction, Scrollbar};
+use iced::widget::slider::Rail;
+use iced::widget::vertical_slider::{self, Handle, HandleShape, Status};
+use iced::{border, Background, Border, Theme as IcedTheme};
+
+use crate::frontend::components::colors::Theme;
+use crate::frontend::components::table;
 
 use crate::frontend::components::spacing;
 
@@ -25,5 +31,37 @@ pub fn gutter() -> iced::Padding {
     iced::Padding {
         right: spacing::SCROLLBAR_WIDTH,
         ..iced::Padding::ZERO
+    }
+}
+
+/// The bar beside a [`row_snap`](crate::frontend::components::row_snap)
+/// grid: a slim rail with a thumb that grows darker when hovered or
+/// dragged.
+pub fn row_track(theme: Theme) -> impl Fn(&IcedTheme, Status) -> vertical_slider::Style {
+    move |_iced_theme: &IcedTheme, status: Status| {
+        let thumb = match status {
+            Status::Active => table::scrollbar_thumb(theme),
+            Status::Hovered | Status::Dragged => table::scrollbar_thumb_hover(theme),
+        };
+        let track = Background::Color(table::scrollbar_track(theme));
+        vertical_slider::Style {
+            rail: Rail {
+                backgrounds: (track, track),
+                width: spacing::SCROLLBAR_WIDTH,
+                border: Border {
+                    radius: border::radius(spacing::SCROLLBAR_WIDTH),
+                    ..Border::default()
+                },
+            },
+            handle: Handle {
+                shape: HandleShape::Rectangle {
+                    width: 40,
+                    border_radius: border::radius(spacing::SCROLLBAR_WIDTH),
+                },
+                background: Background::Color(thumb),
+                border_width: 0.0,
+                border_color: theme.transparent(),
+            },
+        }
     }
 }

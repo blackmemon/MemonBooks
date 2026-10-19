@@ -20,9 +20,10 @@ use crate::backend::repositories::banking_repository::Removal;
 use crate::backend::services::banking_service::BankingService;
 use crate::database::exports::csv;
 use crate::frontend::components::badges::{self, BadgeTone};
-use crate::frontend::components::labels::Side;
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
+use crate::frontend::components::labels::Side;
+use crate::frontend::components::row_snap::{self, RowSnap};
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::{self, StatusFilter};
 use crate::frontend::components::{
@@ -178,6 +179,8 @@ pub struct State {
     status_filter: StatusFilter,
     page: usize,
     page_size: usize,
+    /// Which row of cards the grid starts at.
+    scroll: RowSnap,
     form_open: bool,
     /// `Some(id)` while the panel edits an existing account instead of
     /// adding one -- `Message::Create` then saves the changes.
@@ -202,6 +205,7 @@ impl Default for State {
             status_filter: StatusFilter::All,
             page: 0,
             page_size: CARD_PAGE_SIZES[0],
+            scroll: RowSnap::default(),
             form_open: false,
             editing_id: None,
             form: AccountForm::default(),
@@ -247,6 +251,8 @@ pub enum Message {
     DetailGoToPage(usize),
     DetailPrevPage,
     DetailPageSizeChanged(usize),
+    /// The card grid scrolled by a row, from the wheel or its bar.
+    Scrolled(row_snap::Scroll),
 }
 
 pub fn load(ctx: &Ctx) -> State {
@@ -293,8 +299,27 @@ fn refresh_accounts(state: &mut State, ctx: &Ctx) {
     }
 }
 
+/// Messages that change which cards the grid shows, so it starts over
+/// at the first row.
+fn restarts_scroll(message: &Message) -> bool {
+    matches!(
+        message,
+        Message::SearchChanged(_)
+            | Message::TypeFilterChanged(_)
+            | Message::StatusFilterChanged(_)
+            | Message::ResetAll
+            | Message::GoToPage(_)
+            | Message::PrevPage
+            | Message::PageSizeChanged(_)
+    )
+}
+
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
+    if restarts_scroll(&message) {
+        state.scroll.reset();
+    }
     match message {
+        Message::Scrolled(scroll) => state.scroll.scroll(scroll),
         Message::OpenForm => open_form(state, None),
         Message::GlAccountSelected(choice) => state.form.gl_account = Some(choice),
         Message::BankNameChanged(value) => state.form.bank_name = value,
@@ -990,19 +1015,16 @@ fn account_list(state: &State, theme: Theme, width: f32) -> Element<'_, Message>
             .into();
     }
     let shown = cards.rows.len();
-    let grid = forms::field_grid(
-        cards
-            .rows
-            .into_iter()
-            .map(|summary| account_card(theme, summary))
-            .collect(),
-        spacing::grid_columns(class),
-    );
-    list = list.push(
-        scrollable(container(grid).padding(scrollbar::gutter()))
-            .direction(scrollbar::vertical())
-            .height(Length::Fill),
-    );
+    let rows = cards.rows;
+    list = list.push(responsive(move |size| {
+        card_grid(
+            state,
+            theme,
+            &rows,
+            spacing::grid_columns(class),
+            size.height,
+        )
+    }));
     if cards.pages > 1 {
         list = list.push(pagination::footer(pagination::Footer {
             theme,
@@ -1019,6 +1041,26 @@ fn account_list(state: &State, theme: Theme, width: f32) -> Element<'_, Message>
         }));
     }
     list.into()
+}
+
+/// The cards in `height` pixels, scrolling by whole rows.
+fn card_grid<'a>(
+    state: &'a State,
+    theme: Theme,
+    rows: &[&'a AccountSummary],
+    columns: usize,
+    height: f32,
+) -> Element<'a, Message> {
+    row_snap::view(
+        &state.scroll,
+        theme,
+        rows.iter()
+            .map(|summary| account_card(theme, summary))
+            .collect(),
+        columns,
+        height,
+        Message::Scrolled,
+    )
 }
 
 /// The type pill, plus an Archived pill for an inactive account.
@@ -1094,12 +1136,14 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
                 typography::subtitle(),
             ),
             sides,
+            Space::with_height(Length::Fill),
             actions,
         ]
         .spacing(spacing::SPACE_12),
     )
     .padding(spacing::MD)
     .width(Length::Fill)
+    .height(Length::Fill)
     .style(button_style::tile(theme, tone))
     .on_press(Message::OpenDetail(id))
     .into()
@@ -2313,6 +2357,23 @@ mod tests {
         let mut filtered_out = state_with(5);
         filtered_out.search = "no such bank".into();
         build_everywhere(&filtered_out);
+    }
+
+    #[test]
+    fn the_card_grid_builds_in_every_theme_and_width_with_any_number_of_cards() {
+        for theme in THEMES {
+            for width in WIDTHS {
+                for count in [0, 1, 6, 7, 40] {
+                    let mut state = state_with(count);
+                    state.scroll.scroll(row_snap::Scroll::Lines(-1.0));
+                    let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
+                    let columns = spacing::grid_columns(spacing::layout_class(width));
+                    for height in [0.0, 300.0, 700.0, 1200.0] {
+                        let _ = card_grid(&state, theme, &rows, columns, height);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

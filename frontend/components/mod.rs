@@ -21,6 +21,7 @@ pub mod menu;
 pub mod modal;
 pub mod panels;
 pub mod radiobutton;
+pub mod row_snap;
 pub mod scrollbar;
 pub mod separators;
 pub mod shadows;

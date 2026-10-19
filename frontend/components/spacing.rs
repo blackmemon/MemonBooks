@@ -122,6 +122,16 @@ pub const LEGEND_SWATCH_SIZE: f32 = 12.0;
 /// Height of a thin progress bar.
 pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 
+/// Height of one card in a card grid; grids scroll by whole rows of
+/// this height.
+pub const CARD_HEIGHT: f32 = 300.0;
+/// Vertical space between two rows of a card grid.
+pub const ROW_GAP: f32 = MD;
+
+pub fn card_height() -> f32 {
+    CARD_HEIGHT
+}
+
 /// Cards per line of a card grid: three when wide, two when medium, one
 /// when narrow.
 pub fn grid_columns(class: LayoutClass) -> usize {

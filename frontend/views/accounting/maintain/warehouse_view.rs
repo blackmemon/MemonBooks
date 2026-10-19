@@ -21,6 +21,7 @@ use crate::database::exports::csv;
 use crate::frontend::components::badges::{self, BadgeTone};
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
+use crate::frontend::components::row_snap::{self, RowSnap};
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::{self, StatusFilter};
 use crate::frontend::components::{
@@ -160,6 +161,8 @@ pub struct State {
     page_size: usize,
     /// Cards showing their category table.
     expanded: HashSet<i64>,
+    /// Which row of cards the grid starts at.
+    scroll: RowSnap,
     form_open: bool,
     /// `Some(id)` while the panel edits an existing warehouse --
     /// `Message::Create` then saves the changes.
@@ -185,6 +188,7 @@ impl Default for State {
             page: 0,
             page_size: CARD_PAGE_SIZES[0],
             expanded: HashSet::new(),
+            scroll: RowSnap::default(),
             form_open: false,
             editing_id: None,
             form: WarehouseForm::default(),
@@ -221,6 +225,8 @@ pub enum Message {
     PrevPage,
     PageSizeChanged(usize),
     ToggleExpand(i64),
+    /// The card grid scrolled by a row, from the wheel or its bar.
+    Scrolled(row_snap::Scroll),
     OpenDetail(i64),
     CloseDetail,
     CategoryFilterChanged(Choice),
@@ -264,8 +270,27 @@ fn refresh(state: &mut State, ctx: &Ctx) {
     }
 }
 
+/// Messages that change which cards the grid shows, so it starts over
+/// at the first row.
+fn restarts_scroll(message: &Message) -> bool {
+    matches!(
+        message,
+        Message::SearchChanged(_)
+            | Message::CompanyFilterChanged(_)
+            | Message::StatusFilterChanged(_)
+            | Message::ResetAll
+            | Message::GoToPage(_)
+            | Message::PrevPage
+            | Message::PageSizeChanged(_)
+    )
+}
+
 pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
+    if restarts_scroll(&message) {
+        state.scroll.reset();
+    }
     match message {
+        Message::Scrolled(scroll) => state.scroll.scroll(scroll),
         Message::OpenForm => open_form(state, None),
         Message::NameChanged(value) => state.form.name = value,
         Message::CompanySelected(choice) => state.form.company = Some(choice),
@@ -961,24 +986,16 @@ fn warehouse_list(state: &State, theme: Theme, width: f32) -> Element<'_, Messag
             .into();
     }
     let shown = cards.rows.len();
-    let grid = forms::field_grid(
-        cards
-            .rows
-            .into_iter()
-            .map(|overview| {
-                let expanded = state
-                    .expanded
-                    .contains(&overview.warehouse.id.unwrap_or_default());
-                warehouse_card(theme, overview, expanded)
-            })
-            .collect(),
-        spacing::grid_columns(class),
-    );
-    list = list.push(
-        scrollable(container(grid).padding(scrollbar::gutter()))
-            .direction(scrollbar::vertical())
-            .height(Length::Fill),
-    );
+    let rows = cards.rows;
+    list = list.push(responsive(move |size| {
+        card_grid(
+            state,
+            theme,
+            &rows,
+            spacing::grid_columns(class),
+            size.height,
+        )
+    }));
     if cards.pages > 1 {
         list = list.push(pagination::footer(pagination::Footer {
             theme,
@@ -995,6 +1012,31 @@ fn warehouse_list(state: &State, theme: Theme, width: f32) -> Element<'_, Messag
         }));
     }
     list.into()
+}
+
+/// The cards in `height` pixels, scrolling by whole rows.
+fn card_grid<'a>(
+    state: &'a State,
+    theme: Theme,
+    rows: &[&'a WarehouseOverview],
+    columns: usize,
+    height: f32,
+) -> Element<'a, Message> {
+    row_snap::view(
+        &state.scroll,
+        theme,
+        rows.iter()
+            .map(|overview| {
+                let expanded = state
+                    .expanded
+                    .contains(&overview.warehouse.id.unwrap_or_default());
+                warehouse_card(theme, overview, expanded)
+            })
+            .collect(),
+        columns,
+        height,
+        Message::Scrolled,
+    )
 }
 
 /// The fullness pill, plus an Archived pill for an inactive warehouse.
@@ -1128,15 +1170,22 @@ fn warehouse_card(
     ]
     .spacing(spacing::SPACE_4)
     .align_y(Alignment::Center);
-    let mut card =
-        column![heading, utilization(theme, overview), actions].spacing(spacing::SPACE_12);
+    let mut card = column![heading, utilization(theme, overview)].spacing(spacing::SPACE_12);
     if expanded {
+        // The card keeps its grid height; a long table scrolls inside it.
         card = card.push(table_style::divider_line(theme));
-        card = card.push(category_table(theme, overview));
+        card = card.push(
+            scrollable(container(category_table(theme, overview)).padding(scrollbar::gutter()))
+                .direction(scrollbar::vertical())
+                .height(Length::Fill),
+        );
+    } else {
+        card = card.push(Space::with_height(Length::Fill));
     }
-    container(card)
+    container(card.push(actions))
         .padding(spacing::MD)
         .width(Length::Fill)
+        .height(Length::Fill)
         .style(panels::card(theme, states::RADIUS_LG))
         .into()
 }
@@ -2347,6 +2396,23 @@ mod tests {
         let mut filtered_out = state_with(5);
         filtered_out.search = "no such warehouse".into();
         build_everywhere(&filtered_out);
+    }
+
+    #[test]
+    fn the_card_grid_builds_in_every_theme_and_width_with_any_number_of_cards() {
+        for theme in THEMES {
+            for width in WIDTHS {
+                for count in [0, 1, 6, 7, 40] {
+                    let mut state = state_with(count);
+                    state.scroll.scroll(row_snap::Scroll::Lines(-1.0));
+                    let rows: Vec<&WarehouseOverview> = state.warehouses.iter().collect();
+                    let columns = spacing::grid_columns(spacing::layout_class(width));
+                    for height in [0.0, 300.0, 700.0, 1200.0] {
+                        let _ = card_grid(&state, theme, &rows, columns, height);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

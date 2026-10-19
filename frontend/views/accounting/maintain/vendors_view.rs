@@ -15,7 +15,7 @@ use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::{self, StatusFilter};
 use crate::frontend::components::{
     data_table, dropdown, forms, icons, labels, pagination, panels, scrollbar, search, spacing,
-    states, typography,
+    typography,
 };
 use crate::frontend::views::Ctx;
 use chrono::NaiveDate;
@@ -2135,23 +2135,22 @@ fn vendor_card<'a, M: Clone + 'a>(
     );
     let table = table_area(state, theme, &vendors, check, toggle_all, &layout);
 
-    let mut card = column![header, lift(table)];
+    let mut body = column![lift(table)].height(Length::Fill);
     if let Some(message) = &state.message {
-        card = card.push(lift(
+        body = body.push(lift(
             container(text(message.clone()).color(theme.positive_front()))
                 .padding([spacing::SPACE_6, spacing::SPACE_20])
                 .into(),
         ));
     }
     if let Some(error) = &state.error {
-        card = card.push(lift(
+        body = body.push(lift(
             container(text(error.clone()).color(theme.negative_front()))
                 .padding([spacing::SPACE_6, spacing::SPACE_20])
                 .into(),
         ));
     }
-    card = card.push(lift(table_style::divider_line(theme)));
-    card = card.push(lift(pagination::footer(pagination::Footer {
+    let footer = lift(pagination::footer(pagination::Footer {
         theme,
         class,
         page: vendors.page,
@@ -2163,13 +2162,8 @@ fn vendor_card<'a, M: Clone + 'a>(
         on_previous: Message::PrevPage,
         on_page: Message::GoToPage,
         on_page_size: Message::PageSizeChanged,
-    })));
-    container(card)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(spacing::SPACE_1)
-        .style(table_style::card(theme, states::RADIUS_LG))
-        .into()
+    }));
+    panels::page_card(theme, header, body.into(), Some(footer))
 }
 
 /// Keeps the header fixed vertically while the rows scroll inside the

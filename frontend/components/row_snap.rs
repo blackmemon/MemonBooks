@@ -118,6 +118,18 @@ pub fn last_first_row(total_rows: usize, visible_rows: usize) -> usize {
     total_rows.saturating_sub(visible_rows.max(1))
 }
 
+/// The height of each row when `visible` of them share `available`: the
+/// base `row_height` grown to take up the spare height (so the grid ends
+/// right above the footer), but never more than [`spacing::CARD_STRETCH_MAX`]
+/// times the base.
+pub fn stretched_row_height(available: f32, visible: usize, row_height: f32, gap: f32) -> f32 {
+    if !available.is_finite() || visible == 0 {
+        return row_height;
+    }
+    ((available + gap) / visible as f32 - gap)
+        .clamp(row_height, row_height * spacing::CARD_STRETCH_MAX)
+}
+
 /// Indexes of the cards in the window: `visible` rows starting at
 /// `first_row`, `columns` to a row, out of `count` cards.
 pub fn visible_cards(
@@ -143,14 +155,19 @@ pub fn view<'a, M: Clone + 'a>(
     on_scroll: impl Fn(Scroll) -> M + Copy + 'a,
 ) -> Element<'a, M> {
     let columns = columns.max(1);
-    let row_height = spacing::card_height();
+    let base_height = spacing::card_height();
     let gap = spacing::ROW_GAP;
     let total_rows = cells.len().div_ceil(columns);
-    let visible = visible_rows(available, row_height, gap);
+    let visible = visible_rows(available, base_height, gap);
     let last = last_first_row(total_rows, visible);
     state.total_rows.set(total_rows);
     state.visible_rows.set(visible);
     let first = state.first_row.min(last);
+    let row_height = if total_rows >= visible {
+        stretched_row_height(available, visible, base_height, gap)
+    } else {
+        base_height
+    };
 
     let mut window = column![].spacing(gap).width(Length::Fill);
     let range = visible_cards(first, visible, columns, cells.len());
@@ -247,6 +264,17 @@ mod tests {
         assert_eq!(visible_cards(0, 2, 3, 12), 0..6);
         assert_eq!(visible_cards(1, 2, 3, 12), 3..9);
         assert_eq!(visible_cards(2, 2, 3, 12), 6..12);
+    }
+
+    #[test]
+    fn rows_stretch_to_end_at_the_footer_but_only_so_far() {
+        let two = 2.0 * HEIGHT + GAP;
+        assert_eq!(stretched_row_height(two, 2, HEIGHT, GAP), HEIGHT);
+        let spare = stretched_row_height(two + 60.0, 2, HEIGHT, GAP);
+        assert_eq!(spare, HEIGHT + 30.0);
+        let capped = stretched_row_height(10_000.0, 1, HEIGHT, GAP);
+        assert_eq!(capped, HEIGHT * spacing::CARD_STRETCH_MAX);
+        assert_eq!(stretched_row_height(f32::NAN, 2, HEIGHT, GAP), HEIGHT);
     }
 
     #[test]

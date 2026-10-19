@@ -130,10 +130,9 @@ pub const CARD_HEIGHT: f32 = 220.0;
 /// Whole card rows a grid shows when the height allows; fewer only when
 /// not even this many fit (never below one), more when more fit.
 pub const VISIBLE_CARD_ROWS: usize = 2;
-/// One line of the pagination footer (a button), before its padding.
-pub const FOOTER_LINE_HEIGHT: f32 = 36.0;
-/// A narrow footer stacks the pager over the summary: two lines plus the gap.
-pub const FOOTER_LINES_NARROW: f32 = 2.4;
+/// How much taller than [`card_height`] a row may grow to use up the
+/// spare height under the last whole row.
+pub const CARD_STRETCH_MAX: f32 = 1.5;
 /// Vertical space between two rows of a card grid.
 pub const ROW_GAP: f32 = MD;
 

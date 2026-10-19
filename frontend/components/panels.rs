@@ -8,7 +8,29 @@ use iced::widget::{column, container, text};
 use iced::{Background, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::{borders, fonts, shadows, spacing, states, typography};
+use crate::frontend::components::{borders, fonts, shadows, spacing, states, table, typography};
+
+/// The one outer card of a list page (Vendors, Bank Accounts,
+/// Warehouses): `header` (title, toolbar), the `body` filling the middle,
+/// and, when given, a divider and the `footer` pinned under it -- all
+/// inside a single rounded, bordered card that fills the page area.
+pub fn page_card<'a, M: 'a>(
+    theme: Theme,
+    header: Element<'a, M>,
+    body: Element<'a, M>,
+    footer: Option<Element<'a, M>>,
+) -> Element<'a, M> {
+    let mut card = column![header, body].height(Length::Fill);
+    if let Some(footer) = footer {
+        card = card.push(table::divider_line(theme)).push(footer);
+    }
+    container(card)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(spacing::SPACE_1)
+        .style(table::card(theme, states::RADIUS_LG))
+        .into()
+}
 
 /// Padded flat card spanning the width -- a block inside a panel.
 pub fn padded<'a, M: 'a>(theme: Theme, content: impl Into<Element<'a, M>>) -> Element<'a, M> {

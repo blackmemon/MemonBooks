@@ -503,3 +503,18 @@ fn raw_text_sizes_are_flagged_even_inside_expressions() {
     assert!(check_line("text(\"a\").size(size)").is_empty());
     assert!(check_line("checkbox(\"a\", true).size(16)").is_empty());
 }
+
+#[test]
+fn vendors_bank_accounts_and_warehouses_build_their_page_with_the_shared_page_card() {
+    let root = crate_root();
+    for view in ["vendors_view", "bank_of_accounts_view", "warehouse_view"] {
+        let path = root.join(format!("frontend/views/accounting/maintain/{view}.rs"));
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        let source = production_source(&content);
+        assert!(
+            source.contains("panels::page_card("),
+            "{view} must build its list page through panels::page_card"
+        );
+    }
+}

@@ -25,8 +25,8 @@ use crate::frontend::components::row_snap::{self, RowSnap};
 use crate::frontend::components::table as table_style;
 use crate::frontend::components::toolbar::{self, StatusFilter};
 use crate::frontend::components::{
-    dropdown, forms, headers, icons, labels, page_header, pagination, panels, scrollbar, search,
-    spacing, states, typography,
+    dropdown, forms, icons, labels, page_header, pagination, panels, scrollbar, search, spacing,
+    states, typography,
 };
 use crate::frontend::views::Ctx;
 
@@ -730,7 +730,7 @@ fn paginate<T>(items: Vec<T>, page: usize, size: usize) -> Paged<T> {
 // -- view ------------------------------------------------------------------
 
 pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
-    layout(state, theme, None, |message| message)
+    layout(state, theme, || None, |message| message)
 }
 
 /// Same as [`view`], except the title sits inline with `switcher` (a
@@ -741,57 +741,73 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
 pub fn page_header_view_with_switcher<'a, ParentMessage: Clone + 'a>(
     state: &'a State,
     theme: Theme,
-    switcher: Element<'a, ParentMessage>,
-    wrap: impl Fn(Message) -> ParentMessage + 'a,
+    switcher: impl Fn() -> Element<'a, ParentMessage> + 'a,
+    wrap: impl Fn(Message) -> ParentMessage + Clone + 'a,
 ) -> Element<'a, ParentMessage> {
-    layout(state, theme, Some(switcher), wrap)
+    layout(state, theme, move || Some(switcher()), wrap)
 }
 
-/// The header (or, on the detail page, just the switcher) above the
-/// width-dependent content, which is rebuilt whenever the size changes.
+/// Rebuilds the page whenever the available size changes.
 fn layout<'a, M: Clone + 'a>(
     state: &'a State,
     theme: Theme,
-    switcher: Option<Element<'a, M>>,
-    wrap: impl Fn(Message) -> M + 'a,
+    switcher: impl Fn() -> Option<Element<'a, M>> + 'a,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
 ) -> Element<'a, M> {
-    let mut page = column![]
-        .spacing(spacing::SPACE_20)
-        .padding(spacing::SPACE_20)
-        .width(Length::Fill)
-        .height(Length::Fill);
-    if state.detail.is_some() {
+    responsive(move |size| page(state, theme, size.width, switcher(), wrap.clone())).into()
+}
+
+/// The whole page for a page area `width` wide: the list inside the one
+/// shared page card (panel beside it), or the detail page under the
+/// switcher.
+fn page<'a, M: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    width: f32,
+    switcher: Option<Element<'a, M>>,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
+) -> Element<'a, M> {
+    let lift = |element: Element<'a, Message>| element.map(wrap.clone());
+    let inner = (width - spacing::SPACE_20 * 2.0).max(0.0);
+    let open_detail = state
+        .detail
+        .as_ref()
+        .and_then(|detail| find(state, detail.warehouse_id).map(|overview| (detail, overview)));
+    if let Some((detail, overview)) = open_detail {
+        let mut page = column![]
+            .spacing(spacing::SPACE_20)
+            .padding(spacing::SPACE_20)
+            .width(Length::Fill)
+            .height(Length::Fill);
         if let Some(switcher) = switcher {
             page = page.push(switcher);
         }
-    } else {
-        page = page.push(header(theme, switcher, wrap(Message::OpenForm)));
+        return page
+            .push(lift(content(state, theme, inner, detail, overview)))
+            .into();
     }
-    let body: Element<'a, Message> =
-        responsive(move |size| content(state, theme, size.width)).into();
-    page.push(body.map(wrap)).into()
-}
-
-/// Title (with the switcher beside it) on the left, Add Warehouse on the right.
-fn header<'a, M: Clone + 'a>(
-    theme: Theme,
-    switcher: Option<Element<'a, M>>,
-    on_add: M,
-) -> Element<'a, M> {
-    let mut titles =
-        row![labels::strong(theme, TITLE, headers::page_title_size()).wrapping(Wrapping::None)]
-            .spacing(spacing::SPACE_12)
-            .align_y(Alignment::Center);
-    if let Some(switcher) = switcher {
-        titles = titles.push(switcher);
+    let split = spacing::panel_split(inner, state.form_open, spacing::SPACE_20);
+    let mut main = row![].spacing(spacing::SPACE_20).height(Length::Fill);
+    if let Some(card_width) = split.content {
+        main = main.push(
+            container(list_card(state, theme, card_width, switcher, wrap.clone()))
+                .width(Length::Fixed(card_width))
+                .height(Length::Fill),
+        );
     }
-    row![
-        container(titles).width(Length::Fill).clip(true),
-        add_button(theme, on_add),
-    ]
-    .spacing(spacing::SPACE_12)
-    .align_y(Alignment::Center)
-    .into()
+    if let Some(panel_width) = split.panel {
+        main = main.push(lift(form_panel(
+            state,
+            theme,
+            spacing::layout_class(inner),
+            panel_width,
+        )));
+    }
+    container(main)
+        .padding(spacing::SPACE_20)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn add_button<'a, M: Clone + 'a>(theme: Theme, on_press: M) -> Element<'a, M> {
@@ -802,34 +818,34 @@ fn add_button<'a, M: Clone + 'a>(theme: Theme, on_press: M) -> Element<'a, M> {
         .into()
 }
 
-/// The list or detail page beside (or, when narrow, replaced by) the
-/// add/edit panel or the bin panel, for a content area `width` wide.
-fn content(state: &State, theme: Theme, width: f32) -> Element<'_, Message> {
-    let open_detail = state
-        .detail
-        .as_ref()
-        .and_then(|detail| find(state, detail.warehouse_id).map(|overview| (detail, overview)));
-    let bin_open = open_detail.is_some_and(|(detail, _)| detail.bin.is_some());
+/// The detail page beside (or, when narrow, replaced by) the add/edit
+/// panel or the bin panel, for a content area `width` wide.
+fn content<'a>(
+    state: &'a State,
+    theme: Theme,
+    width: f32,
+    detail: &'a Detail,
+    overview: &'a WarehouseOverview,
+) -> Element<'a, Message> {
     let class = spacing::layout_class(width);
-    let split = spacing::panel_split(width, state.form_open || bin_open, spacing::SPACE_20);
+    let split = spacing::panel_split(
+        width,
+        state.form_open || detail.bin.is_some(),
+        spacing::SPACE_20,
+    );
     let mut main = row![].spacing(spacing::SPACE_20).height(Length::Fill);
     if let Some(content_width) = split.content {
-        let page = match open_detail {
-            Some((detail, overview)) => detail_page(state, theme, detail, overview, content_width),
-            None => warehouse_list(state, theme, content_width),
-        };
         main = main.push(
-            container(page)
+            container(detail_page(state, theme, detail, overview, content_width))
                 .width(Length::Fixed(content_width))
                 .height(Length::Fill),
         );
     }
     if let Some(panel_width) = split.panel {
-        let panel = match open_detail {
-            Some((detail, overview)) if !state.form_open => {
-                bin_panel(theme, detail, overview, class, panel_width)
-            }
-            _ => form_panel(state, theme, class, panel_width),
+        let panel = if state.form_open {
+            form_panel(state, theme, class, panel_width)
+        } else {
+            bin_panel(theme, detail, overview, class, panel_width)
         };
         main = main.push(panel);
     }
@@ -874,8 +890,9 @@ fn notices(state: &State, theme: Theme) -> Option<Element<'_, Message>> {
     any.then(|| items.into())
 }
 
-/// Search, company and status filters, Reset and Export.
-fn list_toolbar(state: &State, theme: Theme, class: spacing::LayoutClass) -> Element<'_, Message> {
+/// The search box, the company and status filters, and the Reset and
+/// Export buttons, for [`toolbar::card_header`].
+fn toolbar_parts(state: &State, theme: Theme) -> [Element<'_, Message>; 3] {
     let all = Choice {
         id: 0,
         label: ALL_LABEL.into(),
@@ -935,8 +952,7 @@ fn list_toolbar(state: &State, theme: Theme, class: spacing::LayoutClass) -> Ele
     ]
     .spacing(spacing::SPACE_12)
     .align_y(Alignment::Center);
-    toolbar::filter_bar(
-        class,
+    [
         search::input(
             theme,
             "Search warehouse or company",
@@ -945,80 +961,104 @@ fn list_toolbar(state: &State, theme: Theme, class: spacing::LayoutClass) -> Ele
         ),
         filters.into(),
         tools.into(),
-    )
+    ]
 }
 
-/// Toolbar, notices, the card grid (or an empty state) and its pager.
-fn warehouse_list(state: &State, theme: Theme, width: f32) -> Element<'_, Message> {
-    let class = spacing::layout_class(width);
+/// The page card: title and add button, toolbar, the card grid (or an
+/// empty state) and the pager, all in one card.
+fn list_card<'a, M: Clone + 'a>(
+    state: &'a State,
+    theme: Theme,
+    card_width: f32,
+    switcher: Option<Element<'a, M>>,
+    wrap: impl Fn(Message) -> M + Clone + 'a,
+) -> Element<'a, M> {
+    let lift = |element: Element<'a, Message>| element.map(wrap.clone());
+    let class = spacing::layout_class(card_width);
     let cards = paginate(filtered(state), state.page, state.page_size);
-    let mut list = column![list_toolbar(state, theme, class)]
-        .spacing(spacing::SPACE_20)
-        .height(Length::Fill);
+
+    let mut titles =
+        row![labels::strong(theme, TITLE, typography::panel_title()).wrapping(Wrapping::None)]
+            .spacing(spacing::SPACE_12)
+            .align_y(Alignment::Center);
+    if let Some(switcher) = switcher {
+        titles = titles.push(switcher);
+    }
+    let [search, filters, tools] = toolbar_parts(state, theme);
+    let header = toolbar::card_header(
+        class,
+        titles.into(),
+        lift(search),
+        lift(filters),
+        lift(tools),
+        lift(add_button(theme, Message::OpenForm)),
+    );
+
+    let mut body = column![].height(Length::Fill);
     if let Some(notices) = notices(state, theme) {
-        list = list.push(notices);
+        body = body.push(lift(
+            container(notices)
+                .padding([spacing::SPACE_6, spacing::SPACE_20])
+                .into(),
+        ));
     }
     if state.warehouses.is_empty() {
-        return list
-            .push(panels::empty_state(
-                theme,
-                icons::WAREHOUSE,
-                "No warehouses yet",
-                Some("Add a warehouse and lay out its bins to start placing stock."),
-                Some(add_button(theme, Message::OpenForm)),
-            ))
-            .into();
+        body = body.push(lift(panels::empty_state(
+            theme,
+            icons::WAREHOUSE,
+            "No warehouses yet",
+            Some("Add a warehouse and lay out its bins to start placing stock."),
+            Some(add_button(theme, Message::OpenForm)),
+        )));
+        return panels::page_card(theme, header, body.into(), None);
     }
     if cards.rows.is_empty() {
-        return list
-            .push(panels::empty_state(
-                theme,
-                icons::SEARCH,
-                "No warehouses match these filters",
-                None,
-                Some(
-                    button_style::bold("Reset", [spacing::SPACE_6, spacing::SPACE_14])
-                        .style(button_style::outlined(theme, false))
-                        .on_press(Message::ResetAll)
-                        .into(),
-                ),
-            ))
-            .into();
+        body = body.push(lift(panels::empty_state(
+            theme,
+            icons::SEARCH,
+            "No warehouses match these filters",
+            None,
+            Some(
+                button_style::bold("Reset", [spacing::SPACE_6, spacing::SPACE_14])
+                    .style(button_style::outlined(theme, false))
+                    .on_press(Message::ResetAll)
+                    .into(),
+            ),
+        )));
+        return panels::page_card(theme, header, body.into(), None);
     }
     let shown = cards.rows.len();
+    let footer = lift(pagination::footer(pagination::Footer {
+        theme,
+        class,
+        page: cards.page,
+        pages: cards.pages,
+        shown,
+        total: cards.total,
+        page_size: state.page_size,
+        page_sizes: &CARD_PAGE_SIZES,
+        on_previous: Message::PrevPage,
+        on_page: Message::GoToPage,
+        on_page_size: Message::PageSizeChanged,
+    }));
     let rows = cards.rows;
-    let (page, pages, total, page_size) = (cards.page, cards.pages, cards.total, state.page_size);
-    list = list.push(responsive(move |size| {
-        let reserve = if pages > 1 {
-            pagination::footer_height(class)
-        } else {
-            0.0
-        };
-        let mut area = column![card_grid(
+    let grid: Element<'a, Message> = responsive(move |size| {
+        card_grid(
             state,
             theme,
             &rows,
             spacing::grid_columns(class),
-            size.height - reserve,
-        )];
-        if pages > 1 {
-            area = area.push(pagination::footer(pagination::Footer {
-                theme,
-                class,
-                page,
-                pages,
-                shown,
-                total,
-                page_size,
-                page_sizes: &CARD_PAGE_SIZES,
-                on_previous: Message::PrevPage,
-                on_page: Message::GoToPage,
-                on_page_size: Message::PageSizeChanged,
-            }));
-        }
-        area.into()
-    }));
-    list.into()
+            size.height,
+        )
+    })
+    .into();
+    body = body.push(lift(
+        container(grid)
+            .padding(spacing::SPACE_20)
+            .height(Length::Fill)
+            .into(),
+    ));
+    panels::page_card(theme, header, body.into(), Some(footer))
 }
 
 /// The cards in `height` pixels, scrolling by whole rows.
@@ -1920,10 +1960,14 @@ mod tests {
     fn build_everywhere(state: &State) {
         for theme in THEMES {
             let _ = view(state, theme);
-            let switcher: Element<'_, Message> = text("switcher").into();
-            let _ = page_header_view_with_switcher(state, theme, switcher, |m| m);
+            let _ = page_header_view_with_switcher(
+                state,
+                theme,
+                || -> Element<'_, Message> { text("switcher").into() },
+                |m| m,
+            );
             for width in WIDTHS {
-                let _ = content(state, theme, width);
+                let _ = page(state, theme, width, None::<Element<'_, Message>>, |m| m);
             }
         }
     }
@@ -2397,7 +2441,7 @@ mod tests {
 
     #[test]
     fn the_list_builds_at_every_width_and_theme_with_few_and_many_cards() {
-        for count in [1, 5, 40] {
+        for count in [0, 1, 5, 6, 12, 40] {
             build_everywhere(&state_with(count));
         }
         let mut filtered_out = state_with(5);

@@ -2,8 +2,8 @@ use super::{bank_of_accounts_view, chart_of_accounts_view, customers_view, wareh
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::dropdown;
 use crate::frontend::components::spacing;
-use crate::frontend::views::Ctx;
 use crate::frontend::views::accounting::maintain::vendors_view;
+use crate::frontend::views::Ctx;
 use iced::widget::pick_list;
 use iced::{Element, Length};
 
@@ -120,13 +120,13 @@ pub fn view(state: &State, theme: Theme) -> Element<'_, Message> {
         Section::Warehouses => warehouse_view::page_header_view_with_switcher(
             &state.warehouses,
             theme,
-            switcher(),
+            switcher,
             Message::Warehouses,
         ),
         Section::BankAccounts => bank_of_accounts_view::page_header_view_with_switcher(
             &state.bank_accounts,
             theme,
-            switcher(),
+            switcher,
             Message::BankAccounts,
         ),
         Section::Customers => customers_view::page_header_view_with_switcher(

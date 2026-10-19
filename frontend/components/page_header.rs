@@ -164,3 +164,64 @@ pub fn page_header_view_with_switcher<'a, Message: Clone + 'a>(
         .align_y(Alignment::Start)
         .into()
 }
+
+/// The top of a full-page record view: a Back button with the record's
+/// actions on the right, then the record's title beside its badges and a
+/// muted line under it.
+pub fn detail<'a, Message: Clone + 'a>(
+    theme: Theme,
+    title: &'a str,
+    subtitle: String,
+    badges: Vec<Element<'a, Message>>,
+    on_back: Message,
+    actions: Vec<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let mut top = row![
+        button_style::back(theme, on_back),
+        Space::with_width(Length::Fill)
+    ]
+    .spacing(spacing::SPACE_8)
+    .align_y(Alignment::Center);
+    for action in actions {
+        top = top.push(action);
+    }
+    let mut title_row = row![text(title)
+        .size(headers::page_title_size())
+        .font(fonts::BOLD)
+        .color(theme.neutral_font())]
+    .spacing(spacing::SPACE_10)
+    .align_y(Alignment::Center);
+    for badge in badges {
+        title_row = title_row.push(badge);
+    }
+    column![
+        top,
+        title_row,
+        text(subtitle)
+            .size(headers::page_description_size())
+            .color(theme.neutral_front()),
+    ]
+    .spacing(spacing::SPACE_10)
+    .width(Length::Fill)
+    .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_detail_header_builds_with_and_without_badges_and_actions() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let _: Element<'_, ()> = detail(theme, "Record", "Line".into(), vec![], (), vec![]);
+            let _: Element<'_, ()> = detail(
+                theme,
+                "Record",
+                String::new(),
+                vec![text("badge").into()],
+                (),
+                vec![text("edit").into()],
+            );
+        }
+    }
+}

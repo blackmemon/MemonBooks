@@ -110,3 +110,84 @@ pub const PANEL_TWO_COLUMN_MIN_WIDTH: f32 = 520.0;
 pub const BUTTON_MIN_WIDTH: f32 = 72.0;
 /// Narrowest the header search box is allowed to shrink to.
 pub const SEARCH_MIN_WIDTH: f32 = 140.0;
+/// Side of the tinted icon square leading a card or list row.
+pub const ICON_BOX_SIZE: f32 = 44.0;
+
+/// Cards per line of a card grid: three when wide, two when medium, one
+/// when narrow.
+pub fn grid_columns(class: LayoutClass) -> usize {
+    match class {
+        LayoutClass::Wide => 3,
+        LayoutClass::Medium => 2,
+        LayoutClass::Narrow => 1,
+    }
+}
+
+/// How a page's width is shared between its main content and a side
+/// panel; `None` means that part is not shown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PanelSplit {
+    pub content: Option<f32>,
+    pub panel: Option<f32>,
+}
+
+/// Wide and medium pages show the content beside the open panel (the
+/// panel taking [`PANEL_WIDE_SHARE`] or [`PANEL_MEDIUM_SHARE`], never
+/// narrower than [`PANEL_MIN_WIDTH`]); a narrow page shows only one of
+/// them, the panel replacing the content while it is open. `gap` is the
+/// space between the two.
+pub fn panel_split(inner: f32, panel_open: bool, gap: f32) -> PanelSplit {
+    match (panel_open, layout_class(inner)) {
+        (false, _) => PanelSplit {
+            content: Some(inner),
+            panel: None,
+        },
+        (true, LayoutClass::Narrow) => PanelSplit {
+            content: None,
+            panel: Some(inner),
+        },
+        (true, class) => {
+            let share = if class == LayoutClass::Wide {
+                PANEL_WIDE_SHARE
+            } else {
+                PANEL_MEDIUM_SHARE
+            };
+            let panel = (inner * share).max(PANEL_MIN_WIDTH);
+            PanelSplit {
+                content: Some((inner - panel - gap).max(0.0)),
+                panel: Some(panel),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_grid_has_three_two_and_one_columns_across_the_breakpoints() {
+        assert_eq!(grid_columns(layout_class(1920.0)), 3);
+        assert_eq!(grid_columns(layout_class(1366.0)), 3);
+        assert_eq!(grid_columns(layout_class(900.0)), 2);
+        assert_eq!(grid_columns(layout_class(640.0)), 1);
+    }
+
+    #[test]
+    fn the_panel_takes_a_share_when_wide_and_the_whole_page_when_narrow() {
+        let closed = panel_split(1500.0, false, SPACE_20);
+        assert_eq!(closed.content, Some(1500.0));
+        assert_eq!(closed.panel, None);
+
+        let wide = panel_split(1500.0, true, SPACE_20);
+        assert_eq!(wide.panel, Some(500.0));
+        assert_eq!(wide.content, Some(980.0));
+
+        let medium = panel_split(900.0, true, SPACE_20);
+        assert_eq!(medium.panel, Some(PANEL_MIN_WIDTH));
+
+        let narrow = panel_split(600.0, true, SPACE_20);
+        assert_eq!(narrow.content, None);
+        assert_eq!(narrow.panel, Some(600.0));
+    }
+}

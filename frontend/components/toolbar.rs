@@ -189,24 +189,37 @@ pub fn card_header<'a, M: 'a>(
     tools: Element<'a, M>,
     add: Element<'a, M>,
 ) -> Element<'a, M> {
-    let line = |items: Vec<Element<'a, M>>| {
-        Row::with_children(items)
-            .spacing(spacing::SPACE_12)
-            .align_y(Alignment::Center)
-    };
     let page_header = line(vec![
         container(title).width(Length::Fill).clip(true).into(),
         add,
     ]);
-    let toolbar: Element<'a, M> = if class == spacing::LayoutClass::Narrow {
+    column![page_header, filter_bar(class, search, filters, tools)]
+        .spacing(spacing::SPACE_20)
+        .padding(spacing::SPACE_20)
+        .into()
+}
+
+/// The toolbar row of [`card_header`] on its own, for a page whose title
+/// row sits elsewhere: search (taking the spare width), the filter
+/// dropdowns, then the tool buttons; when narrow, search on its own line
+/// with filters and tools below it.
+pub fn filter_bar<'a, M: 'a>(
+    class: spacing::LayoutClass,
+    search: Element<'a, M>,
+    filters: Element<'a, M>,
+    tools: Element<'a, M>,
+) -> Element<'a, M> {
+    if class == spacing::LayoutClass::Narrow {
         column![search, line(vec![filters, tools])]
             .spacing(spacing::SPACE_12)
             .into()
     } else {
         line(vec![search, filters, tools]).into()
-    };
-    column![page_header, toolbar]
-        .spacing(spacing::SPACE_20)
-        .padding(spacing::SPACE_20)
-        .into()
+    }
+}
+
+fn line<'a, M: 'a>(items: Vec<Element<'a, M>>) -> Row<'a, M> {
+    Row::with_children(items)
+        .spacing(spacing::SPACE_12)
+        .align_y(Alignment::Center)
 }

@@ -66,3 +66,40 @@ pub fn flat_card(theme: Theme, radius: f32) -> impl Fn(&IcedTheme) -> container:
         ..container::Style::default()
     }
 }
+
+/// A centered "nothing here yet" block: a muted icon, a bold message, an
+/// optional hint and an optional action button under them.
+pub fn empty_state<'a, M: 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    message: impl IntoFragment<'a>,
+    hint: Option<&'a str>,
+    action: Option<Element<'a, M>>,
+) -> Element<'a, M> {
+    let mut content = column![
+        crate::frontend::components::icons::icon(glyph)
+            .size(typography::title())
+            .color(theme.neutral_front()),
+        text(message)
+            .size(typography::panel_title())
+            .font(fonts::BOLD)
+            .color(theme.neutral_font()),
+    ]
+    .spacing(spacing::SPACE_10)
+    .align_x(iced::Alignment::Center);
+    if let Some(hint) = hint {
+        content = content.push(
+            text(hint)
+                .size(typography::body())
+                .color(theme.neutral_front()),
+        );
+    }
+    if let Some(action) = action {
+        content = content.push(action);
+    }
+    container(content)
+        .padding(spacing::SPACE_40)
+        .center_x(Length::Fill)
+        .style(flat_card(theme, states::RADIUS_LG))
+        .into()
+}

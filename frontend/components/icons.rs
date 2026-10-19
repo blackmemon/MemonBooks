@@ -65,6 +65,16 @@ pub const ATTACH: &str = "\u{e130}";
 pub const FILE: &str = "\u{e0d0}";
 /// Trash can on a row's "remove" icon button.
 pub const REMOVE: &str = "\u{e18d}";
+/// Circled "i" on a row's "details" action.
+pub const INFO: &str = "\u{e0fe}";
+/// Pillared building -- a bank or other financial institution.
+pub const LANDMARK: &str = "\u{e239}";
+/// Money coming in (arrow down-left).
+pub const INFLOW: &str = "\u{e047}";
+/// Money going out (arrow up-right).
+pub const OUTFLOW: &str = "\u{e051}";
+/// Archive box on an "archive" icon button.
+pub const ARCHIVE: &str = "\u{e045}";
 
 #[cfg(test)]
 mod tests {
@@ -106,6 +116,11 @@ mod tests {
         ("ATTACH", ATTACH),
         ("FILE", FILE),
         ("REMOVE", REMOVE),
+        ("INFO", INFO),
+        ("LANDMARK", LANDMARK),
+        ("INFLOW", INFLOW),
+        ("OUTFLOW", OUTFLOW),
+        ("ARCHIVE", ARCHIVE),
     ];
 
     #[test]

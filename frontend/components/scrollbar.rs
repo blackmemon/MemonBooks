@@ -18,3 +18,12 @@ pub fn bar() -> Scrollbar {
 pub fn vertical() -> Direction {
     Direction::Vertical(bar())
 }
+
+/// Right padding for content inside a vertical [`bar`] scroll area, so
+/// the content keeps a clear gap from the bar's own gutter.
+pub fn gutter() -> iced::Padding {
+    iced::Padding {
+        right: spacing::SCROLLBAR_WIDTH,
+        ..iced::Padding::ZERO
+    }
+}

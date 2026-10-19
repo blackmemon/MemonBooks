@@ -4,10 +4,10 @@
 
 use iced::widget::text::IntoFragment;
 use iced::widget::{container, text};
-use iced::{Background, Border, Color, Element, Theme as IcedTheme};
+use iced::{Background, Border, Color, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::colors::Theme;
-use crate::frontend::components::{fonts, spacing, states, typography};
+use crate::frontend::components::{fonts, icons, spacing, states, typography};
 
 /// Small tinted status pill: bold caption text on the tone's background.
 pub fn status_pill<'a, M: 'a>(
@@ -79,11 +79,73 @@ pub fn pill(theme: Theme, tone: BadgeTone) -> impl Fn(&IcedTheme) -> container::
 /// `spacing::AVATAR_SIZE` and color the initials `theme.primary()`.
 pub fn avatar(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
     move |_iced_theme: &IcedTheme| container::Style {
-        background: Some(Background::Color(theme.primary_tint(states::SELECTED_ALPHA))),
+        background: Some(Background::Color(
+            theme.primary_tint(states::SELECTED_ALPHA),
+        )),
         border: Border {
             radius: states::RADIUS_PILL.into(),
             ..Border::default()
         },
         ..container::Style::default()
+    }
+}
+
+/// The tone for a signed amount: positive up, negative down, neutral at
+/// zero.
+pub fn sign_tone(amount: rust_decimal::Decimal) -> BadgeTone {
+    if amount.is_zero() {
+        BadgeTone::Neutral
+    } else if amount.is_sign_negative() {
+        BadgeTone::Negative
+    } else {
+        BadgeTone::Positive
+    }
+}
+
+/// A rounded square tinted with `tone`'s background, holding `glyph` in
+/// the tone's text color -- the leading mark of a card or list row.
+pub fn icon_box<'a, M: 'a>(theme: Theme, glyph: &'static str, tone: BadgeTone) -> Element<'a, M> {
+    container(
+        icons::icon(glyph)
+            .size(typography::panel_title())
+            .color(tone_colors(theme, tone).1),
+    )
+    .center_x(Length::Fixed(spacing::ICON_BOX_SIZE))
+    .center_y(Length::Fixed(spacing::ICON_BOX_SIZE))
+    .style(move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(tone_colors(theme, tone).0)),
+        border: Border {
+            radius: states::RADIUS_MD.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    })
+    .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn sign_tone_follows_the_sign() {
+        assert_eq!(sign_tone(dec!(5)), BadgeTone::Positive);
+        assert_eq!(sign_tone(dec!(-5)), BadgeTone::Negative);
+        assert_eq!(sign_tone(dec!(0)), BadgeTone::Neutral);
+    }
+
+    #[test]
+    fn icon_box_builds_for_every_tone_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            for tone in [
+                BadgeTone::Positive,
+                BadgeTone::Negative,
+                BadgeTone::Warning,
+                BadgeTone::Neutral,
+            ] {
+                let _: Element<'_, ()> = icon_box(theme, icons::LANDMARK, tone);
+            }
+        }
     }
 }

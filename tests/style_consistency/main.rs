@@ -331,6 +331,96 @@ fn vendor_column_names_are_written_only_in_vendor_headers() {
     );
 }
 
+/// Where the bank account fields are named, and the files that work with
+/// bank account fields.
+const BANK_VIEW: &str = "frontend/views/accounting/maintain/bank_of_accounts_view.rs";
+const BANK_CODE: &[&str] = &[
+    BANK_VIEW,
+    "backend/banking/bank_accounts.rs",
+    "backend/banking/bank_ledger.rs",
+    "backend/repositories/banking_repository.rs",
+    "backend/services/banking_service.rs",
+];
+
+/// The names written in the `const <name>` string array of `content`,
+/// and the (zero-based) lines the array spans.
+fn named_array(content: &str, name: &str) -> (Vec<String>, std::ops::Range<usize>) {
+    let lines: Vec<&str> = content.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| line.starts_with(&format!("const {name}")))
+        .unwrap_or_else(|| panic!("expected a const {name}"));
+    let end = start
+        + lines[start..]
+            .iter()
+            .position(|line| line.trim() == "];")
+            .unwrap_or_else(|| panic!("{name} is not closed"));
+    let names = lines[start + 1..end]
+        .iter()
+        .filter_map(|line| line.trim().strip_prefix('"')?.strip_suffix("\","))
+        .filter(|name| !name.is_empty())
+        .map(String::from)
+        .collect();
+    (names, start..end + 1)
+}
+
+#[test]
+fn bank_field_names_are_written_only_in_bank_fields() {
+    let root = crate_root();
+    let view =
+        fs::read_to_string(root.join(BANK_VIEW)).expect("bank_of_accounts_view.rs is readable");
+    let (names, field_lines) = named_array(&view, "BANK_FIELDS");
+    assert!(
+        names.len() > 10,
+        "expected to read BANK_FIELDS' names, got {names:?}"
+    );
+
+    let mut findings = Vec::new();
+    for path in BANK_CODE {
+        let content = fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+        for (index, line) in production_source(&content).lines().enumerate() {
+            if *path == BANK_VIEW && field_lines.contains(&index) {
+                continue;
+            }
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            for name in &names {
+                if line.contains(&format!("\"{name}\"")) {
+                    findings.push(format!(
+                        "{path}:{}: \"{name}\"\n    {}",
+                        index + 1,
+                        line.trim()
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        findings.is_empty(),
+        "\n\nFound {} bank account field name(s) written outside BANK_FIELDS -- refer \
+        to the field by index (an F_* constant, or BANK_FIELDS[F_*]) instead:\n\n{}\n",
+        findings.len(),
+        findings.join("\n\n")
+    );
+}
+
+#[test]
+fn the_field_name_guard_flags_a_name_written_twice() {
+    let source = "const FIELDS: [&str; 2] = [\n    \"Bank Name\",\n    \"Type\",\n];\nfn label() -> &'static str { \"Type\" }\n";
+    let (names, lines) = named_array(source, "FIELDS");
+    assert_eq!(names, vec!["Bank Name".to_string(), "Type".to_string()]);
+    let outside: Vec<usize> = source
+        .lines()
+        .enumerate()
+        .filter(|(index, line)| !lines.contains(index) && line.contains("\"Type\""))
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(outside, vec![4]);
+}
+
 #[test]
 fn views_and_components_source_all_styling_from_styles_rs() {
     let root = crate_root();

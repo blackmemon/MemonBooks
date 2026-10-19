@@ -379,3 +379,63 @@ pub fn outlined(theme: Theme, active: bool) -> impl Fn(&IcedTheme, Status) -> St
         }
     }
 }
+
+/// The outlined "Back" button that leaves an inline page view.
+pub fn back<'a, M: Clone + 'a>(theme: Theme, on_press: M) -> Element<'a, M> {
+    icon_label(
+        icons::ARROW_LEFT,
+        "Back",
+        [spacing::SPACE_6, spacing::SPACE_14],
+    )
+    .style(outlined(theme, false))
+    .on_press(on_press)
+    .into()
+}
+
+/// A clickable card: the page surface faintly tinted with `tone`'s
+/// color, a hairline border and a soft shadow; hovering draws the border
+/// in the primary color and lifts the shadow.
+pub fn tile(
+    theme: Theme,
+    tone: crate::frontend::components::badges::BadgeTone,
+) -> impl Fn(&IcedTheme, Status) -> Style {
+    move |_iced_theme: &IcedTheme, status: Status| {
+        let hovered = matches!(status, Status::Hovered | Status::Pressed);
+        let (_, tint) = crate::frontend::components::badges::tone_colors(theme, tone);
+        let mut border = crate::frontend::components::borders::card(theme, states::RADIUS_LG);
+        if hovered {
+            border.color = theme.primary();
+        }
+        let mut shadow = crate::frontend::components::shadows::card(theme);
+        if hovered {
+            shadow.blur_radius *= 2.0;
+        }
+        Style {
+            background: Some(Background::Color(Color {
+                a: theme.tint_alpha(states::TINTED_PANEL_ALPHA),
+                ..tint
+            })),
+            text_color: theme.neutral_font(),
+            border,
+            shadow,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::components::badges::BadgeTone;
+
+    #[test]
+    fn a_tile_turns_its_border_primary_on_hover_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let style = tile(theme, BadgeTone::Positive);
+            let idle = style(&IcedTheme::Light, Status::Active);
+            let hover = style(&IcedTheme::Light, Status::Hovered);
+            assert_ne!(idle.border.color, theme.primary());
+            assert_eq!(hover.border.color, theme.primary());
+            assert!(hover.shadow.blur_radius > idle.shadow.blur_radius);
+        }
+    }
+}

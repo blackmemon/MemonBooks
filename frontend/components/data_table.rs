@@ -542,8 +542,8 @@ fn cell_view<'a, Message: 'a>(theme: Theme, cell: Cell) -> Element<'a, Message> 
                     .color(theme.accent_front())
                     .font(fonts::BOLD),
             )
-            .width(Length::Fixed(28.0))
-            .height(Length::Fixed(28.0))
+            .width(Length::Fixed(spacing::grid_cell_size()))
+            .height(Length::Fixed(spacing::grid_cell_size()))
             .align_x(iced::alignment::Horizontal::Center)
             .align_y(iced::alignment::Vertical::Center)
             .style(move |_iced_theme: &IcedTheme| container::Style {

@@ -239,8 +239,8 @@ fn icon_slot<'a, Message: 'a>(label: &str, bg: Color, front: Color) -> Element<'
             .color(front)
             .font(fonts::BOLD),
     )
-    .width(Length::Fixed(36.0))
-    .height(Length::Fixed(36.0))
+    .width(Length::Fixed(spacing::icon_button_size()))
+    .height(Length::Fixed(spacing::icon_button_size()))
     .align_x(iced::alignment::Horizontal::Center)
     .align_y(iced::alignment::Vertical::Center)
     .style(move |_iced_theme: &IcedTheme| container::Style {

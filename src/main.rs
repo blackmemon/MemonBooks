@@ -719,7 +719,13 @@ impl MemonBooks {
         // `sidebar`, that size is already "window size minus the sidebar's
         // current width" with no manual subtraction needed, and stays
         // correct across resizes and sidebar collapse/expand alike.
+        let sidebar_width = if self.sidebar_collapsed {
+            memonbooks::frontend::components::sidebar::COLLAPSED_WIDTH
+        } else {
+            memonbooks::frontend::components::sidebar::EXPANDED_WIDTH
+        };
         let content_area: Element<'_, Message> = iced::widget::responsive(move |size| {
+            font_scale::set_window_width(size.width + sidebar_width);
             let margin = iced::Padding {
                 top: size.height * states::CONTENT_MARGIN_FRACTION,
                 right: size.width * states::CONTENT_MARGIN_FRACTION,
@@ -739,7 +745,9 @@ impl MemonBooks {
             .height(Length::Fill)
             .style(
                 move |_iced_theme: &iced::Theme| iced::widget::container::Style {
-                    background: Some(iced::Background::Color(self.theme.page_bg())),..iced::widget::container::Style::default()},
+                    background: Some(iced::Background::Color(self.theme.page_bg())),
+                    ..iced::widget::container::Style::default()
+                },
             )
             .into()
     }

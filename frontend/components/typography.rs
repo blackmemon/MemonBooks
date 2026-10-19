@@ -1,20 +1,29 @@
 use super::font_scale::scaled;
 
+/// [`body`] at the base scale; the reference other sizes (a card's
+/// height) grow against.
+pub const BASE_BODY: f32 = 14.0;
+
 /// Smallest size in the scale.
 pub fn micro() -> f32 {
-    scaled(9.0)
+    scaled(10.0)
 }
 
 /// Count pills/badges (e.g. "12 Total").
 pub fn filter_count() -> f32 {
-    scaled(10.0)
+    scaled(11.0)
+}
+
+/// Between [`caption`] and [`body`]: dense secondary lines.
+pub fn small() -> f32 {
+    scaled(13.0)
 }
 
 /// Secondary/subtitle text sitting beside or under something more
 /// prominent -- avatar subtitles, the sidebar's user subtitle and
 /// dropdown caret, a table row's progress-bar percentage label.
 pub fn caption() -> f32 {
-    scaled(11.0)
+    scaled(12.0)
 }
 
 /// Base/default text size -- this is the value the original spec's
@@ -24,13 +33,18 @@ pub fn caption() -> f32 {
 /// "Reference Code", `headers::section_description_size()`-adjacent
 /// text that isn't going through that constant.
 pub fn body() -> f32 {
-    scaled(12.0)
+    scaled(BASE_BODY)
 }
 
 /// Text inside a detail-form input or dropdown: a step above [`body`]
 /// so the boxes are taller and easier to read.
 pub fn form_input() -> f32 {
     body() + 2.0
+}
+
+/// The largest text: a hero figure or a page's opening heading.
+pub fn display() -> f32 {
+    scaled(34.0)
 }
 
 /// Native checkbox control dimension (not a text size).
@@ -43,7 +57,7 @@ pub fn checkbox_size() -> f32 {
 /// cell text, toolbar controls. Also what `headers::
 /// page_description_size()` independently already equals.
 pub fn label() -> f32 {
-    scaled(13.0)
+    scaled(15.0)
 }
 
 /// Slightly emphasized incidental text and small icon glyphs one step
@@ -52,28 +66,28 @@ pub fn label() -> f32 {
 /// icons, a couple of small inline value displays (e.g. the Add
 /// Account panel's generated reference code).
 pub fn emphasis() -> f32 {
-    scaled(14.0)
+    scaled(16.0)
 }
 
 /// In-panel/card heading, one step below a full section heading -- see
 /// the open question above about whether this should just be
 /// `headers::section_heading_size()` instead.
 pub fn panel_title() -> f32 {
-    scaled(15.0)
+    scaled(17.0)
 }
 
 /// Sub-heading size for a titled block within a page -- report section
 /// titles ("Balance Sheet", "Profit & Loss"), a prominently-displayed
 /// generated value (the one-time-shown new user password).
 pub fn subtitle() -> f32 {
-    scaled(20.0)
+    scaled(22.0)
 }
 
 /// Standalone page title on views that render their own heading
 /// directly instead of going through `page_header::view` -- see the
 /// open question above about `headers::page_title_size()`.
 pub fn title() -> f32 {
-    scaled(24.0)
+    scaled(28.0)
 }
 
 /// A large, prominently-displayed numeric value -- today, only the
@@ -82,7 +96,7 @@ pub fn title() -> f32 {
 /// could reasonably diverge from it later -- kept as its own named
 /// getter rather than reusing `title` for an unrelated purpose.
 pub fn stat_value() -> f32 {
-    scaled(24.0)
+    scaled(28.0)
 }
 
 /// The sidebar's own bold app-name/brand text, next to its logo mark.
@@ -93,13 +107,56 @@ pub fn stat_value() -> f32 {
 /// `bold_text` helper rather than a direct `.size(N)` call site;
 /// caught while building Batch 13's regression guard.
 pub fn app_name() -> f32 {
-    scaled(15.0)
+    scaled(17.0)
 }
 
 /// The sidebar's bold user-name text in the profile card, one step
-/// above its subtitle ([`caption`], 11.0) and one step below
+/// above its subtitle ([`caption`]) and one step below
 /// [`label`] (13.0). A genuinely new, previously undiscovered value --
 /// same missed-by-a-helper-function story as [`app_name`].
 pub fn profile_name() -> f32 {
-    scaled(12.5)
+    scaled(13.5)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::components::font_scale;
+
+    #[test]
+    fn the_scale_climbs_from_caption_to_display() {
+        let scale = [
+            micro(),
+            filter_count(),
+            caption(),
+            small(),
+            body(),
+            label(),
+            emphasis(),
+            panel_title(),
+            subtitle(),
+            title(),
+            display(),
+        ];
+        assert!(scale.windows(2).all(|pair| pair[0] < pair[1]), "{scale:?}");
+    }
+
+    #[test]
+    fn every_scaled_size_at_a_breakpoint_is_at_least_its_narrow_size() {
+        let widths = [640.0, 900.0, 1366.0, 1920.0];
+        let factors: Vec<f32> = widths
+            .iter()
+            .map(|w| font_scale::width_factor(*w))
+            .collect();
+        assert!(
+            factors.windows(2).all(|pair| pair[0] <= pair[1]),
+            "{factors:?}"
+        );
+        assert!(factors[0] < 1.0, "small windows are slightly smaller");
+        assert!(factors[2] > 1.0 && factors[3] > factors[2]);
+        for base in [caption(), body(), label(), title(), display()] {
+            let sized: Vec<f32> = factors.iter().map(|f| base * f).collect();
+            assert!(sized.windows(2).all(|pair| pair[0] <= pair[1]));
+        }
+    }
 }

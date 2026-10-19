@@ -1577,7 +1577,7 @@ fn vendor_row(
         .width(Length::Fixed(spacing::SELECT_COLUMN_WIDTH)),
     ]
     .spacing(spacing::MD)
-    .height(Length::Fixed(spacing::TABLE_ROW_HEIGHT))
+    .height(Length::Fixed(spacing::table_row_height()))
     .align_y(Alignment::Center);
     for &column in columns {
         let cell: Element<'static, Message> = match column {

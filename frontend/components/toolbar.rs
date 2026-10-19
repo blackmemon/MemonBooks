@@ -16,6 +16,11 @@ use crate::frontend::components::{spacing, tabs};
 /// 6 consistency audit consolidated it there).
 pub const CONTROL_HEIGHT: f32 = 36.0;
 
+/// [`CONTROL_HEIGHT`] grown with the type scale.
+pub fn control_height() -> f32 {
+    spacing::grown(CONTROL_HEIGHT)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn view<'a, Message: Clone + 'a>(
     theme: Theme,
@@ -73,7 +78,7 @@ pub fn view<'a, Message: Clone + 'a>(
     let controls = row![search, filters_button, sort_button]
         .spacing(spacing::SM)
         .align_y(Alignment::Center)
-        .height(Length::Fixed(CONTROL_HEIGHT));
+        .height(Length::Fixed(control_height()));
 
     row![tab_row, Space::with_width(Length::Fill), controls]
         .align_y(Alignment::Center)
@@ -171,7 +176,7 @@ pub fn list_toolbar<'a, Message: Clone + 'a>(
     ]
     .spacing(spacing::SM)
     .align_y(Alignment::Center)
-    .height(Length::Fixed(CONTROL_HEIGHT))
+    .height(Length::Fixed(control_height()))
     .width(Length::Fill)
     .into()
 }

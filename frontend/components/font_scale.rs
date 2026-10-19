@@ -15,7 +15,9 @@
 //! changes it, so a change takes effect on the very next `view()` with
 //! no restart required.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+
+use super::spacing;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FontScale {
@@ -84,11 +86,44 @@ pub fn current() -> FontScale {
     FontScale::from_index(CURRENT.load(Ordering::Relaxed))
 }
 
-/// Applies the current global scale to a base (`Medium`-scale) size.
-/// Every getter in `typography`/`headers`/`fonts` routes its base
-/// literal through this instead of returning it directly.
+/// Window width (logical pixels) the type scale is currently sized for;
+/// a medium-class width until the first layout reports the real one.
+static WINDOW_WIDTH: AtomicU32 = AtomicU32::new(1000.0_f32.to_bits());
+
+/// Mirrors the window width here (like [`set`] does for the preference)
+/// so size getters need no context. Called by the app shell on layout.
+pub fn set_window_width(width: f32) {
+    if width.is_finite() && width > 0.0 {
+        WINDOW_WIDTH.store(width.to_bits(), Ordering::Relaxed);
+    }
+}
+
+pub fn window_width() -> f32 {
+    f32::from_bits(WINDOW_WIDTH.load(Ordering::Relaxed))
+}
+
+/// How much the type grows with the window, from the shared breakpoints:
+/// slightly smaller when narrow, the base size when medium, larger from
+/// 1200 and larger again from 1700 (about a 1920 screen). iced already
+/// works in logical pixels, so the display's own scale factor is applied
+/// on top of this by the window system.
+pub fn width_factor(width: f32) -> f32 {
+    if width < spacing::BREAKPOINT_NARROW {
+        0.9
+    } else if width < spacing::BREAKPOINT_WIDE {
+        1.0
+    } else if width < spacing::BREAKPOINT_XWIDE {
+        1.1
+    } else {
+        1.2
+    }
+}
+
+/// Applies the user's Font Size choice and the window-width factor to a
+/// base (medium-window) size. Every getter in `typography` routes its
+/// base literal through this instead of returning it directly.
 pub fn scaled(base: f32) -> f32 {
-    base * current().multiplier()
+    base * current().multiplier() * width_factor(window_width())
 }
 
 #[cfg(test)]

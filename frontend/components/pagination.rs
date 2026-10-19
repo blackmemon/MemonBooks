@@ -138,7 +138,7 @@ fn page_number<'a, M: Clone + 'a>(
             .size(typography::label())
             .center(),
     )
-    .width(Length::Fixed(spacing::PAGE_BUTTON_WIDTH))
+    .width(Length::Fixed(spacing::page_button_width()))
     .padding([spacing::SPACE_4, 0.0])
     .style(button_style::outlined_or_plain(theme, current, true))
     .on_press(on_press)

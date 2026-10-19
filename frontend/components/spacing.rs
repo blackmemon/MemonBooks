@@ -80,6 +80,8 @@ pub const CONTENT_PADDING: Padding = Padding {
 /// [`LayoutClass::Wide`].
 pub const BREAKPOINT_NARROW: f32 = 800.0;
 pub const BREAKPOINT_WIDE: f32 = 1200.0;
+/// From here (about a 1920 screen) the type scale grows once more.
+pub const BREAKPOINT_XWIDE: f32 = 1700.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutClass {
@@ -122,14 +124,41 @@ pub const LEGEND_SWATCH_SIZE: f32 = 12.0;
 /// Height of a thin progress bar.
 pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 
-/// Height of one card in a card grid; grids scroll by whole rows of
-/// this height.
+/// Height of one card in a card grid, at the base type size; grids scroll
+/// by whole rows of this height. See [`card_height`].
 pub const CARD_HEIGHT: f32 = 300.0;
 /// Vertical space between two rows of a card grid.
 pub const ROW_GAP: f32 = MD;
 
+/// A control size or card height grown with the type scale, so what it
+/// holds never clips when the text gets larger.
+pub fn grown(base: f32) -> f32 {
+    base * crate::frontend::components::typography::body()
+        / crate::frontend::components::typography::BASE_BODY
+}
+
 pub fn card_height() -> f32 {
-    CARD_HEIGHT
+    grown(CARD_HEIGHT)
+}
+
+pub fn icon_button_size() -> f32 {
+    grown(ICON_BUTTON_SIZE)
+}
+
+pub fn icon_box_size() -> f32 {
+    grown(ICON_BOX_SIZE)
+}
+
+pub fn grid_cell_size() -> f32 {
+    grown(GRID_CELL_SIZE)
+}
+
+pub fn page_button_width() -> f32 {
+    grown(PAGE_BUTTON_WIDTH)
+}
+
+pub fn table_row_height() -> f32 {
+    grown(TABLE_ROW_HEIGHT)
 }
 
 /// Cards per line of a card grid: three when wide, two when medium, one

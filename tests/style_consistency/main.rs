@@ -127,6 +127,16 @@ fn call_arg(line: &str, after_open_paren: usize) -> Option<&str> {
     Some(&rest[..close])
 }
 
+/// True if a `.size(...)` argument builds a text size from a numeric
+/// literal inside an expression (`size + 2.0`, `13.0 * scale`) instead of
+/// naming a type-scale token -- only the typography module may do that.
+fn is_literal_in_size_expression(arg: &str) -> bool {
+    let has_literal = arg
+        .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .any(|part| part.chars().any(|c| c.is_ascii_digit() && c != '0'));
+    has_literal && !arg.contains("typography::") && !arg.contains("headers::")
+}
+
 /// True if `arg` is a bare numeric literal (not a `spacing::`/
 /// `typography::`-style constant reference -- those contain a letter)
 /// with at least one nonzero digit. An all-zero literal (`0`, `0.0`,
@@ -181,6 +191,13 @@ fn check_line(line: &str) -> Vec<&'static str> {
         &mut violations,
     );
     if !line.contains("checkbox(") {
+        if let Some(position) = line.find(".size(") {
+            if let Some(arg) = call_arg(line, position + ".size(".len()) {
+                if is_literal_in_size_expression(arg) && !is_forbidden_numeric_literal(arg) {
+                    violations.push("numeric literal inside a .size(..) expression -- use a typography.rs token (scale it with typography, not by hand)");
+                }
+            }
+        }
         check_numeric_call(
             line,
             ".size(",
@@ -475,4 +492,14 @@ fn views_and_components_source_all_styling_from_styles_rs() {
         findings.len(),
         findings.join("\n\n")
     );
+}
+
+#[test]
+fn raw_text_sizes_are_flagged_even_inside_expressions() {
+    assert!(!check_line("text(\"a\").size(13.0)").is_empty());
+    assert!(!check_line("text(\"a\").size(size + 2.0)").is_empty());
+    assert!(!check_line("text(\"a\").size(size * 1.5)").is_empty());
+    assert!(check_line("text(\"a\").size(typography::body())").is_empty());
+    assert!(check_line("text(\"a\").size(size)").is_empty());
+    assert!(check_line("checkbox(\"a\", true).size(16)").is_empty());
 }

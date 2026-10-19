@@ -49,8 +49,8 @@ pub fn icon_tool<'a, M: Clone + 'a>(
 ) -> Element<'a, M> {
     tooltip(
         button_widget(icons::icon(glyph).size(typography::emphasis()).center())
-            .width(Length::Fixed(spacing::ICON_BUTTON_SIZE))
-            .height(Length::Fixed(spacing::ICON_BUTTON_SIZE))
+            .width(Length::Fixed(spacing::icon_button_size()))
+            .height(Length::Fixed(spacing::icon_button_size()))
             .style(outlined_or_plain(theme, bordered, false))
             .on_press(on_press),
         container(text(tip).size(typography::caption()))
@@ -447,8 +447,8 @@ pub fn grid_cell<'a, M: Clone + 'a>(
             .wrapping(Wrapping::None)
             .center(),
     )
-    .width(Length::Fixed(spacing::GRID_CELL_SIZE))
-    .height(Length::Fixed(spacing::GRID_CELL_SIZE))
+    .width(Length::Fixed(spacing::grid_cell_size()))
+    .height(Length::Fixed(spacing::grid_cell_size()))
     .padding(0)
     .style(cell(theme, tone, dimmed, selected))
     .on_press(on_press)

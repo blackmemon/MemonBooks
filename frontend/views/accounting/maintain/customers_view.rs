@@ -592,8 +592,8 @@ fn icon_button(
 ) -> Element<'static, Message> {
     tooltip(
         button(icons::icon(glyph).size(typography::emphasis()).center())
-            .width(Length::Fixed(36.0))
-            .height(Length::Fixed(36.0))
+            .width(Length::Fixed(spacing::icon_button_size()))
+            .height(Length::Fixed(spacing::icon_button_size()))
             .style(outlined_button(theme, false))
             .on_press(message),
         container(text(tip).size(typography::caption()))

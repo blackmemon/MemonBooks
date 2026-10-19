@@ -1,7 +1,5 @@
 use iced::Font;
 
-use super::font_scale::scaled;
-
 /// Pragati Narrow (SIL OFL 1.1, `assets/fonts/pragati-narrow/LICENSE`),
 /// the app's text font. The name is the family stored in the TTF's name
 /// table, not the file name. Set as the application default font in
@@ -33,11 +31,11 @@ pub const ICONS_TTF: &[u8] = include_bytes!("../../assets/fonts/lucide.ttf");
 pub const EMBEDDED: [&[u8]; 3] = [REGULAR_TTF, BOLD_TTF, ICONS_TTF];
 
 pub fn button_size() -> f32 {
-    scaled(13.0)
+    super::typography::label()
 }
 
 pub fn label_size() -> f32 {
-    scaled(13.0)
+    super::typography::label()
 }
 
 #[cfg(test)]

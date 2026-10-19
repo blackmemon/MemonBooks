@@ -1490,7 +1490,7 @@ fn layout_card<'a>(
 
 /// Width of one line group: its cells and the gaps between them.
 fn group_width() -> f32 {
-    spacing::GRID_CELL_SIZE * LINES_PER_GROUP as f32
+    spacing::grid_cell_size() * LINES_PER_GROUP as f32
         + spacing::SPACE_4 * (LINES_PER_GROUP - 1) as f32
 }
 
@@ -1527,8 +1527,8 @@ fn bin_grid<'a>(
                 line = line.push(match cells.get(&(number, position)) {
                     Some(contents) => bin_cell(theme, detail, contents),
                     None => Space::new(
-                        Length::Fixed(spacing::GRID_CELL_SIZE),
-                        Length::Fixed(spacing::GRID_CELL_SIZE),
+                        Length::Fixed(spacing::grid_cell_size()),
+                        Length::Fixed(spacing::grid_cell_size()),
                     )
                     .into(),
                 });
@@ -2498,7 +2498,7 @@ mod tests {
     fn line_groups_are_two_lines_wide_and_the_cells_follow_the_breakpoints() {
         assert_eq!(
             group_width(),
-            spacing::GRID_CELL_SIZE * 2.0 + spacing::SPACE_4
+            spacing::grid_cell_size() * 2.0 + spacing::SPACE_4
         );
         assert_eq!(fullness_tone(Fullness::Empty), BadgeTone::Neutral);
         assert_eq!(fullness_tone(Fullness::NotFull), BadgeTone::Warning);

@@ -110,8 +110,8 @@ pub fn icon_box<'a, M: 'a>(theme: Theme, glyph: &'static str, tone: BadgeTone) -
             .size(typography::panel_title())
             .color(tone_colors(theme, tone).1),
     )
-    .center_x(Length::Fixed(spacing::ICON_BOX_SIZE))
-    .center_y(Length::Fixed(spacing::ICON_BOX_SIZE))
+    .center_x(Length::Fixed(spacing::icon_box_size()))
+    .center_y(Length::Fixed(spacing::icon_box_size()))
     .style(move |_iced_theme: &IcedTheme| container::Style {
         background: Some(Background::Color(tone_colors(theme, tone).0)),
         border: Border {

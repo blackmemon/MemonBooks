@@ -20,6 +20,7 @@ use crate::backend::repositories::banking_repository::Removal;
 use crate::backend::services::banking_service::BankingService;
 use crate::database::exports::csv;
 use crate::frontend::components::badges::{self, BadgeTone};
+use crate::frontend::components::labels::Side;
 use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::table as table_style;
@@ -669,11 +670,27 @@ fn dash(value: &str) -> String {
     }
 }
 
-/// The pill and card tint of an account type.
-fn type_tone(kind: BankAccountType) -> BadgeTone {
+/// The side of the books an account type sits on.
+fn side_of(kind: BankAccountType) -> Side {
     match kind {
-        BankAccountType::Debit => BadgeTone::Positive,
-        BankAccountType::Credit => BadgeTone::Warning,
+        BankAccountType::Debit => Side::Debit,
+        BankAccountType::Credit => Side::Credit,
+    }
+}
+
+/// The pill and card tint of an account type, and the color of its net
+/// balance: its side's tone.
+fn type_tone(kind: BankAccountType) -> BadgeTone {
+    labels::side_tone(side_of(kind))
+}
+
+/// The side a ledger entry posts to: credit when it carries a credit
+/// and no debit.
+fn entry_side(entry: &BankLedgerEntry) -> Side {
+    if entry.debit.is_zero() && !entry.credit.is_zero() {
+        Side::Credit
+    } else {
+        Side::Debit
     }
 }
 
@@ -1047,14 +1064,14 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
             theme,
             BANK_FIELDS[F_CREDIT_BALANCE],
             money(summary.balances.credit),
-            BadgeTone::Neutral,
+            labels::side_tone(Side::Credit),
             typography::label(),
         ),
         labels::figure(
             theme,
             BANK_FIELDS[F_DEBIT_BALANCE],
             money(summary.balances.debit),
-            BadgeTone::Neutral,
+            labels::side_tone(Side::Debit),
             typography::label(),
         ),
     ]
@@ -1073,7 +1090,7 @@ fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> 
                 theme,
                 BANK_FIELDS[F_NET_BALANCE],
                 money(net),
-                badges::sign_tone(net),
+                tone,
                 typography::subtitle(),
             ),
             sides,
@@ -1268,17 +1285,26 @@ fn detail_summary<'a>(
             typography::emphasis(),
         )
     };
+    let sided = |field: usize, value: String, side: Side| {
+        labels::figure(
+            theme,
+            BANK_FIELDS[field],
+            value,
+            labels::side_tone(side),
+            typography::emphasis(),
+        )
+    };
     let net = balances.net();
     let figures = vec![
         labels::figure(
             theme,
             BANK_FIELDS[F_NET_BALANCE],
             money(net),
-            badges::sign_tone(net),
+            type_tone(account.account_type),
             typography::subtitle(),
         ),
-        plain(F_CREDIT_BALANCE, money(balances.credit)),
-        plain(F_DEBIT_BALANCE, money(balances.debit)),
+        sided(F_CREDIT_BALANCE, money(balances.credit), Side::Credit),
+        sided(F_DEBIT_BALANCE, money(balances.debit), Side::Debit),
         plain(F_OPENING_BALANCE, money(balances.opening)),
         plain(
             F_LAST_TRANSACTION,
@@ -1452,7 +1478,7 @@ fn transaction_row<'a>(
     expanded: bool,
 ) -> Element<'a, Message> {
     let movement = kind.net_movement(entry.debit, entry.credit);
-    let tone = badges::sign_tone(movement);
+    let tone = labels::side_tone(entry_side(entry));
     let glyph = if movement.is_sign_negative() {
         icons::OUTFLOW
     } else {
@@ -2287,6 +2313,17 @@ mod tests {
         let mut filtered_out = state_with(5);
         filtered_out.search = "no such bank".into();
         build_everywhere(&filtered_out);
+    }
+
+    #[test]
+    fn credit_is_red_and_debit_green_by_side_and_net_follows_the_account_type() {
+        assert_eq!(labels::side_tone(Side::Credit), BadgeTone::Negative);
+        assert_eq!(labels::side_tone(Side::Debit), BadgeTone::Positive);
+        assert_eq!(type_tone(BankAccountType::Debit), BadgeTone::Positive);
+        assert_eq!(type_tone(BankAccountType::Credit), BadgeTone::Negative);
+        // A credit entry is red and a debit entry green on either account type.
+        assert_eq!(entry_side(&entry(1, 1, dec!(0), dec!(50))), Side::Credit);
+        assert_eq!(entry_side(&entry(2, 1, dec!(50), dec!(0))), Side::Debit);
     }
 
     #[test]

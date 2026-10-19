@@ -9,6 +9,24 @@ use crate::frontend::components::badges::{self, BadgeTone};
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::{fonts, spacing, typography};
 
+/// Which side of the books a figure sits on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Debit,
+    Credit,
+}
+
+/// The one rule for money colors by side: a debit is always success
+/// (green) and a credit always danger (red), whether the figure raises
+/// or lowers a net balance. A net balance takes the tone of its
+/// account's own side; its sign stays visible in the text.
+pub fn side_tone(side: Side) -> BadgeTone {
+    match side {
+        Side::Debit => BadgeTone::Positive,
+        Side::Credit => BadgeTone::Negative,
+    }
+}
+
 /// A muted caption over a bold value, sharing its row equally with its
 /// neighbours -- one figure in a summary strip.
 pub fn stat<'a, M: 'a>(
@@ -129,6 +147,19 @@ mod tests {
         assert_eq!(money(dec!(0)), "0.00");
         assert_eq!(money(dec!(-0.001)), "0.00");
         assert_eq!(currency("PKR", dec!(1000)), "PKR 1,000.00");
+    }
+
+    #[test]
+    fn side_tone_is_green_for_debit_and_red_for_credit_in_both_themes() {
+        assert_eq!(side_tone(Side::Debit), BadgeTone::Positive);
+        assert_eq!(side_tone(Side::Credit), BadgeTone::Negative);
+        for theme in [Theme::Light, Theme::Dark] {
+            let debit = badges::tone_colors(theme, side_tone(Side::Debit));
+            let credit = badges::tone_colors(theme, side_tone(Side::Credit));
+            assert_ne!(debit.1, credit.1);
+            assert_eq!(debit, badges::tone_colors(theme, BadgeTone::Positive));
+            assert_eq!(credit, badges::tone_colors(theme, BadgeTone::Negative));
+        }
     }
 
     #[test]

@@ -1722,14 +1722,14 @@ fn vendor_live_preview(state: &State, theme: Theme) -> Element<'static, Message>
             amount_card(
                 VENDOR_HEADERS[COL_DEBIT],
                 money(debit),
-                iced::Color::from_rgb8(198, 239, 206),
-                iced::Color::from_rgb8(0, 97, 0),
+                theme.positive_bg(),
+                theme.positive_front(),
             ),
             amount_card(
                 VENDOR_HEADERS[COL_CREDIT],
                 money(credit),
-                iced::Color::from_rgb8(255, 199, 206),
-                iced::Color::from_rgb8(156, 0, 6),
+                theme.negative_bg(),
+                theme.negative_front(),
             ),
             card(COL_MAILING_ADDRESS, form.mailing_address.clone()),
             card(COL_PAYMENT_METHOD, form.payment_method.clone()),

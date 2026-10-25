@@ -2557,7 +2557,7 @@ mod tests {
         let split = spacing::panel_split(1366.0, true, spacing::SPACE_20);
         assert_eq!(
             spacing::grid_columns(spacing::layout_class(split.content.unwrap())),
-            2
+            1
         );
     }
 

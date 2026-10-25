@@ -81,6 +81,14 @@ pub const WAREHOUSE: &str = "\u{e3e9}";
 pub const PACKAGE: &str = "\u{e12c}";
 /// A grid of squares -- a layout or bin map.
 pub const LAYOUT_GRID: &str = "\u{e104}";
+/// A chip -- the contact chip of a payment-card style tile.
+pub const CHIP: &str = "\u{e61e}";
+/// Open eye: reveal a hidden value.
+pub const EYE: &str = "\u{e0be}";
+/// Crossed eye: hide a revealed value.
+pub const EYE_OFF: &str = "\u{e0bf}";
+/// An outlined circle; two overlapped make a logo mark.
+pub const LOGO_CIRCLE: &str = "\u{e07a}";
 
 #[cfg(test)]
 mod tests {
@@ -130,6 +138,10 @@ mod tests {
         ("WAREHOUSE", WAREHOUSE),
         ("PACKAGE", PACKAGE),
         ("LAYOUT_GRID", LAYOUT_GRID),
+        ("CHIP", CHIP),
+        ("EYE", EYE),
+        ("EYE_OFF", EYE_OFF),
+        ("LOGO_CIRCLE", LOGO_CIRCLE),
     ];
 
     #[test]

@@ -126,7 +126,9 @@ pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 
 /// Height of one card in a card grid, at the base type size; grids scroll
 /// by whole rows of this height. See [`card_height`].
-pub const CARD_HEIGHT: f32 = 220.0;
+pub const CARD_HEIGHT: f32 = 320.0;
+/// Extra height of a card whose tile stacks above its details (narrow).
+pub const CARD_STACK_EXTRA: f32 = 180.0;
 /// Whole card rows a grid shows when the height allows; fewer only when
 /// not even this many fit (never below one), more when more fit.
 pub const VISIBLE_CARD_ROWS: usize = 2;
@@ -145,6 +147,15 @@ pub fn grown(base: f32) -> f32 {
 
 pub fn card_height() -> f32 {
     grown(CARD_HEIGHT)
+}
+
+/// The height of one card row at `class`: a narrow card stacks its tile
+/// above the details, so it is taller by [`CARD_STACK_EXTRA`].
+pub fn card_height_for(class: LayoutClass) -> f32 {
+    match class {
+        LayoutClass::Narrow => card_height() + grown(CARD_STACK_EXTRA),
+        _ => card_height(),
+    }
 }
 
 pub fn icon_button_size() -> f32 {
@@ -167,13 +178,22 @@ pub fn table_row_height() -> f32 {
     grown(TABLE_ROW_HEIGHT)
 }
 
-/// Cards per line of a card grid: three when wide, two when medium, one
-/// when narrow.
+/// Cards per line of a card grid: two when wide, one when medium or
+/// narrow.
 pub fn grid_columns(class: LayoutClass) -> usize {
     match class {
-        LayoutClass::Wide => 3,
-        LayoutClass::Medium => 2,
-        LayoutClass::Narrow => 1,
+        LayoutClass::Wide => 2,
+        LayoutClass::Medium | LayoutClass::Narrow => 1,
+    }
+}
+
+/// Figures per line of a detail page's summary: four when wide, three
+/// when medium, two when narrow.
+pub fn summary_columns(class: LayoutClass) -> usize {
+    match class {
+        LayoutClass::Wide => 4,
+        LayoutClass::Medium => 3,
+        LayoutClass::Narrow => 2,
     }
 }
 
@@ -220,11 +240,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_grid_has_three_two_and_one_columns_across_the_breakpoints() {
-        assert_eq!(grid_columns(layout_class(1920.0)), 3);
-        assert_eq!(grid_columns(layout_class(1366.0)), 3);
-        assert_eq!(grid_columns(layout_class(900.0)), 2);
+    fn the_grid_has_two_then_one_columns_across_the_breakpoints() {
+        assert_eq!(grid_columns(layout_class(1920.0)), 2);
+        assert_eq!(grid_columns(layout_class(1366.0)), 2);
+        assert_eq!(grid_columns(layout_class(900.0)), 1);
         assert_eq!(grid_columns(layout_class(640.0)), 1);
+        assert_eq!(summary_columns(layout_class(1366.0)), 4);
+        assert_eq!(summary_columns(layout_class(900.0)), 3);
+        assert_eq!(summary_columns(layout_class(640.0)), 2);
+    }
+
+    #[test]
+    fn a_narrow_card_is_taller_because_its_tile_stacks() {
+        assert_eq!(card_height_for(LayoutClass::Wide), card_height());
+        assert_eq!(card_height_for(LayoutClass::Medium), card_height());
+        assert!(card_height_for(LayoutClass::Narrow) > card_height());
     }
 
     #[test]

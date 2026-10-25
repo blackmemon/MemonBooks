@@ -4,6 +4,8 @@
 //! typed: they come from the account's opening balance plus its ledger
 //! (see `backend/banking/bank_ledger.rs` for the sign convention).
 
+use std::collections::HashSet;
+
 use chrono::NaiveDate;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, responsive, row, scrollable, text, text_input};
@@ -86,6 +88,10 @@ const ALL_LABEL: &str = "All";
 const EMPTY_DASH: &str = "--";
 /// Used only when the company record cannot be read.
 const FALLBACK_CURRENCY: &str = "USD";
+const AVAILABLE_LABEL: &str = "Available Balance";
+const SEE_DETAILS_LABEL: &str = "See details";
+const SHOW_NUMBER_TIP: &str = "Show number";
+const HIDE_NUMBER_TIP: &str = "Hide number";
 /// Cards per page: divisible by every grid width (1, 2 and 3 columns).
 const CARD_PAGE_SIZES: [usize; 3] = [12, 24, 48];
 const TRANSACTION_PAGE_SIZES: [usize; 3] = [25, 50, 100];
@@ -179,6 +185,8 @@ pub struct State {
     page_size: usize,
     /// Which row of cards the grid starts at.
     scroll: RowSnap,
+    /// The accounts whose full number is shown on their card.
+    revealed: HashSet<i64>,
     form_open: bool,
     /// `Some(id)` while the panel edits an existing account instead of
     /// adding one -- `Message::Create` then saves the changes.
@@ -204,6 +212,7 @@ impl Default for State {
             page: 0,
             page_size: CARD_PAGE_SIZES[0],
             scroll: RowSnap::default(),
+            revealed: HashSet::new(),
             form_open: false,
             editing_id: None,
             form: AccountForm::default(),
@@ -242,6 +251,8 @@ pub enum Message {
     PrevPage,
     PageSizeChanged(usize),
     OpenDetail(i64),
+    /// Shows or hides one card's full account number.
+    ToggleNumber(i64),
     CloseDetail,
     DetailSearchChanged(String),
     ToggleOrder,
@@ -362,6 +373,7 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             state.page = 0;
         }
         Message::OpenDetail(id) => open_detail(state, id, ctx),
+        Message::ToggleNumber(id) => toggle_number(state, id),
         Message::CloseDetail => state.detail = None,
         Message::DetailSearchChanged(value) => {
             if let Some(detail) = &mut state.detail {
@@ -396,6 +408,12 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
                 detail.page = 0;
             }
         }
+    }
+}
+
+fn toggle_number(state: &mut State, id: i64) {
+    if !state.revealed.remove(&id) {
+        state.revealed.insert(id);
     }
 }
 
@@ -714,20 +732,6 @@ fn entry_side(entry: &BankLedgerEntry) -> Side {
         Side::Credit
     } else {
         Side::Debit
-    }
-}
-
-/// `Parent · Sub`, skipping whichever is blank.
-fn companies_line(account: &BankAccount) -> String {
-    let names: Vec<&str> = [&account.parent_company, &account.sub_company]
-        .into_iter()
-        .map(|name| name.trim())
-        .filter(|name| !name.is_empty())
-        .collect();
-    if names.is_empty() {
-        EMPTY_DASH.into()
-    } else {
-        names.join("  ·  ")
     }
 }
 
@@ -1067,16 +1071,8 @@ fn list_card<'a, M: Clone + 'a>(
         on_page_size: Message::PageSizeChanged,
     }));
     let rows = cards.rows;
-    let grid: Element<'a, Message> = responsive(move |size| {
-        card_grid(
-            state,
-            theme,
-            &rows,
-            spacing::grid_columns(class),
-            size.height,
-        )
-    })
-    .into();
+    let grid: Element<'a, Message> =
+        responsive(move |size| card_grid(state, theme, &rows, class, size.height)).into();
     body = body.push(lift(
         container(grid)
             .padding(spacing::SPACE_20)
@@ -1091,17 +1087,22 @@ fn card_grid<'a>(
     state: &'a State,
     theme: Theme,
     rows: &[&'a AccountSummary],
-    columns: usize,
+    class: spacing::LayoutClass,
     height: f32,
 ) -> Element<'a, Message> {
-    row_snap::view(
+    let stacked = class == spacing::LayoutClass::Narrow;
+    row_snap::view_sized(
         &state.scroll,
         theme,
         rows.iter()
-            .map(|summary| account_card(theme, summary))
+            .map(|summary| {
+                let revealed = state.revealed.contains(&summary.id());
+                account_card(theme, summary, revealed, stacked)
+            })
             .collect(),
-        columns,
+        spacing::grid_columns(class),
         height,
+        spacing::card_height_for(class),
         Message::Scrolled,
     )
 }
@@ -1120,72 +1121,166 @@ fn account_badges(theme: Theme, account: &BankAccount) -> Vec<Element<'static, M
     pills
 }
 
-/// One clickable account card: name, masked number, companies, pills,
-/// the net balance, both sides' totals and the Edit/Delete buttons.
-fn account_card(theme: Theme, summary: &AccountSummary) -> Element<'_, Message> {
+/// The tile of a card: bank name and type, the net balance, the masked
+/// number.
+fn card_tile<'a>(theme: Theme, summary: &'a AccountSummary) -> Element<'a, Message> {
+    let account = &summary.account;
+    panels::card_face(
+        theme,
+        type_tone(account.account_type),
+        panels::CardFace {
+            caption: AVAILABLE_LABEL,
+            figure: labels::currency(&account.currency_code, summary.balances.net()),
+            line: labels::masked_number(&account.account_number, false),
+            bottom_left: account.bank_name.as_str(),
+            bottom_right: account.account_type.as_str(),
+        },
+    )
+}
+
+/// The account number, masked or in full, and its show/hide button.
+fn number_entry<'a>(
+    theme: Theme,
+    account: &'a BankAccount,
+    id: i64,
+    revealed: bool,
+) -> Element<'a, Message> {
+    let (glyph, tip) = if revealed {
+        (icons::EYE_OFF, HIDE_NUMBER_TIP)
+    } else {
+        (icons::EYE, SHOW_NUMBER_TIP)
+    };
+    labels::entry(
+        theme,
+        BANK_FIELDS[F_ACCOUNT_NUMBER],
+        row![
+            labels::strong(
+                theme,
+                labels::masked_number(&account.account_number, revealed),
+                typography::body()
+            ),
+            button_style::icon_tool(theme, glyph, tip, Message::ToggleNumber(id), false),
+        ]
+        .spacing(spacing::SPACE_4)
+        .align_y(Alignment::Center),
+    )
+}
+
+/// The details of a card: title with Edit/Delete, a divider, then one
+/// labelled row per field.
+fn card_details<'a>(
+    theme: Theme,
+    summary: &'a AccountSummary,
+    revealed: bool,
+) -> Element<'a, Message> {
     let account = &summary.account;
     let id = summary.id();
-    let tone = type_tone(account.account_type);
+    let kind = account.account_type;
     let money = |amount: Decimal| labels::currency(&account.currency_code, amount);
-    let net = summary.balances.net();
-    let actions = row![
+    let side_amount = |side: Side, amount: Decimal| {
+        labels::amount(
+            theme,
+            money(amount),
+            labels::side_tone(side),
+            typography::body(),
+        )
+    };
+    let heading = row![
+        labels::strong(
+            theme,
+            format!("{} Account", kind.as_str()),
+            typography::panel_title()
+        )
+        .width(Length::Fill),
         button_style::icon_tool(theme, icons::EDIT, "Edit", Message::EditRow(id), false),
         button_style::icon_tool(theme, icons::REMOVE, "Delete", Message::Remove(id), false),
     ]
-    .spacing(spacing::SPACE_4);
-    let heading = row![
-        badges::icon_box(theme, icons::LANDMARK, tone),
-        column![
-            labels::strong(theme, account.bank_name.as_str(), typography::panel_title()),
-            labels::muted(
-                theme,
-                labels::masked(&account.account_number_tail()),
-                typography::body()
-            ),
-        ]
-        .spacing(spacing::SPACE_2)
-        .width(Length::Fill),
-        row(account_badges(theme, account)).spacing(spacing::SPACE_4),
-        actions,
-    ]
-    .spacing(spacing::SPACE_12)
+    .spacing(spacing::SPACE_4)
     .align_y(Alignment::Center);
-    let sides = row![
-        labels::figure(
+    let status_tone = if account.is_active {
+        BadgeTone::Positive
+    } else {
+        BadgeTone::Neutral
+    };
+    column![
+        heading,
+        table_style::divider_line(theme),
+        labels::entry(
+            theme,
+            BANK_FIELDS[F_TYPE],
+            badges::status_pill(theme, kind.as_str(), type_tone(kind)),
+        ),
+        labels::entry(
+            theme,
+            BANK_FIELDS[F_STATUS],
+            badges::status_dot(theme, status_label(account.is_active), status_tone),
+        ),
+        number_entry(theme, account, id, revealed),
+        labels::pair(
+            theme,
+            BANK_FIELDS[F_PARENT_COMPANY],
+            dash(&account.parent_company)
+        ),
+        labels::pair(
+            theme,
+            BANK_FIELDS[F_SUB_COMPANY],
+            dash(&account.sub_company)
+        ),
+        labels::entry(
             theme,
             BANK_FIELDS[F_CREDIT_BALANCE],
-            money(summary.balances.credit),
-            labels::side_tone(Side::Credit),
-            typography::label(),
+            side_amount(Side::Credit, summary.balances.credit),
         ),
-        labels::figure(
+        labels::entry(
             theme,
             BANK_FIELDS[F_DEBIT_BALANCE],
-            money(summary.balances.debit),
-            labels::side_tone(Side::Debit),
-            typography::label(),
+            side_amount(Side::Debit, summary.balances.debit),
         ),
     ]
-    .spacing(spacing::MD);
+    .spacing(spacing::SPACE_6)
+    .width(Length::Fill)
+    .into()
+}
+
+/// One clickable account card: the tile and the details side by side
+/// (stacked when `stacked`), and a See details button along the bottom.
+fn account_card(
+    theme: Theme,
+    summary: &AccountSummary,
+    revealed: bool,
+    stacked: bool,
+) -> Element<'_, Message> {
+    let id = summary.id();
+    let tile = card_tile(theme, summary);
+    let details = card_details(theme, summary, revealed);
+    let body: Element<'_, Message> = if stacked {
+        column![
+            container(tile).height(Length::Fixed(spacing::grown(spacing::CARD_STACK_EXTRA))),
+            details
+        ]
+        .spacing(spacing::MD)
+        .height(Length::Fill)
+        .into()
+    } else {
+        row![
+            container(tile).width(Length::FillPortion(2)),
+            container(details).width(Length::FillPortion(3)),
+        ]
+        .spacing(spacing::MD)
+        .height(Length::Fill)
+        .into()
+    };
     button(
         column![
-            heading,
-            labels::muted(theme, companies_line(account), typography::caption()),
-            labels::figure(
-                theme,
-                BANK_FIELDS[F_NET_BALANCE],
-                money(net),
-                tone,
-                typography::subtitle(),
-            ),
-            sides,
+            container(body).height(Length::Fill),
+            button_style::wide(theme, SEE_DETAILS_LABEL, Message::OpenDetail(id)),
         ]
         .spacing(spacing::SPACE_12),
     )
     .padding(spacing::MD)
     .width(Length::Fill)
     .height(Length::Fill)
-    .style(button_style::tile(theme, tone))
+    .style(button_style::tile(theme, BadgeTone::Neutral))
     .on_press(Message::OpenDetail(id))
     .into()
 }
@@ -1402,7 +1497,7 @@ fn detail_summary<'a>(
         plain(F_PARENT_COMPANY, dash(&account.parent_company)),
         plain(F_SUB_COMPANY, dash(&account.sub_company)),
     ];
-    let columns = spacing::grid_columns(spacing::layout_class(width)) + 1;
+    let columns = spacing::summary_columns(spacing::layout_class(width));
     panels::padded(theme, forms::field_grid(figures, columns))
 }
 
@@ -2408,13 +2503,14 @@ mod tests {
     fn the_card_grid_builds_in_every_theme_and_width_with_any_number_of_cards() {
         for theme in THEMES {
             for width in WIDTHS {
-                for count in [0, 1, 6, 7, 40] {
+                for count in [0, 1, 4, 7, 12] {
                     let mut state = state_with(count);
                     state.scroll.scroll(row_snap::Scroll::Lines(-1.0));
+                    state.revealed.insert(1);
                     let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-                    let columns = spacing::grid_columns(spacing::layout_class(width));
+                    let class = spacing::layout_class(width);
                     for height in [0.0, 300.0, 700.0, 1200.0] {
-                        let _ = card_grid(&state, theme, &rows, columns, height);
+                        let _ = card_grid(&state, theme, &rows, class, height);
                     }
                 }
             }
@@ -2425,17 +2521,57 @@ mod tests {
     fn twelve_cards_show_two_full_rows_when_the_height_allows() {
         let state = state_with(12);
         let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-        let height = 2.0 * spacing::card_height() + spacing::ROW_GAP;
         for theme in THEMES {
             for width in WIDTHS {
-                let columns = spacing::grid_columns(spacing::layout_class(width));
-                let visible =
-                    row_snap::visible_rows(height, spacing::card_height(), spacing::ROW_GAP);
+                let class = spacing::layout_class(width);
+                let card = spacing::card_height_for(class);
+                let height = 2.0 * card + spacing::ROW_GAP;
+                let columns = spacing::grid_columns(class);
+                let visible = row_snap::visible_rows(height, card, spacing::ROW_GAP);
+                assert_eq!(visible, 2, "{width}");
                 let shown =
                     row_snap::visible_cards(state.scroll.first_row(), visible, columns, rows.len());
                 assert_eq!(shown.len(), 2 * columns, "{width}");
-                let _ = card_grid(&state, theme, &rows, columns, height);
+                // One pixel short of two rows leaves a single whole row.
+                assert_eq!(
+                    row_snap::visible_rows(height - 1.0, card, spacing::ROW_GAP),
+                    1
+                );
+                let _ = card_grid(&state, theme, &rows, class, height);
             }
+        }
+    }
+
+    #[test]
+    fn toggling_a_number_reveals_and_hides_only_that_card() {
+        let mut state = state_with(3);
+        let (ctx, _) = ctx_with_a_gl_account();
+        update(&mut state, Message::ToggleNumber(2), &ctx);
+        assert!(state.revealed.contains(&2));
+        assert!(!state.revealed.contains(&1));
+        update(&mut state, Message::ToggleNumber(1), &ctx);
+        update(&mut state, Message::ToggleNumber(2), &ctx);
+        assert!(!state.revealed.contains(&2));
+        assert!(state.revealed.contains(&1));
+        let number = &state.accounts[0].account.account_number;
+        assert_ne!(
+            labels::masked_number(number, false),
+            labels::masked_number(number, true)
+        );
+    }
+
+    #[test]
+    fn credit_and_debit_cards_get_different_tints_in_both_themes() {
+        for theme in THEMES {
+            assert_ne!(
+                type_tone(BankAccountType::Credit),
+                type_tone(BankAccountType::Debit)
+            );
+            let fill = |kind| panels::card_face_style(theme, type_tone(kind))(&iced::Theme::Light);
+            assert_ne!(
+                fill(BankAccountType::Credit).background,
+                fill(BankAccountType::Debit).background
+            );
         }
     }
 
@@ -2513,14 +2649,14 @@ mod tests {
 
     #[test]
     fn the_cards_follow_the_grid_breakpoints() {
-        assert_eq!(spacing::grid_columns(spacing::layout_class(1920.0)), 3);
-        assert_eq!(spacing::grid_columns(spacing::layout_class(1366.0)), 3);
-        assert_eq!(spacing::grid_columns(spacing::layout_class(900.0)), 2);
+        assert_eq!(spacing::grid_columns(spacing::layout_class(1920.0)), 2);
+        assert_eq!(spacing::grid_columns(spacing::layout_class(1366.0)), 2);
+        assert_eq!(spacing::grid_columns(spacing::layout_class(900.0)), 1);
         assert_eq!(spacing::grid_columns(spacing::layout_class(640.0)), 1);
         // With the panel open a wide page leaves the grid medium width.
         let split = spacing::panel_split(1366.0, true, spacing::SPACE_20);
         let grid = split.content.unwrap();
-        assert_eq!(spacing::grid_columns(spacing::layout_class(grid)), 2);
+        assert_eq!(spacing::grid_columns(spacing::layout_class(grid)), 1);
         assert_eq!(
             spacing::panel_split(640.0, true, spacing::SPACE_20).content,
             None
@@ -2559,15 +2695,5 @@ mod tests {
             field_text(&State::default(), summary, F_NET_BALANCE),
             "1,000.00"
         );
-    }
-
-    #[test]
-    fn the_companies_line_skips_blank_names() {
-        let mut account = sample_account(2, "Bank", BankAccountType::Debit, true);
-        assert_eq!(companies_line(&account), "Memon Group  ·  Memon Textiles");
-        account.sub_company.clear();
-        assert_eq!(companies_line(&account), "Memon Group");
-        account.parent_company.clear();
-        assert_eq!(companies_line(&account), EMPTY_DASH);
     }
 }

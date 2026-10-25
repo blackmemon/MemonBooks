@@ -38,6 +38,27 @@ pub fn icon_label<'a, M: 'a>(
     .padding(padding)
 }
 
+/// A full-width button on the neutral tint with a centered bold label.
+pub fn wide<'a, M: Clone + 'a>(
+    theme: Theme,
+    label: impl IntoFragment<'a>,
+    on_press: M,
+) -> Element<'a, M> {
+    button_widget(
+        text(label)
+            .size(typography::label())
+            .font(fonts::BOLD)
+            .wrapping(Wrapping::None)
+            .width(Length::Fill)
+            .align_x(Alignment::Center),
+    )
+    .padding([spacing::SPACE_8, spacing::SPACE_14])
+    .width(Length::Fill)
+    .style(neutral(theme))
+    .on_press(on_press)
+    .into()
+}
+
 /// Small square icon-only button with a hover tooltip: outlined when
 /// `bordered`, bare (tinted on hover) otherwise.
 pub fn icon_tool<'a, M: Clone + 'a>(
@@ -504,6 +525,13 @@ mod tests {
             assert!(dimmed.text_color.a < plain.text_color.a);
             assert_eq!(selected.border.color, theme.primary());
             let _: Element<'_, ()> = grid_cell(theme, "12", BadgeTone::Negative, false, true, ());
+        }
+    }
+
+    #[test]
+    fn the_wide_button_builds_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let _: Element<'_, ()> = wide(theme, "See details", ());
         }
     }
 

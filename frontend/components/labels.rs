@@ -95,9 +95,19 @@ pub fn pair<'a, M: 'a>(
     label: impl text::IntoFragment<'a>,
     value: impl text::IntoFragment<'a>,
 ) -> Element<'a, M> {
+    entry(theme, label, strong(theme, value, typography::body()))
+}
+
+/// [`pair`] with any element as the value -- a pill, a dot, a colored
+/// figure or a value with a button beside it.
+pub fn entry<'a, M: 'a>(
+    theme: Theme,
+    label: impl text::IntoFragment<'a>,
+    value: impl Into<Element<'a, M>>,
+) -> Element<'a, M> {
     iced::widget::row![
         muted(theme, label, typography::body()).width(Length::Fill),
-        strong(theme, value, typography::body()),
+        value.into(),
     ]
     .spacing(spacing::SPACE_8)
     .align_y(iced::Alignment::Center)
@@ -134,6 +144,26 @@ pub fn masked(tail: &str) -> String {
 }
 
 const MASK: &str = "••";
+const MASK_GROUP: &str = "••••";
+const MASK_GROUPS: usize = 3;
+const TAIL_LEN: usize = 4;
+
+/// An account number as `•••• •••• •••• 1234` (its last four
+/// characters), or in full when `shown`.
+pub fn masked_number(number: &str, shown: bool) -> String {
+    let number = number.trim();
+    if shown {
+        return number.to_string();
+    }
+    let count = number.chars().count();
+    let tail: String = number
+        .chars()
+        .skip(count.saturating_sub(TAIL_LEN))
+        .collect();
+    let mut groups = vec![MASK_GROUP; MASK_GROUPS];
+    groups.push(&tail);
+    groups.join(" ")
+}
 
 #[cfg(test)]
 mod tests {
@@ -168,6 +198,20 @@ mod tests {
     }
 
     #[test]
+    fn a_masked_number_shows_its_last_four_until_revealed() {
+        assert_eq!(
+            masked_number(" PK36HABB0001 ", false),
+            "•••• •••• •••• 0001"
+        );
+        assert_eq!(masked_number("PK36HABB0001", true), "PK36HABB0001");
+        assert_eq!(masked_number("12", false), "•••• •••• •••• 12");
+        assert_ne!(
+            masked_number("1234567", false),
+            masked_number("1234567", true)
+        );
+    }
+
+    #[test]
     fn every_label_builds_in_both_themes() {
         for theme in [Theme::Light, Theme::Dark] {
             for tone in [
@@ -180,6 +224,8 @@ mod tests {
             }
             let _: Element<'_, ()> = stat(theme, "Net", "1.00");
             let _: Element<'_, ()> = pair(theme, "Total bins", "12");
+            let _: Element<'_, ()> =
+                entry(theme, "Net", amount(theme, "1", BadgeTone::Positive, 12.0));
         }
     }
 }

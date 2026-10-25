@@ -151,21 +151,22 @@ pub fn card_face<'a, M: 'a>(theme: Theme, tone: BadgeTone, face: CardFace<'a>) -
             face.bottom_left,
             typography::caption()
         )),
-        labels::strong(theme, face.bottom_right, typography::caption()).wrapping(Wrapping::None),
+        labels::strong(theme, face.bottom_right, typography::body()).wrapping(Wrapping::None),
     ]
     .spacing(spacing::SPACE_8);
     container(
         column![
             top,
+            Space::with_height(Length::Fill),
             labels::muted(theme, face.caption, typography::caption()),
             clipped(labels::amount(
                 theme,
                 face.figure,
                 tone,
-                typography::panel_title()
+                typography::subtitle()
             )),
             Space::with_height(Length::Fill),
-            clipped(labels::muted(theme, face.line, typography::caption())),
+            clipped(labels::muted(theme, face.line, typography::label())),
             bottom,
         ]
         .spacing(spacing::SPACE_2),

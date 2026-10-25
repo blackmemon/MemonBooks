@@ -145,17 +145,17 @@ pub fn visible_cards(
 
 /// The card grid for `cells` laid `columns` to a row, in a region
 /// `available` pixels tall, scrolled to `state`'s first row. Each row is
-/// `spacing::card_height()` tall; cells should fill that height.
+/// `base_height` tall (e.g. `spacing::card_height()`); cells should fill
+/// that height.
 pub fn view<'a, M: Clone + 'a>(
     state: &RowSnap,
     theme: Theme,
     cells: Vec<Element<'a, M>>,
     columns: usize,
-    available: f32,
+    (available, base_height): (f32, f32),
     on_scroll: impl Fn(Scroll) -> M + Copy + 'a,
 ) -> Element<'a, M> {
     let columns = columns.max(1);
-    let base_height = spacing::card_height();
     let gap = spacing::ROW_GAP;
     let total_rows = cells.len().div_ceil(columns);
     let visible = visible_rows(available, base_height, gap);
@@ -334,8 +334,14 @@ mod tests {
                         let cells: Vec<Element<'_, Scroll>> = (0..count)
                             .map(|_| Space::with_height(Length::Fill).into())
                             .collect();
-                        let _: Element<'_, Scroll> =
-                            view(&state, theme, cells, columns, available, |scroll| scroll);
+                        let _: Element<'_, Scroll> = view(
+                            &state,
+                            theme,
+                            cells,
+                            columns,
+                            (available, spacing::card_height()),
+                            |scroll| scroll,
+                        );
                     }
                 }
             }

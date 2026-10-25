@@ -1081,7 +1081,7 @@ fn card_grid<'a>(
             })
             .collect(),
         columns,
-        height,
+        (height, spacing::card_height()),
         Message::Scrolled,
     )
 }

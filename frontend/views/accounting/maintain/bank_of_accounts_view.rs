@@ -1112,19 +1112,11 @@ fn list_card<'a, M: Clone + 'a>(
         on_page_size: Message::PageSizeChanged,
     }));
     let rows = cards.rows;
-    let grid: Element<'a, Message> = responsive(move |size| {
-        card_grid(
-            state,
-            theme,
-            &rows,
-            spacing::grid_columns(class),
-            (size.width, size.height),
-        )
-    })
-    .into();
+    let grid: Element<'a, Message> =
+        responsive(move |size| card_grid(state, theme, &rows, (size.width, size.height))).into();
     body = body.push(lift(
         container(grid)
-            .padding(spacing::SPACE_20)
+            .padding([spacing::SPACE_10, spacing::SPACE_20])
             .height(Length::Fill)
             .into(),
     ));
@@ -1137,9 +1129,9 @@ fn card_grid<'a>(
     state: &'a State,
     theme: Theme,
     rows: &[&'a AccountSummary],
-    columns: usize,
     (width, height): (f32, f32),
 ) -> Element<'a, Message> {
+    let columns = spacing::card_columns(width);
     let stacked = spacing::card_stacks(spacing::card_width(width, columns));
     row_snap::view(
         &state.scroll,
@@ -1151,7 +1143,7 @@ fn card_grid<'a>(
             })
             .collect(),
         columns,
-        height,
+        (height, spacing::compact_card_height(stacked)),
         Message::Scrolled,
     )
 }
@@ -1171,11 +1163,10 @@ fn account_badges(theme: Theme, account: &BankAccount) -> Vec<Element<'static, M
 }
 
 /// The tile of a card: bank name and type, the net balance, and the
-/// account number (masked until `revealed`).
+/// masked account number (the full number shows in the details only).
 fn card_tile<'a>(
     theme: Theme,
     summary: &'a AccountSummary,
-    revealed: bool,
     height: Length,
 ) -> Element<'a, Message> {
     let account = &summary.account;
@@ -1185,7 +1176,7 @@ fn card_tile<'a>(
         panels::CardFace {
             caption: AVAILABLE_LABEL,
             figure: labels::currency(&account.currency_code, summary.balances.net()),
-            line: labels::masked_number(&account.account_number, revealed),
+            line: labels::masked_number(&account.account_number, false),
             bottom_left: account.bank_name.as_str(),
             bottom_right: account.account_type.as_str(),
             height,
@@ -1195,7 +1186,7 @@ fn card_tile<'a>(
 
 /// A value at the details' type size, cut off at its cell's edge.
 fn cell_value<'a>(theme: Theme, value: impl text::IntoFragment<'a>) -> Element<'a, Message> {
-    container(labels::strong(theme, value, typography::caption()).wrapping(Wrapping::None))
+    container(labels::strong(theme, value, typography::label()).wrapping(Wrapping::None))
         .width(Length::Fill)
         .clip(true)
         .into()
@@ -1221,7 +1212,7 @@ fn number_cell<'a>(
             labels::strong(
                 theme,
                 labels::masked_number(&account.account_number, revealed),
-                typography::caption()
+                typography::body()
             )
             .wrapping(Wrapping::Glyph)
             .width(Length::Fill),
@@ -1238,11 +1229,15 @@ fn pair_line<'a>(
     second: Element<'a, Message>,
     weights: (u16, u16),
 ) -> Element<'a, Message> {
-    row![
-        container(first).width(Length::FillPortion(weights.0)),
-        container(second).width(Length::FillPortion(weights.1)),
-    ]
-    .spacing(spacing::SM)
+    container(
+        row![
+            container(first).width(Length::FillPortion(weights.0)),
+            container(second).width(Length::FillPortion(weights.1)),
+        ]
+        .spacing(spacing::SM),
+    )
+    .height(Length::Fill)
+    .align_y(Alignment::Center)
     .into()
 }
 
@@ -1261,7 +1256,7 @@ fn card_details<'a>(
             theme,
             labels::currency(&account.currency_code, amount),
             labels::side_tone(side),
-            typography::caption(),
+            typography::label(),
         )
         .wrapping(Wrapping::None)
     };
@@ -1276,7 +1271,7 @@ fn card_details<'a>(
         labels::strong(
             theme,
             format!("{} Account", kind.as_str()),
-            typography::emphasis()
+            typography::panel_title()
         )
         .wrapping(Wrapping::None),
         badges::status_pill(theme, kind.as_str(), type_tone(kind)),
@@ -1295,7 +1290,7 @@ fn card_details<'a>(
                 F_STATUS,
                 badges::status_dot(theme, status_label(account.is_active), status_tone)
             ),
-            (3, 2),
+            (5, 2),
         ),
         pair_line(
             field(
@@ -1317,8 +1312,9 @@ fn card_details<'a>(
             (1, 1),
         ),
     ]
-    .spacing(spacing::SPACE_6)
+    .spacing(spacing::SPACE_4)
     .width(Length::Fill)
+    .height(Length::Fill)
     .into()
 }
 
@@ -1335,21 +1331,15 @@ fn account_card(
     let details = card_details(theme, summary, revealed);
     let body: Element<'_, Message> = if stacked {
         column![
-            card_tile(
-                theme,
-                summary,
-                revealed,
-                Length::Fixed(spacing::tile_stack_height())
-            ),
+            card_tile(theme, summary, Length::Fixed(spacing::tile_stack_height())),
             details
         ]
         .spacing(spacing::SPACE_8)
         .into()
     } else {
         row![
-            container(card_tile(theme, summary, revealed, Length::Fill))
-                .width(Length::FillPortion(1)),
-            container(details).width(Length::FillPortion(2)),
+            container(card_tile(theme, summary, Length::Fill)).width(Length::FillPortion(2)),
+            container(details).width(Length::FillPortion(3)),
         ]
         .spacing(spacing::SPACE_12)
         .into()
@@ -2663,9 +2653,8 @@ mod tests {
                     state.scroll.scroll(row_snap::Scroll::Lines(-1.0));
                     state.revealed.insert(1);
                     let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-                    let columns = spacing::grid_columns(spacing::layout_class(width));
                     for height in [0.0, 300.0, 700.0, 1200.0] {
-                        let _ = card_grid(&state, theme, &rows, columns, (width, height));
+                        let _ = card_grid(&state, theme, &rows, (width, height));
                     }
                 }
             }
@@ -2673,49 +2662,44 @@ mod tests {
     }
 
     #[test]
-    fn twelve_cards_show_two_full_rows_when_the_height_allows() {
+    fn six_of_twelve_cards_show_at_once_on_wide_windows_in_whole_rows() {
         let state = state_with(12);
         let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-        let card = spacing::card_height();
-        let height = 2.0 * card + spacing::ROW_GAP;
-        for theme in THEMES {
-            for width in WIDTHS {
-                let columns = spacing::grid_columns(spacing::layout_class(width));
-                let visible = row_snap::visible_rows(height, card, spacing::ROW_GAP);
-                assert_eq!(visible, 2, "{width}");
-                let shown =
-                    row_snap::visible_cards(state.scroll.first_row(), visible, columns, rows.len());
-                assert_eq!(shown.len(), 2 * columns, "{width}");
-                // One pixel short of two rows leaves a single whole row.
-                assert_eq!(
-                    row_snap::visible_rows(height - 1.0, card, spacing::ROW_GAP),
-                    1
-                );
-                let _ = card_grid(&state, theme, &rows, columns, (width, height));
+        for (width, columns, shown_rows) in [(1366.0, 2, 3), (1920.0, 3, 2)] {
+            assert_eq!(spacing::card_columns(width), columns, "{width}");
+            let stacked = spacing::card_stacks(spacing::card_width(width, columns));
+            assert!(!stacked, "{width}");
+            let card = spacing::compact_card_height(stacked);
+            let height = shown_rows as f32 * card + (shown_rows - 1) as f32 * spacing::ROW_GAP;
+            let visible = row_snap::visible_rows(height, card, spacing::ROW_GAP);
+            assert_eq!(visible, shown_rows, "{width}");
+            let shown = row_snap::visible_cards(0, visible, columns, rows.len());
+            assert_eq!(shown.len(), 6, "{width}");
+            // One row per scroll step.
+            assert_eq!(
+                row_snap::visible_cards(1, visible, columns, rows.len()).start,
+                columns
+            );
+            // A pixel short of the last row leaves only whole rows.
+            assert_eq!(
+                row_snap::visible_rows(height - 1.0, card, spacing::ROW_GAP),
+                shown_rows - 1
+            );
+            for theme in THEMES {
+                let _ = card_grid(&state, theme, &rows, (width, height));
             }
         }
     }
 
     #[test]
-    fn wide_windows_show_six_of_twelve_cards_and_scroll_a_row_at_a_time() {
-        for width in [1366.0, 1920.0] {
-            let columns = spacing::grid_columns(spacing::layout_class(width));
-            assert_eq!(columns, 3, "{width}");
-            let card = spacing::card_height();
-            let visible =
-                row_snap::visible_rows(2.0 * card + spacing::ROW_GAP, card, spacing::ROW_GAP);
-            assert_eq!(row_snap::visible_cards(0, visible, columns, 12), 0..6);
-            assert_eq!(row_snap::visible_cards(1, visible, columns, 12), 3..9);
-        }
-        assert_eq!(spacing::grid_columns(spacing::layout_class(900.0)), 2);
-        assert_eq!(spacing::grid_columns(spacing::layout_class(640.0)), 1);
-    }
-
-    #[test]
-    fn a_card_stacks_its_tile_at_three_columns_on_a_small_screen_only() {
-        assert!(spacing::card_stacks(spacing::card_width(1100.0, 3)));
-        assert!(!spacing::card_stacks(spacing::card_width(1700.0, 3)));
+    fn the_columns_follow_the_card_minimum_width_and_a_narrow_column_stacks() {
+        assert_eq!(spacing::card_columns(1920.0), 3);
+        assert_eq!(spacing::card_columns(1366.0), 2);
+        assert_eq!(spacing::card_columns(900.0), 1);
+        assert_eq!(spacing::card_columns(640.0), 1);
+        assert!(!spacing::card_stacks(spacing::card_width(640.0, 1)));
         assert!(spacing::card_stacks(spacing::card_width(400.0, 1)));
+        assert!(spacing::compact_card_height(true) > spacing::compact_card_height(false));
     }
 
     #[test]
@@ -2831,6 +2815,33 @@ mod tests {
         }
         assert!(source.contains("balances.net()"));
         assert!(source.contains("bottom_left: account.bank_name"));
+    }
+
+    #[test]
+    fn the_page_builds_at_every_width_and_theme_with_zero_one_six_seven_and_twelve_cards() {
+        for count in [0, 1, 6, 7, 12] {
+            let mut state = state_with(count);
+            build_everywhere(&state);
+            for id in 1..=count as i64 {
+                state.revealed.insert(id);
+            }
+            build_everywhere(&state);
+        }
+    }
+
+    #[test]
+    fn a_revealed_card_swaps_the_eye_and_the_number_in_its_details() {
+        let state = state_with(1);
+        let summary = &state.accounts[0];
+        let number = &summary.account.account_number;
+        assert_ne!(
+            labels::masked_number(number, false),
+            labels::masked_number(number, true)
+        );
+        for theme in THEMES {
+            let _ = number_cell(theme, &summary.account, summary.id(), false);
+            let _ = number_cell(theme, &summary.account, summary.id(), true);
+        }
     }
 
     #[test]

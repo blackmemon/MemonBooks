@@ -165,10 +165,10 @@ pub fn status_dot<'a, M: 'a>(
 ) -> Element<'a, M> {
     row![
         icons::icon(icons::STATUS_DOT)
-            .size(typography::caption())
+            .size(typography::emphasis())
             .color(tone_colors(theme, tone).1),
         text(label)
-            .size(typography::caption())
+            .size(typography::label())
             .color(theme.neutral_front()),
     ]
     .spacing(spacing::SPACE_4)

@@ -127,12 +127,17 @@ pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 /// Height of one card in a card grid, at the base type size; grids scroll
 /// by whole rows of this height. See [`card_height`].
 pub const CARD_HEIGHT: f32 = 280.0;
-/// A card narrower than this stacks its tile above its details.
-pub const CARD_SPLIT_MIN_WIDTH: f32 = 480.0;
+/// Height of one card of the compact horizontal card grid (tile beside
+/// details), at the base type size.
+pub const COMPACT_CARD_HEIGHT: f32 = 216.0;
+/// Narrowest a compact card is laid out at; a grid fits as many columns
+/// of at least this width as it can (up to three), and a single column
+/// narrower than this stacks the tile above the details.
+pub const CARD_MIN_WIDTH: f32 = 460.0;
 /// Height of the tile when it sits above the details.
 pub const TILE_STACK_HEIGHT: f32 = 96.0;
 /// Side of a compact icon-only button (a card's eye, Edit, Delete).
-pub const ICON_COMPACT_SIZE: f32 = 24.0;
+pub const ICON_COMPACT_SIZE: f32 = 20.0;
 /// Whole card rows a grid shows when the height allows; fewer only when
 /// not even this many fit (never below one), more when more fit.
 pub const VISIBLE_CARD_ROWS: usize = 2;
@@ -169,7 +174,22 @@ pub fn card_width(grid_width: f32, columns: usize) -> f32 {
 
 /// Whether a card `width` wide stacks its tile above its details.
 pub fn card_stacks(width: f32) -> bool {
-    width < grown(CARD_SPLIT_MIN_WIDTH)
+    width < grown(CARD_MIN_WIDTH)
+}
+
+/// Columns of compact cards in a grid `grid_width` wide: as many as
+/// keep every card at least [`CARD_MIN_WIDTH`] wide, from one to three.
+pub fn card_columns(grid_width: f32) -> usize {
+    (1..=3)
+        .rev()
+        .find(|&columns| !card_stacks(card_width(grid_width, columns)))
+        .unwrap_or(1)
+}
+
+/// The height of one compact-card row; a stacked card is taller by its
+/// tile.
+pub fn compact_card_height(stacked: bool) -> f32 {
+    grown(COMPACT_CARD_HEIGHT) + if stacked { tile_stack_height() } else { 0.0 }
 }
 
 pub fn icon_button_size() -> f32 {
@@ -253,12 +273,16 @@ mod tests {
     }
 
     #[test]
-    fn a_card_stacks_its_tile_only_when_too_narrow_to_sit_beside_the_details() {
+    fn compact_cards_fit_as_many_columns_as_their_minimum_width_allows() {
         assert!(card_width(1000.0, 2) > card_width(1000.0, 3));
-        assert!(card_stacks(card_width(1100.0, 3)));
-        assert!(!card_stacks(card_width(1700.0, 3)));
+        assert_eq!(card_columns(1920.0), 3);
+        assert_eq!(card_columns(1366.0), 2);
+        assert_eq!(card_columns(900.0), 1);
+        assert_eq!(card_columns(640.0), 1);
+        assert_eq!(card_columns(100.0), 1);
         assert!(card_stacks(card_width(400.0, 1)));
         assert!(!card_stacks(card_width(900.0, 1)));
+        assert!(compact_card_height(true) > compact_card_height(false));
     }
 
     #[test]

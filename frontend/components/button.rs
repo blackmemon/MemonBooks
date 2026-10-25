@@ -91,7 +91,7 @@ pub fn icon_tool_compact<'a, M: Clone + 'a>(
         tip,
         on_press,
         false,
-        (typography::label(), spacing::icon_compact_size()),
+        (typography::small(), spacing::icon_compact_size()),
     )
 }
 
@@ -106,6 +106,7 @@ fn tool<'a, M: Clone + 'a>(
 ) -> Element<'a, M> {
     tooltip(
         button_widget(icons::icon(glyph).size(glyph_size).center())
+            .padding(Padding::ZERO)
             .width(Length::Fixed(side))
             .height(Length::Fixed(side))
             .style(outlined_or_plain(theme, bordered, false))

@@ -1,5 +1,7 @@
 # MemonBooks Rust + Iced implementation
 
+> **Notice (documentation review, 2026-10):** this file is a point-in-time checklist from an earlier review and is partly outdated. Since then the UI styles moved from `frontend/styles/` to `frontend/components/` (the sidebar is `frontend/components/sidebar.rs`), and the generic `documents_view.rs` editor referenced below no longer exists in `frontend/views/`; the typed Maintain, invoice and bill screens replaced it, while `DocumentService` and the `workflow_*` tables remain in the backend. The test counts and `cargo run` command below are historical – use `cargo run --bin memonbooks`. For current status see [project-implementation.md](project-implementation.md) and [prd.md](prd.md).
+
 This desktop project implements the feature and workflow inventory in [Complete_Project_User_Guide.md](Complete_Project_User_Guide.md) under the Rust-only, native Iced constraints in [`../PROJECT_SPEC.md`](../PROJECT_SPEC.md). The supplied Markdown, PDF, DOCX guide and every supplied design-reference image are retained in this repository. No browser runtime or web frontend is used. Workflow and accounting data are stored in SQLite; user-selected documents and reports use native desktop file dialogs.
 
 ## Requirement checklist

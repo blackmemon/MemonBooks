@@ -56,7 +56,7 @@ Treat the local data folder as sensitive. Employee, vendor, customer, bank, atta
 
 **Messages:** Opening or saving a dialog does not create dashboard notifications. Successful expense/trip saves close the dialog without a success popup.
 
-![Home dashboard with fictional sample data](screenshots/dashboard.png)
+![Home dashboard with fictional sample data](design-reference/dashboard.png)
 
 *Caption: The two chart panels are still placeholders. The sidebar profile is replaced with a fictional label for this screenshot.*
 
@@ -317,7 +317,7 @@ CSV imports use UTF-8 with optional BOM; headers are matched without case sensit
 
 Maintain attachment controls accept up to four arbitrary files per record. Files are copied to `data/attachments/<entity>/<record_id>/`; duplicate filenames receive a numeric suffix. The record stores filenames. Preview lists files and offers per-file removal; removal deletes the copied file immediately without confirmation. Items have a separate single-image picker limited to PNG/JPG/JPEG/GIF/BMP. No file-size limit is enforced. Closing an unsaved form after attaching files can leave files under its generated ID.
 
-![Vendor master list with fictional sample data](screenshots/maintain-vendors.png)
+![Vendor master list with fictional sample data](design-reference/maintain-vendors.png)
 
 *Caption: The vendor grid includes checkbox selection and pagination. The page content is Vendors even though the sidebar highlight is incorrect in this capture.*
 
@@ -353,7 +353,7 @@ Generate Monthly Payroll opens a dialog with Month and Year (2 fields) and a che
 
 Payroll report filters are Department, Status, Payroll Period text (YYYY-MM), Net Pay condition/value, Payment Method, and Create Date condition/value. PDF or CSV export is available. Reports require checked rows. Applying new dialog filters can misalign the selected-row indexes because filtering is applied after the original row indexes were captured; review exported rows before relying on filtered exports.
 
-![Payroll list with a fictional employee count](screenshots/payroll.png)
+![Payroll list with a fictional employee count](design-reference/payroll.png)
 
 *Caption: Payroll summary cards, filters, bulk actions, and the employee toggle. The displayed record count is zero in this example.*
 

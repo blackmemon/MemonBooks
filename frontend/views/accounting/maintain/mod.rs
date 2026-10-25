@@ -1,3 +1,5 @@
+pub mod bank_account_card;
+pub mod bank_account_form;
 pub mod bank_of_accounts_view;
 pub mod chart_of_accounts_view;
 pub mod customers_view;

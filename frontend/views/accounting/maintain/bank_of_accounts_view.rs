@@ -8,16 +8,13 @@ use std::collections::HashSet;
 
 use chrono::NaiveDate;
 use iced::widget::text::Wrapping;
-use iced::widget::{
-    button, column, container, responsive, row, scrollable, text, text_input, Space,
-};
+use iced::widget::{column, container, responsive, row, scrollable, text};
 use iced::{Alignment, Element, Length};
 use rust_decimal::Decimal;
 
+use super::{bank_account_card, bank_account_form};
 use crate::backend::accounting::chart_of_accounts::Account;
-use crate::backend::banking::bank_accounts::{
-    BankAccount, BankAccountType, BANK_ACCOUNT_TYPES, PAKISTANI_BANKS,
-};
+use crate::backend::banking::bank_accounts::{BankAccount, BankAccountType, BANK_ACCOUNT_TYPES};
 use crate::backend::banking::bank_ledger::{BankBalances, BankLedger, BankLedgerEntry};
 use crate::backend::core::validation::Validate;
 use crate::backend::repositories::banking_repository::Removal;
@@ -39,7 +36,7 @@ use crate::frontend::views::Ctx;
 /// Every field of a bank account and of its balances, in display order.
 /// This is the only place a field's name is written: everything else
 /// refers to a field by its index, through the `F_*` constants below.
-const BANK_FIELDS: [&str; 13] = [
+pub(super) const BANK_FIELDS: [&str; 13] = [
     "Bank Name",
     "Account Number",
     "Parent Company",
@@ -54,19 +51,19 @@ const BANK_FIELDS: [&str; 13] = [
     "Running Balance",
     "Status",
 ];
-const F_BANK_NAME: usize = 0;
-const F_ACCOUNT_NUMBER: usize = 1;
-const F_PARENT_COMPANY: usize = 2;
-const F_SUB_COMPANY: usize = 3;
-const F_TYPE: usize = 4;
-const F_OPENING_BALANCE: usize = 5;
-const F_LEDGER_ACCOUNT: usize = 6;
-const F_CREDIT_BALANCE: usize = 7;
-const F_DEBIT_BALANCE: usize = 8;
+pub(super) const F_BANK_NAME: usize = 0;
+pub(super) const F_ACCOUNT_NUMBER: usize = 1;
+pub(super) const F_PARENT_COMPANY: usize = 2;
+pub(super) const F_SUB_COMPANY: usize = 3;
+pub(super) const F_TYPE: usize = 4;
+pub(super) const F_OPENING_BALANCE: usize = 5;
+pub(super) const F_LEDGER_ACCOUNT: usize = 6;
+pub(super) const F_CREDIT_BALANCE: usize = 7;
+pub(super) const F_DEBIT_BALANCE: usize = 8;
 const F_NET_BALANCE: usize = 9;
 const F_LAST_TRANSACTION: usize = 10;
 const F_RUNNING_BALANCE: usize = 11;
-const F_STATUS: usize = 12;
+pub(super) const F_STATUS: usize = 12;
 
 /// The fields written to the CSV export, in order.
 const EXPORT_FIELDS: [usize; 12] = [
@@ -84,20 +81,15 @@ const EXPORT_FIELDS: [usize; 12] = [
     F_STATUS,
 ];
 
-const STATUS_OPTIONS: [&str; 2] = [ACTIVE_LABEL, ARCHIVED_LABEL];
 const TITLE: &str = "Bank Accounts";
-const ADD_LABEL: &str = "Add Account";
-const ACTIVE_LABEL: &str = "Active";
-const ARCHIVED_LABEL: &str = "Archived";
+pub(super) const ADD_LABEL: &str = "Add Account";
+pub(super) const ACTIVE_LABEL: &str = "Active";
+pub(super) const ARCHIVED_LABEL: &str = "Archived";
 const ALL_LABEL: &str = "All";
 const EMPTY_DASH: &str = "--";
 /// Used only when the company record cannot be read.
 const FALLBACK_CURRENCY: &str = "USD";
-const AVAILABLE_LABEL: &str = "Available Balance";
-const SEE_DETAILS_LABEL: &str = "See details";
-const NONE_LABEL: &str = "None";
-const SHOW_NUMBER_TIP: &str = "Show number";
-const HIDE_NUMBER_TIP: &str = "Hide number";
+pub(super) const NONE_LABEL: &str = "None";
 /// Cards per page: divisible by every grid width (1, 2 and 3 columns).
 const CARD_PAGE_SIZES: [usize; 3] = [12, 24, 48];
 const TRANSACTION_PAGE_SIZES: [usize; 3] = [25, 50, 100];
@@ -105,8 +97,8 @@ const EXPORT_FILE: &str = "bank_accounts_export.csv";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Choice {
-    id: i64,
-    label: String,
+    pub(super) id: i64,
+    pub(super) label: String,
 }
 
 impl std::fmt::Display for Choice {
@@ -117,9 +109,9 @@ impl std::fmt::Display for Choice {
 
 /// One card: the account and its balances, computed from its ledger.
 #[derive(Debug, Clone)]
-struct AccountSummary {
-    account: BankAccount,
-    balances: BankBalances,
+pub(super) struct AccountSummary {
+    pub(super) account: BankAccount,
+    pub(super) balances: BankBalances,
     last_transaction: Option<NaiveDate>,
 }
 
@@ -132,22 +124,22 @@ impl AccountSummary {
         }
     }
 
-    fn id(&self) -> i64 {
+    pub(super) fn id(&self) -> i64 {
         self.account.id.unwrap_or_default()
     }
 }
 
 /// The add/edit panel's inputs, kept as typed.
 #[derive(Debug, Clone)]
-struct AccountForm {
-    bank_name: String,
-    account_number: String,
-    parent_company: String,
-    sub_company: String,
-    account_type: BankAccountType,
-    opening_balance: String,
-    gl_account: Option<Choice>,
-    active: bool,
+pub(super) struct AccountForm {
+    pub(super) bank_name: String,
+    pub(super) account_number: String,
+    pub(super) parent_company: String,
+    pub(super) sub_company: String,
+    pub(super) account_type: BankAccountType,
+    pub(super) opening_balance: String,
+    pub(super) gl_account: Option<Choice>,
+    pub(super) active: bool,
 }
 
 impl Default for AccountForm {
@@ -167,20 +159,20 @@ impl Default for AccountForm {
 
 /// The full-page view of one account.
 #[derive(Debug, Clone)]
-struct Detail {
-    account_id: i64,
-    ledger: BankLedger,
-    error: Option<String>,
-    search: String,
-    oldest_first: bool,
-    page: usize,
-    page_size: usize,
+pub(super) struct Detail {
+    pub(super) account_id: i64,
+    pub(super) ledger: BankLedger,
+    pub(super) error: Option<String>,
+    pub(super) search: String,
+    pub(super) oldest_first: bool,
+    pub(super) page: usize,
+    pub(super) page_size: usize,
     /// The ledger entry (by index) whose lines are shown.
-    expanded: Option<usize>,
+    pub(super) expanded: Option<usize>,
 }
 
 impl Detail {
-    fn new(account_id: i64) -> Self {
+    pub(super) fn new(account_id: i64) -> Self {
         Self {
             account_id,
             ledger: BankLedger::default(),
@@ -196,32 +188,32 @@ impl Detail {
 
 #[derive(Debug, Clone)]
 pub struct State {
-    accounts: Vec<AccountSummary>,
-    gl_accounts: Vec<Choice>,
+    pub(super) accounts: Vec<AccountSummary>,
+    pub(super) gl_accounts: Vec<Choice>,
     /// Every company's name, for the Parent and Sub Company pickers.
-    companies: Vec<String>,
-    currency: String,
-    search: String,
+    pub(super) companies: Vec<String>,
+    pub(super) currency: String,
+    pub(super) search: String,
     /// `None` shows every type.
-    type_filter: Option<BankAccountType>,
-    status_filter: StatusFilter,
-    page: usize,
-    page_size: usize,
+    pub(super) type_filter: Option<BankAccountType>,
+    pub(super) status_filter: StatusFilter,
+    pub(super) page: usize,
+    pub(super) page_size: usize,
     /// Which row of cards the grid starts at.
-    scroll: RowSnap,
+    pub(super) scroll: RowSnap,
     /// The accounts whose full number is shown on their card.
-    revealed: HashSet<i64>,
-    form_open: bool,
+    pub(super) revealed: HashSet<i64>,
+    pub(super) form_open: bool,
     /// `Some(id)` while the panel edits an existing account instead of
     /// adding one -- `Message::Create` then saves the changes.
-    editing_id: Option<i64>,
-    form: AccountForm,
-    form_error: Option<String>,
-    detail: Option<Detail>,
+    pub(super) editing_id: Option<i64>,
+    pub(super) form: AccountForm,
+    pub(super) form_error: Option<String>,
+    pub(super) detail: Option<Detail>,
     /// The account a Delete press is waiting to have confirmed.
-    pending_removal: Option<i64>,
-    message: Option<String>,
-    error: Option<String>,
+    pub(super) pending_removal: Option<i64>,
+    pub(super) message: Option<String>,
+    pub(super) error: Option<String>,
 }
 
 impl Default for State {
@@ -464,7 +456,7 @@ fn find(state: &State, id: i64) -> Option<&AccountSummary> {
 }
 
 /// Opens the panel empty (`None`) or prefilled from an account.
-fn open_form(state: &mut State, id: Option<i64>) {
+pub(super) fn open_form(state: &mut State, id: Option<i64>) {
     state.message = None;
     state.error = None;
     state.form_error = None;
@@ -511,7 +503,7 @@ fn parse_amount(value: &str) -> Option<Decimal> {
 }
 
 /// The panel's account, or the first problem with what was typed.
-fn form_account(state: &State) -> Result<BankAccount, String> {
+pub(super) fn form_account(state: &State) -> Result<BankAccount, String> {
     let form = &state.form;
     let required = |field: usize, value: &str| {
         if value.trim().is_empty() {
@@ -732,7 +724,7 @@ fn field_text(state: &State, summary: &AccountSummary, field: usize) -> String {
     }
 }
 
-fn status_label(is_active: bool) -> &'static str {
+pub(super) fn status_label(is_active: bool) -> &'static str {
     if is_active {
         ACTIVE_LABEL
     } else {
@@ -744,7 +736,7 @@ fn day(date: NaiveDate) -> String {
     date.format("%d %b %Y").to_string()
 }
 
-fn dash(value: &str) -> String {
+pub(super) fn dash(value: &str) -> String {
     if value.trim().is_empty() {
         EMPTY_DASH.into()
     } else {
@@ -762,7 +754,7 @@ fn side_of(kind: BankAccountType) -> Side {
 
 /// The pill and card tint of an account type, and the color of its net
 /// balance: its side's tone.
-fn type_tone(kind: BankAccountType) -> BadgeTone {
+pub(super) fn type_tone(kind: BankAccountType) -> BadgeTone {
     labels::side_tone(side_of(kind))
 }
 
@@ -866,7 +858,7 @@ fn page<'a, M: Clone + 'a>(
         );
     }
     if let Some(panel_width) = split.panel {
-        main = main.push(lift(form_panel(
+        main = main.push(lift(bank_account_form::form_panel(
             state,
             theme,
             spacing::layout_class(inner),
@@ -907,7 +899,7 @@ fn content<'a>(
         );
     }
     if let Some(panel_width) = split.panel {
-        main = main.push(form_panel(
+        main = main.push(bank_account_form::form_panel(
             state,
             theme,
             spacing::layout_class(width),
@@ -1112,8 +1104,10 @@ fn list_card<'a, M: Clone + 'a>(
         on_page_size: Message::PageSizeChanged,
     }));
     let rows = cards.rows;
-    let grid: Element<'a, Message> =
-        responsive(move |size| card_grid(state, theme, &rows, (size.width, size.height))).into();
+    let grid: Element<'a, Message> = responsive(move |size| {
+        bank_account_card::card_grid(state, theme, &rows, (size.width, size.height))
+    })
+    .into();
     body = body.push(lift(
         container(grid)
             .padding([spacing::SPACE_10, spacing::SPACE_20])
@@ -1121,427 +1115,6 @@ fn list_card<'a, M: Clone + 'a>(
             .into(),
     ));
     panels::page_card(theme, header, body.into(), Some(footer))
-}
-
-/// The cards in `height` pixels, scrolling by whole rows, in a grid
-/// `width` wide.
-fn card_grid<'a>(
-    state: &'a State,
-    theme: Theme,
-    rows: &[&'a AccountSummary],
-    (width, height): (f32, f32),
-) -> Element<'a, Message> {
-    let columns = spacing::card_columns(width);
-    let stacked = spacing::card_stacks(spacing::card_width(width, columns));
-    row_snap::view(
-        &state.scroll,
-        theme,
-        rows.iter()
-            .map(|summary| {
-                let revealed = state.revealed.contains(&summary.id());
-                account_card(theme, summary, revealed, stacked)
-            })
-            .collect(),
-        columns,
-        (height, spacing::compact_card_height(stacked)),
-        Message::Scrolled,
-    )
-}
-
-/// The type pill, plus an Archived pill for an inactive account.
-fn account_badges(theme: Theme, account: &BankAccount) -> Vec<Element<'static, Message>> {
-    let kind = account.account_type;
-    let mut pills = vec![badges::status_pill(theme, kind.as_str(), type_tone(kind))];
-    if !account.is_active {
-        pills.push(badges::status_pill(
-            theme,
-            ARCHIVED_LABEL,
-            BadgeTone::Neutral,
-        ));
-    }
-    pills
-}
-
-/// The tile of a card: bank name and type, the net balance, and the
-/// masked account number (the full number shows in the details only).
-fn card_tile<'a>(
-    theme: Theme,
-    summary: &'a AccountSummary,
-    height: Length,
-) -> Element<'a, Message> {
-    let account = &summary.account;
-    panels::card_face(
-        theme,
-        type_tone(account.account_type),
-        panels::CardFace {
-            caption: AVAILABLE_LABEL,
-            figure: labels::currency(&account.currency_code, summary.balances.net()),
-            line: labels::masked_number(&account.account_number, false),
-            bottom_left: account.bank_name.as_str(),
-            bottom_right: account.account_type.as_str(),
-            height,
-        },
-    )
-}
-
-/// A value at the details' type size, cut off at its cell's edge.
-fn cell_value<'a>(theme: Theme, value: impl text::IntoFragment<'a>) -> Element<'a, Message> {
-    container(labels::strong(theme, value, typography::label()).wrapping(Wrapping::None))
-        .width(Length::Fill)
-        .clip(true)
-        .into()
-}
-
-/// The account number, masked or in full (wrapping rather than
-/// overflowing), and its show/hide button.
-fn number_cell<'a>(
-    theme: Theme,
-    account: &'a BankAccount,
-    id: i64,
-    revealed: bool,
-) -> Element<'a, Message> {
-    let (glyph, tip) = if revealed {
-        (icons::EYE_OFF, HIDE_NUMBER_TIP)
-    } else {
-        (icons::EYE, SHOW_NUMBER_TIP)
-    };
-    labels::field(
-        theme,
-        BANK_FIELDS[F_ACCOUNT_NUMBER],
-        row![
-            labels::strong(
-                theme,
-                labels::masked_number(&account.account_number, revealed),
-                typography::body()
-            )
-            .wrapping(Wrapping::Glyph)
-            .width(Length::Fill),
-            button_style::icon_tool_compact(theme, glyph, tip, Message::ToggleNumber(id)),
-        ]
-        .spacing(spacing::SPACE_4)
-        .align_y(Alignment::Center),
-    )
-}
-
-/// Two details side by side, sharing the line by `weights`.
-fn pair_line<'a>(
-    first: Element<'a, Message>,
-    second: Element<'a, Message>,
-    weights: (u16, u16),
-) -> Element<'a, Message> {
-    container(
-        row![
-            container(first).width(Length::FillPortion(weights.0)),
-            container(second).width(Length::FillPortion(weights.1)),
-        ]
-        .spacing(spacing::SM),
-    )
-    .height(Length::Fill)
-    .align_y(Alignment::Center)
-    .into()
-}
-
-/// The details of a card: title, type and Edit/Delete, a divider, then
-/// the other fields two to a line.
-fn card_details<'a>(
-    theme: Theme,
-    summary: &'a AccountSummary,
-    revealed: bool,
-) -> Element<'a, Message> {
-    let account = &summary.account;
-    let id = summary.id();
-    let kind = account.account_type;
-    let money = |side: Side, amount: Decimal| {
-        labels::amount(
-            theme,
-            labels::currency(&account.currency_code, amount),
-            labels::side_tone(side),
-            typography::label(),
-        )
-        .wrapping(Wrapping::None)
-    };
-    let status_tone = if account.is_active {
-        BadgeTone::Positive
-    } else {
-        BadgeTone::Neutral
-    };
-    let field =
-        |name: usize, value: Element<'a, Message>| labels::field(theme, BANK_FIELDS[name], value);
-    let heading = row![
-        labels::strong(
-            theme,
-            format!("{} Account", kind.as_str()),
-            typography::panel_title()
-        )
-        .wrapping(Wrapping::None),
-        badges::status_pill(theme, kind.as_str(), type_tone(kind)),
-        Space::with_width(Length::Fill),
-        button_style::icon_tool_compact(theme, icons::EDIT, "Edit", Message::EditRow(id)),
-        button_style::icon_tool_compact(theme, icons::REMOVE, "Delete", Message::Remove(id)),
-    ]
-    .spacing(spacing::SPACE_6)
-    .align_y(Alignment::Center);
-    column![
-        heading,
-        table_style::divider_line(theme),
-        pair_line(
-            number_cell(theme, account, id, revealed),
-            field(
-                F_STATUS,
-                badges::status_dot(theme, status_label(account.is_active), status_tone)
-            ),
-            (5, 2),
-        ),
-        pair_line(
-            field(
-                F_PARENT_COMPANY,
-                cell_value(theme, dash(&account.parent_company))
-            ),
-            field(F_SUB_COMPANY, cell_value(theme, dash(&account.sub_company))),
-            (1, 1),
-        ),
-        pair_line(
-            field(
-                F_CREDIT_BALANCE,
-                money(Side::Credit, summary.balances.credit).into()
-            ),
-            field(
-                F_DEBIT_BALANCE,
-                money(Side::Debit, summary.balances.debit).into()
-            ),
-            (1, 1),
-        ),
-    ]
-    .spacing(spacing::SPACE_4)
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
-}
-
-/// One clickable account card: the tile and the details side by side
-/// (the tile above when `stacked`), and a See details button along the
-/// bottom.
-fn account_card(
-    theme: Theme,
-    summary: &AccountSummary,
-    revealed: bool,
-    stacked: bool,
-) -> Element<'_, Message> {
-    let id = summary.id();
-    let details = card_details(theme, summary, revealed);
-    let body: Element<'_, Message> = if stacked {
-        column![
-            card_tile(theme, summary, Length::Fixed(spacing::tile_stack_height())),
-            details
-        ]
-        .spacing(spacing::SPACE_8)
-        .into()
-    } else {
-        row![
-            container(card_tile(theme, summary, Length::Fill)).width(Length::FillPortion(2)),
-            container(details).width(Length::FillPortion(3)),
-        ]
-        .spacing(spacing::SPACE_12)
-        .into()
-    };
-    button(
-        column![
-            container(body).height(Length::Fill),
-            button_style::wide(theme, SEE_DETAILS_LABEL, Message::OpenDetail(id)),
-        ]
-        .spacing(spacing::SPACE_8),
-    )
-    .padding(spacing::SPACE_12)
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(button_style::tile(theme, BadgeTone::Neutral))
-    .on_press(Message::OpenDetail(id))
-    .into()
-}
-
-/// The add/edit panel, with a Back button when it replaces the page.
-fn form_panel(
-    state: &State,
-    theme: Theme,
-    class: spacing::LayoutClass,
-    width: f32,
-) -> Element<'_, Message> {
-    let mut side = column![]
-        .spacing(spacing::SPACE_20)
-        .width(Length::Fixed(width))
-        .height(Length::Fill);
-    if class == spacing::LayoutClass::Narrow {
-        side = side.push(button_style::back(theme, Message::CancelEdit));
-    }
-    side.push(account_form(state, theme)).into()
-}
-
-/// A labelled text input for one of `BANK_FIELDS`.
-fn input_field<'a>(
-    theme: Theme,
-    field: usize,
-    value: &'a str,
-    on_input: fn(String) -> Message,
-) -> Element<'a, Message> {
-    let label = BANK_FIELDS[field];
-    forms::text_field(theme, label, text_input(label, value).on_input(on_input))
-}
-
-/// A labelled dropdown for one of `BANK_FIELDS` over text options.
-fn select_field<'a>(
-    theme: Theme,
-    field: usize,
-    options: Vec<String>,
-    selected: Option<String>,
-    on_select: fn(String) -> Message,
-) -> Element<'a, Message> {
-    forms::field_row(
-        theme,
-        BANK_FIELDS[field],
-        dropdown::form_select(theme, options, selected, on_select)
-            .placeholder(BANK_FIELDS[field])
-            .into(),
-    )
-}
-
-fn non_blank(value: &str) -> Option<String> {
-    (!value.trim().is_empty()).then(|| value.to_string())
-}
-
-/// The bank picker: the known banks plus the account's own bank.
-fn bank_select<'a>(theme: Theme, current: &str) -> Element<'a, Message> {
-    select_field(
-        theme,
-        F_BANK_NAME,
-        dropdown::options_with(PAKISTANI_BANKS, current),
-        non_blank(current),
-        Message::BankNameChanged,
-    )
-}
-
-/// A company picker (`field` is Parent or Sub Company) over every
-/// company plus the saved value; `with_none` adds an empty choice.
-fn company_select<'a>(
-    theme: Theme,
-    field: usize,
-    companies: &'a [String],
-    current: &str,
-    with_none: bool,
-) -> Element<'a, Message> {
-    let mut options = Vec::new();
-    if with_none {
-        options.push(NONE_LABEL.to_string());
-    }
-    options.extend(dropdown::options_with(
-        companies.iter().map(String::as_str),
-        current,
-    ));
-    let selected = non_blank(current).or_else(|| with_none.then(|| NONE_LABEL.to_string()));
-    let on_select = if with_none {
-        Message::SubCompanyChanged
-    } else {
-        Message::ParentCompanyChanged
-    };
-    select_field(theme, field, options, selected, on_select)
-}
-
-/// The Active / Archived picker.
-fn status_select<'a>(theme: Theme, active: bool) -> Element<'a, Message> {
-    forms::field_row(
-        theme,
-        BANK_FIELDS[F_STATUS],
-        dropdown::form_select(
-            theme,
-            &STATUS_OPTIONS[..],
-            Some(status_label(active)),
-            |label| Message::StatusChanged(label == ACTIVE_LABEL),
-        )
-        .into(),
-    )
-}
-
-fn account_form(state: &State, theme: Theme) -> Element<'_, Message> {
-    let form = &state.form;
-    let fields = vec![
-        bank_select(theme, &form.bank_name),
-        input_field(
-            theme,
-            F_ACCOUNT_NUMBER,
-            &form.account_number,
-            Message::AccountNumberChanged,
-        ),
-        company_select(
-            theme,
-            F_PARENT_COMPANY,
-            &state.companies,
-            &form.parent_company,
-            false,
-        ),
-        company_select(
-            theme,
-            F_SUB_COMPANY,
-            &state.companies,
-            &form.sub_company,
-            true,
-        ),
-        forms::field_row(
-            theme,
-            BANK_FIELDS[F_TYPE],
-            dropdown::form_select(
-                theme,
-                &BANK_ACCOUNT_TYPES[..],
-                Some(form.account_type),
-                Message::TypeChanged,
-            )
-            .into(),
-        ),
-        input_field(
-            theme,
-            F_OPENING_BALANCE,
-            &form.opening_balance,
-            Message::OpeningBalanceChanged,
-        ),
-        status_select(theme, form.active),
-        forms::field_row(
-            theme,
-            BANK_FIELDS[F_LEDGER_ACCOUNT],
-            dropdown::form_select(
-                theme,
-                state.gl_accounts.as_slice(),
-                form.gl_account.clone(),
-                Message::GlAccountSelected,
-            )
-            .placeholder(BANK_FIELDS[F_LEDGER_ACCOUNT])
-            .into(),
-        ),
-    ];
-    let title = if state.editing_id.is_some() {
-        "Edit Account"
-    } else {
-        ADD_LABEL
-    };
-    let mut body = column![
-        labels::strong(theme, title, typography::panel_title()),
-        scrollable(container(forms::field_grid(fields, 1)).padding(scrollbar::gutter()))
-            .direction(scrollbar::vertical())
-            .height(Length::Fill),
-    ]
-    .spacing(spacing::MD);
-    if let Some(error) = &state.form_error {
-        body = body.push(text(error.clone()).color(theme.negative_front()));
-    }
-    body = body.push(
-        row![
-            button_style::bold("Save", [spacing::SM, spacing::MD])
-                .style(button_style::mode(theme, true))
-                .on_press(Message::Create),
-            button_style::bold("Cancel", [spacing::SM, spacing::MD])
-                .style(button_style::outlined(theme, false))
-                .on_press(Message::CancelEdit),
-        ]
-        .spacing(spacing::SM),
-    );
-    panels::side(theme, body)
 }
 
 // -- detail page -----------------------------------------------------------
@@ -1572,7 +1145,7 @@ fn detail_page<'a>(
         theme,
         account.bank_name.as_str(),
         subtitle,
-        account_badges(theme, account),
+        bank_account_card::account_badges(theme, account),
         Message::CloseDetail,
         actions,
     )]
@@ -1891,7 +1464,7 @@ fn transaction_row<'a>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::backend::accounting::accounting_rules::AccountType;
     use crate::backend::accounting::fiscal_periods::FiscalPeriod;
@@ -1907,14 +1480,14 @@ mod tests {
     use rust_decimal_macros::dec;
     use std::path::PathBuf;
 
-    const WIDTHS: [f32; 4] = [640.0, 900.0, 1366.0, 1920.0];
-    const THEMES: [Theme; 2] = [Theme::Light, Theme::Dark];
+    pub(crate) const WIDTHS: [f32; 4] = [640.0, 900.0, 1366.0, 1920.0];
+    pub(crate) const THEMES: [Theme; 2] = [Theme::Light, Theme::Dark];
 
-    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+    pub(crate) fn date(y: i32, m: u32, d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(y, m, d).unwrap()
     }
 
-    fn ctx_with_a_gl_account() -> (Ctx, Choice) {
+    pub(crate) fn ctx_with_a_gl_account() -> (Ctx, Choice) {
         let db = Database::open_in_memory().unwrap();
         db.run_migrations(organization_repository::MIGRATIONS)
             .unwrap();
@@ -1963,7 +1536,7 @@ mod tests {
         (ctx, choice)
     }
 
-    fn ctx_with_temp_export_dir() -> (Ctx, Choice) {
+    pub(crate) fn ctx_with_temp_export_dir() -> (Ctx, Choice) {
         let (ctx, choice) = ctx_with_a_gl_account();
         (
             Ctx {
@@ -1978,7 +1551,7 @@ mod tests {
     }
 
     /// Adds an account through the panel, the way a user would.
-    fn add(state: &mut State, ctx: &Ctx, gl: &Choice, name: &str, number: &str) -> i64 {
+    pub(crate) fn add(state: &mut State, ctx: &Ctx, gl: &Choice, name: &str, number: &str) -> i64 {
         update(state, Message::OpenForm, ctx);
         update(state, Message::GlAccountSelected(gl.clone()), ctx);
         update(state, Message::BankNameChanged(name.into()), ctx);
@@ -1993,7 +1566,7 @@ mod tests {
             .id()
     }
 
-    fn post(ctx: &Ctx, gl_account_id: i64, day: u32, amount: Decimal, into_bank: bool) {
+    pub(crate) fn post(ctx: &Ctx, gl_account_id: i64, day: u32, amount: Decimal, into_bank: bool) {
         let accounting = AccountingRepository::new(ctx.db.clone());
         let other = accounting
             .create_account(&Account::new(
@@ -2029,7 +1602,12 @@ mod tests {
             .unwrap();
     }
 
-    fn sample_account(id: i64, name: &str, kind: BankAccountType, active: bool) -> BankAccount {
+    pub(crate) fn sample_account(
+        id: i64,
+        name: &str,
+        kind: BankAccountType,
+        active: bool,
+    ) -> BankAccount {
         BankAccount {
             id: Some(id),
             parent_company: "Memon Group".into(),
@@ -2045,7 +1623,7 @@ mod tests {
         }
     }
 
-    fn entry(id: i64, day: u32, debit: Decimal, credit: Decimal) -> BankLedgerEntry {
+    pub(crate) fn entry(id: i64, day: u32, debit: Decimal, credit: Decimal) -> BankLedgerEntry {
         BankLedgerEntry {
             transaction_id: id,
             date: date(2026, 1, day),
@@ -2069,7 +1647,7 @@ mod tests {
         }
     }
 
-    fn ledger(count: usize) -> BankLedger {
+    pub(crate) fn ledger(count: usize) -> BankLedger {
         BankLedger::new(
             BankAccountType::Debit,
             dec!(1000),
@@ -2086,7 +1664,7 @@ mod tests {
         )
     }
 
-    fn state_with(count: usize) -> State {
+    pub(crate) fn state_with(count: usize) -> State {
         let kinds = [BankAccountType::Debit, BankAccountType::Credit];
         State {
             accounts: (0..count)
@@ -2107,7 +1685,7 @@ mod tests {
 
     /// The page (header and width-dependent content) at every test width
     /// and theme.
-    fn build_everywhere(state: &State) {
+    pub(crate) fn build_everywhere(state: &State) {
         for theme in THEMES {
             let _ = view(state, theme);
             let _ = page_header_view_with_switcher(
@@ -2645,179 +2223,6 @@ mod tests {
     }
 
     #[test]
-    fn the_card_grid_builds_in_every_theme_and_width_with_any_number_of_cards() {
-        for theme in THEMES {
-            for width in WIDTHS {
-                for count in [0, 1, 6, 7, 12] {
-                    let mut state = state_with(count);
-                    state.scroll.scroll(row_snap::Scroll::Lines(-1.0));
-                    state.revealed.insert(1);
-                    let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-                    for height in [0.0, 300.0, 700.0, 1200.0] {
-                        let _ = card_grid(&state, theme, &rows, (width, height));
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn six_of_twelve_cards_show_at_once_on_wide_windows_in_whole_rows() {
-        let state = state_with(12);
-        let rows: Vec<&AccountSummary> = state.accounts.iter().collect();
-        for (width, columns, shown_rows) in [(1366.0, 2, 3), (1920.0, 3, 2)] {
-            assert_eq!(spacing::card_columns(width), columns, "{width}");
-            let stacked = spacing::card_stacks(spacing::card_width(width, columns));
-            assert!(!stacked, "{width}");
-            let card = spacing::compact_card_height(stacked);
-            let height = shown_rows as f32 * card + (shown_rows - 1) as f32 * spacing::ROW_GAP;
-            let visible = row_snap::visible_rows(height, card, spacing::ROW_GAP);
-            assert_eq!(visible, shown_rows, "{width}");
-            let shown = row_snap::visible_cards(0, visible, columns, rows.len());
-            assert_eq!(shown.len(), 6, "{width}");
-            // One row per scroll step.
-            assert_eq!(
-                row_snap::visible_cards(1, visible, columns, rows.len()).start,
-                columns
-            );
-            // A pixel short of the last row leaves only whole rows.
-            assert_eq!(
-                row_snap::visible_rows(height - 1.0, card, spacing::ROW_GAP),
-                shown_rows - 1
-            );
-            for theme in THEMES {
-                let _ = card_grid(&state, theme, &rows, (width, height));
-            }
-        }
-    }
-
-    #[test]
-    fn the_columns_follow_the_card_minimum_width_and_a_narrow_column_stacks() {
-        assert_eq!(spacing::card_columns(1920.0), 3);
-        assert_eq!(spacing::card_columns(1366.0), 2);
-        assert_eq!(spacing::card_columns(900.0), 1);
-        assert_eq!(spacing::card_columns(640.0), 1);
-        assert!(!spacing::card_stacks(spacing::card_width(640.0, 1)));
-        assert!(spacing::card_stacks(spacing::card_width(400.0, 1)));
-        assert!(spacing::compact_card_height(true) > spacing::compact_card_height(false));
-    }
-
-    #[test]
-    fn toggling_a_number_reveals_and_hides_only_that_card() {
-        let mut state = state_with(3);
-        let (ctx, _) = ctx_with_a_gl_account();
-        update(&mut state, Message::ToggleNumber(2), &ctx);
-        assert!(state.revealed.contains(&2));
-        assert!(!state.revealed.contains(&1));
-        update(&mut state, Message::ToggleNumber(1), &ctx);
-        update(&mut state, Message::ToggleNumber(2), &ctx);
-        assert!(!state.revealed.contains(&2));
-        assert!(state.revealed.contains(&1));
-        let number = &state.accounts[0].account.account_number;
-        assert_ne!(
-            labels::masked_number(number, false),
-            labels::masked_number(number, true)
-        );
-        assert_eq!(labels::masked_number(number, true), *number);
-    }
-
-    #[test]
-    fn credit_and_debit_cards_get_different_tints_in_both_themes() {
-        for theme in THEMES {
-            let fill = |kind| panels::card_face_style(theme, type_tone(kind))(&iced::Theme::Light);
-            assert_ne!(
-                fill(BankAccountType::Credit).background,
-                fill(BankAccountType::Debit).background
-            );
-        }
-    }
-
-    #[test]
-    fn the_form_dropdowns_always_offer_the_saved_value() {
-        let banks = dropdown::options_with(PAKISTANI_BANKS, "Habib Bank Limited");
-        assert_eq!(banks.len(), PAKISTANI_BANKS.len());
-        let custom = dropdown::options_with(PAKISTANI_BANKS, "Local Co-operative Bank");
-        assert_eq!(
-            custom.last().map(String::as_str),
-            Some("Local Co-operative Bank")
-        );
-        let companies = ["Memon Group".to_string(), "Memon Textiles".to_string()];
-        let names = || companies.iter().map(String::as_str);
-        assert!(dropdown::options_with(names(), "Retired Co").contains(&"Retired Co".to_string()));
-        for theme in THEMES {
-            let _ = bank_select(theme, "Local Co-operative Bank");
-            let _ = company_select(theme, F_PARENT_COMPANY, &companies, "Retired Co", false);
-            let _ = company_select(theme, F_SUB_COMPANY, &companies, "", true);
-            let _ = status_select(theme, true);
-            let _ = status_select(theme, false);
-        }
-    }
-
-    #[test]
-    fn the_status_and_sub_company_pickers_update_the_form() {
-        let mut state = state_with(1);
-        let (ctx, _) = ctx_with_a_gl_account();
-        open_form(&mut state, Some(1));
-        assert!(state.form.active);
-        update(&mut state, Message::StatusChanged(false), &ctx);
-        assert!(!state.form.active);
-        update(
-            &mut state,
-            Message::SubCompanyChanged("Memon Textiles".into()),
-            &ctx,
-        );
-        assert_eq!(state.form.sub_company, "Memon Textiles");
-        update(
-            &mut state,
-            Message::SubCompanyChanged(NONE_LABEL.into()),
-            &ctx,
-        );
-        assert!(state.form.sub_company.is_empty());
-        state.form.gl_account = Some(Choice {
-            id: 10,
-            label: "1000 - Bank".into(),
-        });
-        assert!(!form_account(&state).expect("a valid form").is_active);
-    }
-
-    #[test]
-    fn every_detail_of_an_account_is_built_into_its_card() {
-        let state = state_with(2);
-        for theme in THEMES {
-            for summary in &state.accounts {
-                for revealed in [false, true] {
-                    for stacked in [false, true] {
-                        let _ = account_card(theme, summary, revealed, stacked);
-                    }
-                    let _ = card_details(theme, summary, revealed);
-                }
-            }
-        }
-        // Every field the details show is drawn from BANK_FIELDS; the tile
-        // and the heading carry the bank, type and net balance.
-        let source = include_str!("bank_of_accounts_view.rs");
-        let start = source.find("fn card_details").unwrap();
-        let card = &source[start..source.find("fn account_card").unwrap()];
-        for field in [
-            "F_STATUS",
-            "F_ACCOUNT_NUMBER",
-            "F_PARENT_COMPANY",
-            "F_SUB_COMPANY",
-            "F_CREDIT_BALANCE",
-            "F_DEBIT_BALANCE",
-        ] {
-            let source = if field == "F_ACCOUNT_NUMBER" {
-                &source[source.find("fn number_cell").unwrap()..start]
-            } else {
-                card
-            };
-            assert!(source.contains(field), "{field}");
-        }
-        assert!(source.contains("balances.net()"));
-        assert!(source.contains("bottom_left: account.bank_name"));
-    }
-
-    #[test]
     fn the_page_builds_at_every_width_and_theme_with_zero_one_six_seven_and_twelve_cards() {
         for count in [0, 1, 6, 7, 12] {
             let mut state = state_with(count);
@@ -2826,21 +2231,6 @@ mod tests {
                 state.revealed.insert(id);
             }
             build_everywhere(&state);
-        }
-    }
-
-    #[test]
-    fn a_revealed_card_swaps_the_eye_and_the_number_in_its_details() {
-        let state = state_with(1);
-        let summary = &state.accounts[0];
-        let number = &summary.account.account_number;
-        assert_ne!(
-            labels::masked_number(number, false),
-            labels::masked_number(number, true)
-        );
-        for theme in THEMES {
-            let _ = number_cell(theme, &summary.account, summary.id(), false);
-            let _ = number_cell(theme, &summary.account, summary.id(), true);
         }
     }
 
@@ -2861,37 +2251,6 @@ mod tests {
         build_everywhere(&state);
         state.message = Some("Deleted First National.".into());
         state.error = Some("database is locked".into());
-        build_everywhere(&state);
-    }
-
-    #[test]
-    fn the_add_form_builds_at_every_width_and_theme() {
-        let mut state = state_with(3);
-        state.form_open = true;
-        build_everywhere(&state);
-        state.form_error = Some("choose a GL account".into());
-        build_everywhere(&state);
-    }
-
-    #[test]
-    fn the_edit_form_builds_at_every_width_and_theme() {
-        let mut state = state_with(3);
-        state.gl_accounts = vec![Choice {
-            id: 10,
-            label: "1010 - Bank".into(),
-        }];
-        let summary = state.accounts[1].clone();
-        let id = summary.id();
-        state.form_open = true;
-        state.editing_id = Some(id);
-        state.form.bank_name = summary.account.bank_name.clone();
-        state.form.gl_account = state.gl_accounts.first().cloned();
-        build_everywhere(&state);
-        // The panel also opens over the detail page.
-        state.detail = Some(Detail {
-            ledger: ledger(3),
-            ..Detail::new(id)
-        });
         build_everywhere(&state);
     }
 

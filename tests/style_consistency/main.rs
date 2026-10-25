@@ -353,6 +353,8 @@ fn vendor_column_names_are_written_only_in_vendor_headers() {
 const BANK_VIEW: &str = "frontend/views/accounting/maintain/bank_of_accounts_view.rs";
 const BANK_CODE: &[&str] = &[
     BANK_VIEW,
+    "frontend/views/accounting/maintain/bank_account_card.rs",
+    "frontend/views/accounting/maintain/bank_account_form.rs",
     "backend/banking/bank_accounts.rs",
     "backend/banking/bank_ledger.rs",
     "backend/repositories/banking_repository.rs",
@@ -365,7 +367,10 @@ fn named_array(content: &str, name: &str) -> (Vec<String>, std::ops::Range<usize
     let lines: Vec<&str> = content.lines().collect();
     let start = lines
         .iter()
-        .position(|line| line.starts_with(&format!("const {name}")))
+        .position(|line| {
+            line.trim_start_matches("pub(super) ")
+                .starts_with(&format!("const {name}"))
+        })
         .unwrap_or_else(|| panic!("expected a const {name}"));
     let end = start
         + lines[start..]

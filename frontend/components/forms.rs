@@ -1,6 +1,6 @@
 use super::{
-    badges, borders, button as button_style, colors::Theme, fonts, icons, inputs, labels, panels,
-    spacing, states, table, tabs, typography,
+    button as button_style, colors::Theme, fonts, icons, inputs, labels, panels, spacing, states,
+    table, tabs, typography,
 };
 use iced::widget::text::IntoFragment;
 use iced::widget::{
@@ -408,8 +408,8 @@ pub fn field_box<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     container(
         column![labels::muted(theme, label, typography::caption()), value,]
-        .spacing(spacing::SPACE_2)
-        .width(Length::Fill),
+            .spacing(spacing::SPACE_2)
+            .width(Length::Fill),
     )
     .padding(spacing::XS)
     .width(Length::FillPortion(1))
@@ -426,9 +426,7 @@ pub fn field_row<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     container(
         row![
-            container(
-                labels::muted(theme, label, typography::body() + 1.0).font(fonts::BOLD)
-            )
+            container(labels::muted(theme, label, typography::body() + 1.0).font(fonts::BOLD))
                 .width(Length::Fixed(spacing::FIELD_LABEL_WIDTH_130)),
             value,
         ]
@@ -512,206 +510,4 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
         .push(footer);
 
     panels::side(theme, body)
-}
-
-#[derive(Debug, Clone)]
-pub struct PreviewField {
-    pub label: String,
-    pub value: String,
-}
-
-impl PreviewField {
-    pub fn new(label: impl Into<String>, value: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            value: value.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PreviewSection {
-    pub title: String,
-    pub fields: Vec<PreviewField>,
-}
-
-impl PreviewSection {
-    pub fn new(title: impl Into<String>, fields: Vec<PreviewField>) -> Self {
-        Self {
-            title: title.into(),
-            fields,
-        }
-    }
-}
-
-pub struct RecordPreview {
-    pub name: String,
-    pub subtitle: String,
-    pub status: String,
-    pub identity: Vec<PreviewField>,
-    pub sections: Vec<PreviewSection>,
-}
-
-/// Reusable full-page profile preview, modeled after a master-record overview.
-/// `summary` is placed right under the hero card and `footer` after the
-/// overview sections, for records that carry extra (e.g. accounting) panels.
-pub fn record_preview<'a, Message: Clone + 'a>(
-    theme: Theme,
-    preview: RecordPreview,
-    summary: Option<Element<'a, Message>>,
-    footer: Option<Element<'a, Message>>,
-    on_back: Message,
-    on_edit: Message,
-) -> Element<'a, Message> {
-    let RecordPreview {
-        name,
-        subtitle,
-        status: status_label,
-        identity,
-        sections,
-    } = preview;
-    let initials: String = name
-        .split_whitespace()
-        .filter_map(|word| word.chars().next())
-        .take(2)
-        .flat_map(char::to_uppercase)
-        .collect();
-    let initials = if initials.is_empty() {
-        "?".to_string()
-    } else {
-        initials
-    };
-    let tone = if status_label == "Active" {
-        badges::BadgeTone::Positive
-    } else {
-        badges::BadgeTone::Neutral
-    };
-    let avatar = container(
-        text(initials)
-            .size(typography::subtitle())
-            .font(fonts::BOLD)
-            .color(theme.primary()),
-    )
-    .center_x(Length::Fixed(64.0))
-    .center_y(Length::Fixed(64.0))
-    .style(move |_iced_theme: &iced::Theme| container::Style {
-        background: Some(Background::Color(
-            theme.primary_tint(states::SELECTED_ALPHA),
-        )),
-        border: iced::Border {
-            radius: 32.0.into(),
-            ..iced::Border::default()
-        },
-        ..container::Style::default()
-    });
-    let status = badges::status_pill(theme, status_label, tone);
-
-    let mut identity_lines = column![].spacing(spacing::SPACE_6);
-    for field in identity {
-        identity_lines = identity_lines.push(
-            row![
-                text(field.label)
-                    .size(typography::caption())
-                    .color(theme.neutral_front()),
-                text(field.value)
-                    .size(typography::caption())
-                    .color(theme.neutral_font()),
-            ]
-            .spacing(spacing::SPACE_8),
-        );
-    }
-    let hero = container(
-        row![
-            avatar,
-            column![
-                row![
-                    text(name)
-                        .size(typography::subtitle())
-                        .font(fonts::BOLD)
-                        .color(theme.neutral_font()),
-                    status,
-                ]
-                .spacing(spacing::SPACE_10)
-                .align_y(Alignment::Center),
-                text(subtitle)
-                    .size(typography::caption())
-                    .color(theme.neutral_front()),
-                identity_lines,
-            ]
-            .spacing(spacing::SPACE_6)
-            .width(Length::Fill),
-        ]
-        .spacing(spacing::MD)
-        .align_y(Alignment::Center),
-    )
-    .padding(spacing::MD)
-    .width(Length::Fill)
-    .style(move |_iced_theme: &iced::Theme| container::Style {
-        background: Some(Background::Color(
-            theme.primary_tint(states::TINTED_PANEL_ALPHA),
-        )),
-        border: borders::card(theme, states::RADIUS_LG),
-        ..container::Style::default()
-    });
-
-    let mut content = column![
-        row![
-            button(text("Back").size(typography::label()).font(fonts::BOLD),)
-                .padding([spacing::SM, spacing::MD])
-                .style(button_style::outlined(theme, false))
-                .on_press(on_back),
-            Space::with_width(Length::Fill),
-            button(text("Edit").size(typography::label()).font(fonts::BOLD))
-                .padding([spacing::SM, spacing::MD])
-                .style(button_style::mode(theme, true))
-                .on_press(on_edit),
-        ]
-        .spacing(spacing::SPACE_8)
-        .align_y(Alignment::Center),
-        hero,
-    ]
-    .spacing(spacing::MD)
-    .width(Length::Fill);
-    if let Some(summary) = summary {
-        content = content.push(summary);
-    }
-    content = content.push(
-        text("Overview")
-            .size(typography::panel_title())
-            .font(fonts::BOLD)
-            .color(theme.neutral_font()),
-    );
-
-    for section in sections {
-        let mut fields = column![].spacing(spacing::SPACE_6);
-        for field in section.fields {
-            fields = fields.push(
-                row![
-                    text(field.label)
-                        .size(typography::caption())
-                        .color(theme.neutral_front())
-                        .width(Length::FillPortion(1)),
-                    text(if field.value.is_empty() {
-                        "--".to_string()
-                    } else {
-                        field.value
-                    })
-                    .size(typography::body())
-                    .color(theme.neutral_font())
-                    .width(Length::FillPortion(2)),
-                ]
-                .spacing(spacing::MD),
-            );
-        }
-        content = content.push(panels::titled_card(theme, section.title, fields));
-    }
-
-    if let Some(footer) = footer {
-        content = content.push(footer);
-    }
-
-    scrollable(content.padding(spacing::SPACE_20))
-        .direction(scrollable::Direction::Vertical(scrollable::Scrollbar::new()))
-        .height(Length::Fill)
-        .into()
 }

@@ -282,6 +282,7 @@ const VENDOR_VIEW: &str = "frontend/views/accounting/maintain/vendors_view.rs";
 const VENDOR_HEADERS_FILE: &str = "backend/accounting/vendors.rs";
 const VENDOR_CODE: &[&str] = &[
     VENDOR_VIEW,
+    "frontend/views/accounting/maintain/vendors_view/preview.rs",
     VENDOR_HEADERS_FILE,
     "backend/parties/vendors.rs",
     "backend/repositories/party_repository.rs",

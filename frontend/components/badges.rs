@@ -90,6 +90,59 @@ pub fn avatar(theme: Theme) -> impl Fn(&IcedTheme) -> container::Style {
     }
 }
 
+/// Up to two capital initials of `name`; `?` when it has none.
+pub fn initials(name: &str) -> String {
+    let letters: String = name
+        .split_whitespace()
+        .filter_map(|word| word.chars().next())
+        .take(2)
+        .flat_map(char::to_uppercase)
+        .collect();
+    if letters.is_empty() {
+        "?".to_string()
+    } else {
+        letters
+    }
+}
+
+/// A round avatar `size` across holding `name`'s initials.
+pub fn initials_avatar<'a, M: 'a>(theme: Theme, name: &str, size: f32) -> Element<'a, M> {
+    container(
+        text(initials(name))
+            .size(typography::subtitle())
+            .font(fonts::BOLD)
+            .color(theme.primary()),
+    )
+    .center_x(Length::Fixed(size))
+    .center_y(Length::Fixed(size))
+    .style(avatar(theme))
+    .into()
+}
+
+/// The round marker of a timeline entry: `glyph` on `tone`'s tint.
+pub fn timeline_dot<'a, M: 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    tone: BadgeTone,
+) -> Element<'a, M> {
+    container(
+        icons::icon(glyph)
+            .size(typography::label())
+            .color(tone_colors(theme, tone).1),
+    )
+    .center_x(Length::Fixed(spacing::grown(spacing::TIMELINE_DOT)))
+    .center_y(Length::Fixed(spacing::grown(spacing::TIMELINE_DOT)))
+    .style(move |_iced_theme: &IcedTheme| container::Style {
+        background: Some(Background::Color(tone_colors(theme, tone).0)),
+        border: Border {
+            radius: states::RADIUS_PILL.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    })
+    .into()
+}
+
 /// The tone for a signed amount: positive up, negative down, neutral at
 /// zero.
 pub fn sign_tone(amount: rust_decimal::Decimal) -> BadgeTone {

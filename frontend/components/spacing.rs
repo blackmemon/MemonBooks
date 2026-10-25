@@ -176,6 +176,27 @@ pub fn sidebar_icon_slot() -> f32 {
     grown(SIDEBAR_ICON_SLOT)
 }
 
+/// Detail page (a record's full-page preview): the profile column takes
+/// `PROFILE_COLUMN_SHARE` of the page, kept between the min and max.
+pub const PROFILE_COLUMN_SHARE: f32 = 0.28;
+pub const PROFILE_COLUMN_MIN: f32 = 300.0;
+pub const PROFILE_COLUMN_MAX: f32 = 440.0;
+/// Fixed label column of a wide label/value row.
+pub const PAIR_LABEL_WIDTH: f32 = 150.0;
+pub const AVATAR_LARGE: f32 = 72.0;
+pub const TIMELINE_DOT: f32 = 32.0;
+pub const TIMELINE_LINE: f32 = 2.0;
+/// Height of one timeline entry; the line fills what the dot leaves.
+pub const TIMELINE_ENTRY: f32 = 58.0;
+
+pub fn profile_column_width(page_width: f32) -> f32 {
+    (page_width * PROFILE_COLUMN_SHARE).clamp(grown(PROFILE_COLUMN_MIN), grown(PROFILE_COLUMN_MAX))
+}
+
+pub fn pair_label_width() -> f32 {
+    grown(PAIR_LABEL_WIDTH)
+}
+
 pub fn card_height() -> f32 {
     grown(CARD_HEIGHT)
 }

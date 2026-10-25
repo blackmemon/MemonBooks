@@ -122,6 +122,16 @@ pub const LOGOUT: &str = "\u{e111}";
 /// Sidebar collapse / expand (double chevrons).
 pub const CHEVRONS_LEFT: &str = "\u{e076}";
 pub const CHEVRONS_RIGHT: &str = "\u{e077}";
+/// Vendor preview tabs and activity-timeline markers.
+pub const TAB_OVERVIEW: &str = "\u{e104}";
+pub const TAB_TRANSACTIONS: &str = "\u{e149}";
+pub const TAB_LEDGER: &str = "\u{e063}";
+pub const TAB_TRIAL_BALANCE: &str = "\u{e211}";
+pub const TAB_ATTACHMENTS: &str = "\u{e130}";
+pub const ACTIVITY_BILL: &str = "\u{e0d0}";
+pub const ACTIVITY_PAYMENT: &str = "\u{e203}";
+pub const ACTIVITY_DEBIT_NOTE: &str = "\u{e3d6}";
+pub const ACTIVITY_REVERSAL: &str = "\u{e14c}";
 
 #[cfg(test)]
 mod tests {
@@ -202,6 +212,15 @@ mod tests {
         ("LOGOUT", LOGOUT),
         ("CHEVRONS_LEFT", CHEVRONS_LEFT),
         ("CHEVRONS_RIGHT", CHEVRONS_RIGHT),
+        ("TAB_OVERVIEW", TAB_OVERVIEW),
+        ("TAB_TRANSACTIONS", TAB_TRANSACTIONS),
+        ("TAB_LEDGER", TAB_LEDGER),
+        ("TAB_TRIAL_BALANCE", TAB_TRIAL_BALANCE),
+        ("TAB_ATTACHMENTS", TAB_ATTACHMENTS),
+        ("ACTIVITY_BILL", ACTIVITY_BILL),
+        ("ACTIVITY_PAYMENT", ACTIVITY_PAYMENT),
+        ("ACTIVITY_DEBIT_NOTE", ACTIVITY_DEBIT_NOTE),
+        ("ACTIVITY_REVERSAL", ACTIVITY_REVERSAL),
     ];
 
     #[test]

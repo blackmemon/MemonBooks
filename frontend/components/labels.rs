@@ -1,11 +1,12 @@
 //! Text labels (Section 6): the muted caption/label and the bold dark
 //! heading text that views repeat everywhere, plus money figures.
 
-use iced::widget::{column, text, Text};
+use iced::widget::{column, container, text, Text};
 use iced::{Element, Length};
 use rust_decimal::Decimal;
 
 use crate::frontend::components::badges::{self, BadgeTone};
+use crate::frontend::components::button as button_style;
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::{fonts, spacing, typography};
 
@@ -110,6 +111,67 @@ pub fn entry<'a, M: 'a>(
         value.into(),
     ]
     .spacing(spacing::SPACE_8)
+    .align_y(iced::Alignment::Center)
+    .into()
+}
+
+/// A wide label/value row: the muted label in a fixed column, the value
+/// beside it taking the rest. An empty value reads `--`.
+pub fn pair_row<'a, M: 'a>(
+    theme: Theme,
+    label: impl text::IntoFragment<'a>,
+    value: impl text::IntoFragment<'a>,
+) -> Element<'a, M> {
+    let value = value.into_fragment();
+    let value = if value.is_empty() {
+        std::borrow::Cow::Borrowed("--")
+    } else {
+        value
+    };
+    pair_row_with(
+        theme,
+        label,
+        text(value)
+            .size(typography::body())
+            .color(theme.neutral_font()),
+    )
+}
+
+/// [`pair_row`] with any element as the value.
+pub fn pair_row_with<'a, M: 'a>(
+    theme: Theme,
+    label: impl text::IntoFragment<'a>,
+    value: impl Into<Element<'a, M>>,
+) -> Element<'a, M> {
+    iced::widget::row![
+        muted(theme, label, typography::body()).width(Length::Fixed(spacing::pair_label_width())),
+        container(value.into()).width(Length::Fill),
+    ]
+    .spacing(spacing::SM)
+    .into()
+}
+
+/// Text drawn as a link (primary color); `--` when empty, in plain text.
+pub fn link<'a>(theme: Theme, value: impl text::IntoFragment<'a>) -> Text<'a> {
+    text(value).size(typography::body()).color(theme.primary())
+}
+
+/// `root / current`: the root is a link that sends `on_root`.
+pub fn breadcrumb<'a, M: Clone + 'a>(
+    theme: Theme,
+    root: impl text::IntoFragment<'a>,
+    current: impl text::IntoFragment<'a>,
+    on_root: M,
+) -> Element<'a, M> {
+    iced::widget::row![
+        iced::widget::button(link(theme, root).size(typography::emphasis()))
+            .padding(spacing::SPACE_2)
+            .style(button_style::bare(theme))
+            .on_press(on_root),
+        muted(theme, "/", typography::emphasis()),
+        strong(theme, current, typography::emphasis()),
+    ]
+    .spacing(spacing::SPACE_6)
     .align_y(iced::Alignment::Center)
     .into()
 }

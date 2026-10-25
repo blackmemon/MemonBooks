@@ -1,19 +1,19 @@
 use crate::backend::accounting::vendors::{
-    attachment_names, compare_by_column, dash, day, default_column_visibility, export_headers,
-    export_row, money, optional_input, side, sort_of, vendor_column_value, COL_ATTACHMENTS,
-    COL_BALANCE, COL_COMPANY_NAME, COL_CREATE_TIMESTAMP, COL_CREDIT, COL_CUSTOM_FIELDS, COL_DEBIT,
-    COL_DESCRIPTION, COL_EMAIL, COL_MAILING_ADDRESS, COL_MODIFIED_TIMESTAMP, COL_PAYMENT_METHOD,
-    COL_PAYMENT_TERMS, COL_PHONE, COL_SELECT, COL_SERIAL, COL_SHIPPING_ADDRESS, COL_STATUS,
-    COL_VENDOR_ID, COL_VENDOR_NAME, COL_WEBSITE, DEFAULT_PAGE_SIZE, FIRST_DATA_COLUMN, PAGE_SIZES,
-    VENDOR_ALWAYS_SELECTED, VENDOR_HEADERS, VENDOR_OPTIONAL_COLUMNS, VENDOR_OPTIONAL_LABELS,
-    VENDOR_STATUS_OPTIONS, VENDOR_TYPE_LABEL, VENDOR_TYPE_OPTIONS, VENDOR_VISIBLE_COLUMNS,
+    compare_by_column, dash, day, default_column_visibility, export_headers, export_row, money,
+    optional_input, sort_of, vendor_column_value, COL_ATTACHMENTS, COL_BALANCE, COL_COMPANY_NAME,
+    COL_CREATE_TIMESTAMP, COL_CREDIT, COL_CUSTOM_FIELDS, COL_DEBIT, COL_DESCRIPTION, COL_EMAIL,
+    COL_MAILING_ADDRESS, COL_MODIFIED_TIMESTAMP, COL_PAYMENT_METHOD, COL_PAYMENT_TERMS, COL_PHONE,
+    COL_SELECT, COL_SERIAL, COL_SHIPPING_ADDRESS, COL_STATUS, COL_VENDOR_ID, COL_VENDOR_NAME,
+    COL_WEBSITE, DEFAULT_PAGE_SIZE, FIRST_DATA_COLUMN, PAGE_SIZES, VENDOR_ALWAYS_SELECTED,
+    VENDOR_HEADERS, VENDOR_OPTIONAL_COLUMNS, VENDOR_OPTIONAL_LABELS, VENDOR_STATUS_OPTIONS,
+    VENDOR_TYPE_LABEL, VENDOR_TYPE_OPTIONS, VENDOR_VISIBLE_COLUMNS,
 };
 use crate::backend::core::reference_code;
 use crate::backend::core::validation::Validate;
 use crate::backend::parties::vendors::{
     CustomField, Vendor, VendorAttachment, VENDOR_PAYMENT_METHODS, VENDOR_TYPES,
 };
-use crate::backend::purchases::vendor_ledger::{self, VendorLedger};
+use crate::backend::purchases::vendor_ledger::VendorLedger;
 use crate::backend::services::party_service::PartyService;
 use crate::backend::services::purchase_service::PurchaseService;
 use crate::database::exports::csv;
@@ -36,6 +36,9 @@ use iced::{Alignment, Element, Length};
 use rust_decimal::Decimal;
 use std::collections::HashSet;
 use std::path::Path;
+
+mod preview;
+use preview::{refresh_ledger, vendor_preview, PREVIEW_TABS};
 
 const VENDOR_FORM_TABS: [&str; 6] = [
     "Basic",
@@ -63,6 +66,8 @@ pub struct State {
     ledger_error: Option<String>,
     preview_tab: usize,
     ledger_newest_first: bool,
+    /// Profile-column sections of the preview that are folded shut.
+    collapsed_sections: HashSet<usize>,
     page: usize,
     page_size: usize,
     sort: Option<(usize, bool)>,
@@ -198,6 +203,7 @@ pub enum Message {
     OpenForm,
     Preview,
     PreviewTabChanged(usize),
+    PreviewSectionToggled(usize),
     ToggleLedgerOrder,
     Create,
     EditRow(i64),
@@ -326,6 +332,11 @@ pub fn update(state: &mut State, message: Message, ctx: &Ctx) {
             }
         }
         Message::PreviewTabChanged(index) => state.preview_tab = index.min(PREVIEW_TABS.len() - 1),
+        Message::PreviewSectionToggled(section) => {
+            if !state.collapsed_sections.remove(&section) {
+                state.collapsed_sections.insert(section);
+            }
+        }
         Message::ToggleLedgerOrder => state.ledger_newest_first = !state.ledger_newest_first,
         Message::OpenForm => {
             state.message = None;
@@ -668,456 +679,6 @@ fn column_width(column: usize) -> f32 {
         COL_CUSTOM_FIELDS => 160.0,
         _ => 68.0,
     }
-}
-
-fn vendor_preview(state: &State, theme: Theme) -> Element<'static, Message> {
-    let form = &state.form;
-    let header = |column: usize| VENDOR_HEADERS[column];
-    let field = |column: usize, value: String| forms::PreviewField::new(header(column), value);
-    let saved = state
-        .editing_id
-        .and_then(|id| state.vendors.iter().find(|vendor| vendor.id == Some(id)));
-    let name = if form.name.is_empty() {
-        "New Vendor".into()
-    } else {
-        form.name.clone()
-    };
-    let vendor_id = saved
-        .and_then(|vendor| vendor.reference_code.clone())
-        .unwrap_or_else(|| "Assigned on save".into());
-    let status = if form.status.is_empty() {
-        "Active".into()
-    } else {
-        form.status.clone()
-    };
-    let identity = vec![
-        field(COL_VENDOR_ID, vendor_id.clone()),
-        field(COL_PHONE, dash(&form.phone)),
-        field(COL_EMAIL, dash(&form.email)),
-    ];
-    let basic_information = forms::PreviewSection::new(
-        "Basic Information",
-        vec![
-            field(COL_SERIAL, "Auto-generated".into()),
-            field(COL_VENDOR_ID, vendor_id),
-            field(COL_VENDOR_NAME, dash(&form.name)),
-            field(COL_COMPANY_NAME, dash(&form.company_name)),
-            forms::PreviewField::new(VENDOR_TYPE_LABEL, dash(&form.vendor_type)),
-        ],
-    );
-    let contact_information = forms::PreviewSection::new(
-        "Contact Information",
-        vec![
-            field(COL_PHONE, dash(&form.phone)),
-            field(COL_EMAIL, dash(&form.email)),
-            field(COL_WEBSITE, dash(&form.website)),
-        ],
-    );
-    let address_information = forms::PreviewSection::new(
-        "Address Information",
-        vec![
-            field(COL_MAILING_ADDRESS, dash(&form.mailing_address)),
-            field(COL_SHIPPING_ADDRESS, dash(&form.shipping_address)),
-        ],
-    );
-    let additional_information = forms::PreviewSection::new(
-        "Additional Information",
-        vec![
-            field(COL_PAYMENT_TERMS, format!("{} days", form.payment_terms)),
-            field(COL_PAYMENT_METHOD, dash(&form.payment_method)),
-            forms::PreviewField::new("Tax ID", dash(&form.tax_id)),
-            field(COL_DESCRIPTION, dash(&form.description_text())),
-            field(COL_ATTACHMENTS, dash(&attachment_names(&form.attachments))),
-        ],
-    );
-    let status_audit = forms::PreviewSection::new(
-        "Status & Audit",
-        vec![
-            field(COL_STATUS, status.clone()),
-            field(COL_CREATE_TIMESTAMP, "--".into()),
-            field(COL_MODIFIED_TIMESTAMP, "--".into()),
-        ],
-    );
-    let custom_fields = if form.custom_fields.is_empty() {
-        vec![field(COL_CUSTOM_FIELDS, "--".into())]
-    } else {
-        form.custom_fields
-            .iter()
-            .map(|custom| forms::PreviewField::new(dash(&custom.name), custom.value.clone()))
-            .collect()
-    };
-    let customization = forms::PreviewSection::new("Customization", custom_fields);
-    forms::record_preview(
-        theme,
-        forms::RecordPreview {
-            name,
-            subtitle: format!("Vendor · {}", dash(&form.vendor_type)),
-            status,
-            identity,
-            sections: vec![
-                basic_information,
-                contact_information,
-                address_information,
-                additional_information,
-                status_audit,
-                customization,
-            ],
-        },
-        Some(financial_summary(state, theme)),
-        Some(accounting_sections(state, theme)),
-        Message::Preview,
-        Message::Preview,
-    )
-}
-
-const PREVIEW_TABS: [&str; 3] = ["Transactions", "Vendor Ledger", "Trial Balance"];
-
-/// Loads the read-only AP ledger for the vendor being previewed. Nothing
-/// is posted; an unsaved vendor simply has no ledger.
-fn refresh_ledger(state: &mut State, ctx: &Ctx) {
-    state.ledger = None;
-    state.ledger_error = None;
-    state.preview_tab = 0;
-    let Some(vendor_id) = state.editing_id else {
-        return;
-    };
-    match PurchaseService::new(ctx.db.clone()).vendor_ledger(ctx.company_id, vendor_id) {
-        Ok(ledger) => state.ledger = Some(ledger),
-        Err(err) => state.ledger_error = Some(err.to_string()),
-    }
-}
-
-/// Payable / receivable / settled, from the sign of the outstanding balance.
-fn balance_label(outstanding: Decimal) -> (&'static str, BadgeTone) {
-    if outstanding > Decimal::ZERO {
-        ("Payable", BadgeTone::Warning)
-    } else if outstanding < Decimal::ZERO {
-        ("Receivable", BadgeTone::Positive)
-    } else {
-        ("Settled", BadgeTone::Neutral)
-    }
-}
-
-fn muted(theme: Theme, message: impl text::IntoFragment<'static>) -> Element<'static, Message> {
-    labels::muted(theme, message, typography::body()).into()
-}
-
-/// Totals at the top of the preview, all derived from the vendor's ledger.
-fn financial_summary(state: &State, theme: Theme) -> Element<'static, Message> {
-    let Some(ledger) = &state.ledger else {
-        let message = state
-            .ledger_error
-            .clone()
-            .unwrap_or_else(|| "Financial summary appears once the vendor is saved.".into());
-        return panels::titled_card(theme, "Financial Summary", muted(theme, message));
-    };
-    let currency = ledger.currency.as_str();
-    let with_currency = |amount: Decimal| format!("{currency} {}", money(amount));
-    let outstanding = ledger.outstanding();
-    let (label, tone) = balance_label(outstanding);
-    let last = ledger
-        .last_transaction_date()
-        .map(day)
-        .unwrap_or_else(|| "No transactions".into());
-    let stats = row![
-        labels::stat(theme, "Total Debit", with_currency(ledger.total_debit())),
-        labels::stat(theme, "Total Credit", with_currency(ledger.total_credit())),
-        // Vendors carry no balance of their own at the moment: the ledger
-        // starts from zero and every movement is a posted transaction.
-        labels::stat(theme, "Opening Balance", with_currency(Decimal::ZERO)),
-        labels::stat(theme, "Last Transaction", last),
-    ]
-    .spacing(spacing::MD);
-    let outstanding_line = row![
-        labels::muted(theme, "Outstanding Balance", typography::caption()),
-        labels::strong(
-            theme,
-            with_currency(outstanding.abs()),
-            typography::subtitle()
-        ),
-        badges::status_pill(theme, label, tone),
-    ]
-    .spacing(spacing::SPACE_10)
-    .align_y(Alignment::Center);
-    panels::titled_card(
-        theme,
-        "Financial Summary",
-        column![outstanding_line, stats].spacing(spacing::MD),
-    )
-}
-
-/// Tabbed transaction history / ledger / trial balance plus the open
-/// balances panel, shown below the vendor's profile sections.
-fn accounting_sections(state: &State, theme: Theme) -> Element<'static, Message> {
-    let Some(ledger) = &state.ledger else {
-        return column![].into();
-    };
-    let tab_body = match state.preview_tab {
-        0 => transaction_history(state, ledger, theme),
-        1 => vendor_ledger_tab(ledger, theme),
-        _ => vendor_trial_balance(ledger, theme),
-    };
-    let tabs = forms::tab_bar(
-        theme,
-        &PREVIEW_TABS,
-        state.preview_tab,
-        Message::PreviewTabChanged,
-    );
-    column![
-        panels::titled_card(
-            theme,
-            "Accounting",
-            column![tabs, tab_body].spacing(spacing::MD)
-        ),
-        outstanding_balances(ledger, theme),
-    ]
-    .spacing(spacing::MD)
-    .into()
-}
-
-fn transaction_history(
-    state: &State,
-    ledger: &VendorLedger,
-    theme: Theme,
-) -> Element<'static, Message> {
-    if ledger.entries.is_empty() {
-        return muted(theme, "No transactions recorded for this vendor.");
-    }
-    let mut entries: Vec<_> = ledger.entries.iter().collect();
-    if state.ledger_newest_first {
-        entries.reverse();
-    }
-    let rows = entries
-        .iter()
-        .map(|e| {
-            vec![
-                day(e.date),
-                format!("{} (#{})", e.reference, e.transaction_id),
-                e.kind.clone(),
-                e.description.clone(),
-                side(e.debit),
-                side(e.credit),
-                money(e.running_balance),
-            ]
-        })
-        .collect();
-    let order = if state.ledger_newest_first {
-        "Date: newest first"
-    } else {
-        "Date: oldest first"
-    };
-    column![
-        button(text(order).size(typography::label()))
-            .padding([spacing::SPACE_4, spacing::SM])
-            .style(button_style::outlined(theme, false))
-            .on_press(Message::ToggleLedgerOrder),
-        table_style::grid(
-            theme,
-            &vendor_ledger::HISTORY_COLUMNS,
-            &[2, 3, 2, 4, 2, 2, 2],
-            &[4, 5, 6],
-            rows,
-            None,
-        ),
-    ]
-    .spacing(spacing::SM)
-    .into()
-}
-
-/// T-account layout: debits on the left, credits on the right, with the
-/// opening and closing balance and each entry traceable to its source.
-fn vendor_ledger_tab(ledger: &VendorLedger, theme: Theme) -> Element<'static, Message> {
-    if ledger.entries.is_empty() {
-        return muted(theme, "No ledger entries for this vendor.");
-    }
-    let t_side = |title: &str, debit_side: bool| {
-        let rows: Vec<Vec<String>> = ledger
-            .entries
-            .iter()
-            .filter(|e| {
-                if debit_side {
-                    !e.debit.is_zero()
-                } else {
-                    !e.credit.is_zero()
-                }
-            })
-            .map(|e| {
-                vec![
-                    day(e.date),
-                    format!("{} (#{})", e.reference, e.transaction_id),
-                    money(if debit_side { e.debit } else { e.credit }),
-                ]
-            })
-            .collect();
-        let total = if debit_side {
-            ledger.total_debit()
-        } else {
-            ledger.total_credit()
-        };
-        column![
-            labels::strong(theme, title.to_string(), typography::label()),
-            table_style::grid(
-                theme,
-                &vendor_ledger::T_ACCOUNT_COLUMNS,
-                &[2, 3, 2],
-                &[2],
-                rows,
-                Some(vec!["Total".into(), String::new(), money(total)]),
-            ),
-        ]
-        .spacing(spacing::SPACE_6)
-        .width(Length::FillPortion(1))
-    };
-    let closing = ledger.outstanding();
-    let (label, tone) = balance_label(closing);
-    let summary = row![
-        labels::muted(
-            theme,
-            format!("Opening balance: {}", money(Decimal::ZERO)),
-            typography::body()
-        ),
-        Space::with_width(Length::Fill),
-        labels::strong(
-            theme,
-            format!(
-                "Closing balance: {} {}",
-                ledger.currency,
-                money(closing.abs())
-            ),
-            typography::body()
-        ),
-        badges::status_pill(theme, label, tone),
-    ]
-    .spacing(spacing::SM)
-    .align_y(Alignment::Center);
-    column![
-        row![t_side("Debit (Dr)", true), t_side("Credit (Cr)", false)].spacing(spacing::LG),
-        summary,
-    ]
-    .spacing(spacing::MD)
-    .into()
-}
-
-/// Only the accounts this vendor's transactions touched, with their
-/// debit/credit totals for the vendor's reporting period.
-fn vendor_trial_balance(ledger: &VendorLedger, theme: Theme) -> Element<'static, Message> {
-    let (Some(from), Some(to)) = (
-        ledger.first_transaction_date(),
-        ledger.last_transaction_date(),
-    ) else {
-        return muted(
-            theme,
-            "No accounts affected: this vendor has no transactions.",
-        );
-    };
-    let rows = ledger
-        .accounts
-        .iter()
-        .map(|a| {
-            let net = a.net();
-            vec![
-                a.code.clone(),
-                a.name.clone(),
-                if net > Decimal::ZERO {
-                    money(net)
-                } else {
-                    String::new()
-                },
-                if net < Decimal::ZERO {
-                    money(-net)
-                } else {
-                    String::new()
-                },
-            ]
-        })
-        .collect();
-    let debit: Decimal = ledger
-        .accounts
-        .iter()
-        .map(|a| a.net().max(Decimal::ZERO))
-        .sum();
-    let credit: Decimal = ledger
-        .accounts
-        .iter()
-        .map(|a| (-a.net()).max(Decimal::ZERO))
-        .sum();
-    column![
-        muted(theme, format!("Period: {} to {}", day(from), day(to))),
-        table_style::grid(
-            theme,
-            &vendor_ledger::TRIAL_BALANCE_COLUMNS,
-            &[2, 6, 2, 2],
-            &[2, 3],
-            rows,
-            Some(vec!["".into(), "Total".into(), money(debit), money(credit)]),
-        ),
-    ]
-    .spacing(spacing::SM)
-    .into()
-}
-
-/// Open bills from the payables subledger with overdue/aging information.
-/// It breaks down the summary's balance rather than adding to it.
-fn outstanding_balances(ledger: &VendorLedger, theme: Theme) -> Element<'static, Message> {
-    if ledger.open_payables.is_empty() {
-        return panels::titled_card(
-            theme,
-            "Outstanding Balances",
-            muted(theme, "No open bills."),
-        );
-    }
-    let today = chrono::Local::now().date_naive();
-    let rows = ledger
-        .open_payables
-        .iter()
-        .map(|p| {
-            vec![
-                p.reference.clone().unwrap_or_default(),
-                day(p.due_date),
-                if p.is_overdue(today) {
-                    format!("Overdue {}d", (today - p.due_date).num_days())
-                } else {
-                    "Not due".into()
-                },
-                money(p.amount),
-                money(p.balance()),
-            ]
-        })
-        .collect();
-    let aging = ledger.aging(today);
-    let overdue = aging.days_1_to_30 + aging.days_31_to_60 + aging.days_61_to_90 + aging.over_90;
-    let total = aging.total();
-    let overdue_line = if overdue.is_zero() {
-        badges::status_pill(theme, "Nothing overdue", BadgeTone::Positive)
-    } else {
-        badges::status_pill(
-            theme,
-            format!("Overdue {} {}", ledger.currency, money(overdue)),
-            BadgeTone::Negative,
-        )
-    };
-    panels::titled_card(
-        theme,
-        "Outstanding Balances",
-        column![
-            overdue_line,
-            table_style::grid(
-                theme,
-                &vendor_ledger::OPEN_BILL_COLUMNS,
-                &[3, 2, 2, 2, 2],
-                &[3, 4],
-                rows,
-                Some(vec![
-                    "Total".into(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    format!("{} {}", ledger.currency, money(total)),
-                ]),
-            ),
-        ]
-        .spacing(spacing::SM),
-    )
 }
 
 /// The header label of `column`: sorts by it when pressed.
@@ -1945,7 +1506,7 @@ fn page<'a, M: Clone + 'a>(
             preview = preview.push(switcher);
         }
         return preview
-            .push(lift(vendor_preview(state, theme)))
+            .push(lift(vendor_preview(state, theme, width)))
             .spacing(spacing::MD)
             .padding(spacing::SPACE_20)
             .width(Length::Fill)

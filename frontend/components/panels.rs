@@ -5,13 +5,14 @@
 
 use iced::widget::text::IntoFragment;
 use iced::widget::text::Wrapping;
-use iced::widget::{column, container, row, stack, text, Space, Text};
+use iced::widget::{button, column, container, row, scrollable, stack, text, Space, Text};
 use iced::{Alignment, Background, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::badges::{self, BadgeTone};
 use crate::frontend::components::colors::Theme;
 use crate::frontend::components::{
-    borders, fonts, icons, labels, shadows, spacing, states, table, typography,
+    borders, button as button_style, fonts, icons, labels, scrollbar, shadows, spacing, states,
+    table, typography,
 };
 
 /// The one outer card of a list page (Vendors, Bank Accounts,
@@ -238,6 +239,170 @@ pub fn progress_bar<'a, M: 'a>(
             },
         )
         .into()
+}
+
+/// A titled section whose header (title, chevron) toggles `body` open or
+/// closed, with a thin rule under the header. The caller owns `open`.
+pub fn collapsible_section<'a, M: Clone + 'a>(
+    theme: Theme,
+    title: impl IntoFragment<'a>,
+    open: bool,
+    on_toggle: M,
+    body: impl Into<Element<'a, M>>,
+) -> Element<'a, M> {
+    let header = button(
+        row![
+            labels::strong(theme, title, typography::emphasis()).width(Length::Fill),
+            icons::icon(if open {
+                icons::CARET_DOWN
+            } else {
+                icons::CHEVRON_RIGHT
+            })
+            .size(typography::emphasis())
+            .color(theme.neutral_front()),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([spacing::SPACE_6, spacing::SPACE_2])
+    .width(Length::Fill)
+    .style(button_style::bare(theme))
+    .on_press(on_toggle);
+    let mut section = column![header, table::divider_line(theme)].spacing(spacing::SPACE_6);
+    if open {
+        section = section.push(body.into());
+    }
+    section.into()
+}
+
+/// A soft primary-tinted bar spanning the width: a summary strip.
+pub fn tinted_bar<'a, M: 'a>(theme: Theme, content: impl Into<Element<'a, M>>) -> Element<'a, M> {
+    container(content)
+        .padding(spacing::MD)
+        .width(Length::Fill)
+        .style(move |_iced_theme: &IcedTheme| container::Style {
+            background: Some(Background::Color(
+                theme.primary_tint(states::TINTED_PANEL_ALPHA),
+            )),
+            border: borders::card(theme, states::RADIUS_MD),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// A column of `items` (the right column, or the left one): scrolls on its
+/// own, with the bar in its own gutter so it never covers the content.
+pub fn scroll_pane<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> Element<'a, M> {
+    scrollable(
+        container(content)
+            .padding(scrollbar::gutter())
+            .width(Length::Fill),
+    )
+    .direction(scrollbar::vertical())
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+/// A profile column beside a detail column, each scrolling on its own;
+/// below the narrow breakpoint they stack and the page scrolls as one.
+/// `width` is the width available to both.
+pub fn master_detail<'a, M: 'a>(
+    width: f32,
+    master: Element<'a, M>,
+    detail: Element<'a, M>,
+) -> Element<'a, M> {
+    if spacing::layout_class(width) == spacing::LayoutClass::Narrow {
+        return scroll_pane(column![master, detail].spacing(spacing::MD));
+    }
+    row![
+        container(scroll_pane(master)).width(Length::Fixed(spacing::profile_column_width(width))),
+        scroll_pane(detail),
+    ]
+    .spacing(spacing::MD)
+    .height(Length::Fill)
+    .into()
+}
+
+/// What one timeline entry shows.
+pub struct TimelineEntry {
+    pub glyph: &'static str,
+    pub tone: BadgeTone,
+    pub title: String,
+    pub description: String,
+    pub amount: String,
+    pub date: String,
+}
+
+/// One activity entry: a round glyph dot with a line running down to the
+/// next entry (omitted on the `last`), then the title over a description
+/// and, right-aligned, the amount over the date.
+pub fn timeline_entry<'a, M: 'a>(theme: Theme, entry: TimelineEntry, last: bool) -> Element<'a, M> {
+    let TimelineEntry {
+        glyph,
+        tone,
+        title,
+        description,
+        amount,
+        date,
+    } = entry;
+    let entry_height = spacing::grown(spacing::TIMELINE_ENTRY);
+    let line_height = if last {
+        0.0
+    } else {
+        entry_height - spacing::grown(spacing::TIMELINE_DOT)
+    };
+    let rail = column![
+        badges::timeline_dot(theme, glyph, tone),
+        container(Space::new(
+            Length::Fixed(spacing::TIMELINE_LINE),
+            Length::Fixed(line_height)
+        ))
+        .style(table::divider(theme)),
+    ]
+    .align_x(Alignment::Center);
+    row![
+        rail,
+        column![
+            labels::strong(theme, title, typography::body()).wrapping(Wrapping::None),
+            labels::muted(theme, description, typography::caption()).wrapping(Wrapping::None),
+        ]
+        .spacing(spacing::SPACE_2)
+        .width(Length::Fill),
+        column![
+            labels::amount(theme, amount, tone, typography::body()),
+            labels::muted(theme, date, typography::caption()),
+        ]
+        .spacing(spacing::SPACE_2)
+        .align_x(Alignment::End),
+    ]
+    .spacing(spacing::SM)
+    .height(Length::Fixed(entry_height))
+    .clip(true)
+    .into()
+}
+
+/// A round icon button with a small caption under it: a quick action.
+pub fn quick_action<'a, M: Clone + 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    label: impl IntoFragment<'a>,
+    on_press: M,
+) -> Element<'a, M> {
+    column![
+        button(
+            icons::icon(glyph)
+                .size(typography::emphasis())
+                .width(Length::Fixed(spacing::icon_compact_size()))
+                .align_x(Alignment::Center),
+        )
+        .padding(spacing::SPACE_8)
+        .style(button_style::outlined(theme, false))
+        .on_press(on_press),
+        labels::muted(theme, label, typography::caption()),
+    ]
+    .spacing(spacing::SPACE_4)
+    .align_x(Alignment::Center)
+    .into()
 }
 
 #[cfg(test)]

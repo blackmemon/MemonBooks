@@ -114,6 +114,17 @@ pub fn entry<'a, M: 'a>(
     .into()
 }
 
+/// A muted caption over any element -- one cell of a dense details grid.
+pub fn field<'a, M: 'a>(
+    theme: Theme,
+    label: impl text::IntoFragment<'a>,
+    value: impl Into<Element<'a, M>>,
+) -> Element<'a, M> {
+    column![muted(theme, label, typography::caption()), value.into()]
+        .spacing(spacing::SPACE_2)
+        .into()
+}
+
 /// `1,234.50`, with a leading `-` when negative.
 pub fn money(amount: Decimal) -> String {
     let fixed = format!("{:.2}", amount.abs());
@@ -224,6 +235,7 @@ mod tests {
             }
             let _: Element<'_, ()> = stat(theme, "Net", "1.00");
             let _: Element<'_, ()> = pair(theme, "Total bins", "12");
+            let _: Element<'_, ()> = field(theme, "Net", strong(theme, "1", 12.0));
             let _: Element<'_, ()> =
                 entry(theme, "Net", amount(theme, "1", BadgeTone::Positive, 12.0));
         }

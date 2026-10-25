@@ -126,9 +126,13 @@ pub const PROGRESS_BAR_HEIGHT: f32 = 6.0;
 
 /// Height of one card in a card grid, at the base type size; grids scroll
 /// by whole rows of this height. See [`card_height`].
-pub const CARD_HEIGHT: f32 = 320.0;
-/// Extra height of a card whose tile stacks above its details (narrow).
-pub const CARD_STACK_EXTRA: f32 = 180.0;
+pub const CARD_HEIGHT: f32 = 280.0;
+/// A card narrower than this stacks its tile above its details.
+pub const CARD_SPLIT_MIN_WIDTH: f32 = 480.0;
+/// Height of the tile when it sits above the details.
+pub const TILE_STACK_HEIGHT: f32 = 96.0;
+/// Side of a compact icon-only button (a card's eye, Edit, Delete).
+pub const ICON_COMPACT_SIZE: f32 = 24.0;
 /// Whole card rows a grid shows when the height allows; fewer only when
 /// not even this many fit (never below one), more when more fit.
 pub const VISIBLE_CARD_ROWS: usize = 2;
@@ -149,13 +153,23 @@ pub fn card_height() -> f32 {
     grown(CARD_HEIGHT)
 }
 
-/// The height of one card row at `class`: a narrow card stacks its tile
-/// above the details, so it is taller by [`CARD_STACK_EXTRA`].
-pub fn card_height_for(class: LayoutClass) -> f32 {
-    match class {
-        LayoutClass::Narrow => card_height() + grown(CARD_STACK_EXTRA),
-        _ => card_height(),
-    }
+pub fn tile_stack_height() -> f32 {
+    grown(TILE_STACK_HEIGHT)
+}
+
+pub fn icon_compact_size() -> f32 {
+    grown(ICON_COMPACT_SIZE)
+}
+
+/// The width of one card of a grid `grid_width` wide with `columns`.
+pub fn card_width(grid_width: f32, columns: usize) -> f32 {
+    let columns = columns.max(1) as f32;
+    (grid_width - SCROLLBAR_WIDTH - (columns - 1.0) * SM) / columns
+}
+
+/// Whether a card `width` wide stacks its tile above its details.
+pub fn card_stacks(width: f32) -> bool {
+    width < grown(CARD_SPLIT_MIN_WIDTH)
 }
 
 pub fn icon_button_size() -> f32 {
@@ -178,22 +192,13 @@ pub fn table_row_height() -> f32 {
     grown(TABLE_ROW_HEIGHT)
 }
 
-/// Cards per line of a card grid: two when wide, one when medium or
-/// narrow.
+/// Cards per line of a card grid: three when wide, two when medium, one
+/// when narrow.
 pub fn grid_columns(class: LayoutClass) -> usize {
     match class {
-        LayoutClass::Wide => 2,
-        LayoutClass::Medium | LayoutClass::Narrow => 1,
-    }
-}
-
-/// Figures per line of a detail page's summary: four when wide, three
-/// when medium, two when narrow.
-pub fn summary_columns(class: LayoutClass) -> usize {
-    match class {
-        LayoutClass::Wide => 4,
-        LayoutClass::Medium => 3,
-        LayoutClass::Narrow => 2,
+        LayoutClass::Wide => 3,
+        LayoutClass::Medium => 2,
+        LayoutClass::Narrow => 1,
     }
 }
 
@@ -240,21 +245,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_grid_has_two_then_one_columns_across_the_breakpoints() {
-        assert_eq!(grid_columns(layout_class(1920.0)), 2);
-        assert_eq!(grid_columns(layout_class(1366.0)), 2);
-        assert_eq!(grid_columns(layout_class(900.0)), 1);
+    fn the_grid_has_three_two_and_one_columns_across_the_breakpoints() {
+        assert_eq!(grid_columns(layout_class(1920.0)), 3);
+        assert_eq!(grid_columns(layout_class(1366.0)), 3);
+        assert_eq!(grid_columns(layout_class(900.0)), 2);
         assert_eq!(grid_columns(layout_class(640.0)), 1);
-        assert_eq!(summary_columns(layout_class(1366.0)), 4);
-        assert_eq!(summary_columns(layout_class(900.0)), 3);
-        assert_eq!(summary_columns(layout_class(640.0)), 2);
     }
 
     #[test]
-    fn a_narrow_card_is_taller_because_its_tile_stacks() {
-        assert_eq!(card_height_for(LayoutClass::Wide), card_height());
-        assert_eq!(card_height_for(LayoutClass::Medium), card_height());
-        assert!(card_height_for(LayoutClass::Narrow) > card_height());
+    fn a_card_stacks_its_tile_only_when_too_narrow_to_sit_beside_the_details() {
+        assert!(card_width(1000.0, 2) > card_width(1000.0, 3));
+        assert!(card_stacks(card_width(1100.0, 3)));
+        assert!(!card_stacks(card_width(1700.0, 3)));
+        assert!(card_stacks(card_width(400.0, 1)));
+        assert!(!card_stacks(card_width(900.0, 1)));
     }
 
     #[test]

@@ -21,6 +21,28 @@ pub enum BankAccountType {
     Debit,
 }
 
+/// The banks an account can be held at, offered by the bank pickers. The
+/// one list of bank names; an account whose bank is not here keeps its
+/// own name as an extra option.
+pub const PAKISTANI_BANKS: [&str; 16] = [
+    "Allied Bank Limited",
+    "Askari Bank Limited",
+    "Habib Bank Limited",
+    "MCB Bank Limited",
+    "Meezan Bank",
+    "National Bank of Pakistan",
+    "United Bank Limited",
+    "Bank Alfalah",
+    "Faysal Bank",
+    "Standard Chartered Pakistan",
+    "Bank Al Habib",
+    "Soneri Bank",
+    "JS Bank",
+    "Bank of Punjab",
+    "Summit Bank",
+    "Silk Bank",
+];
+
 pub const BANK_ACCOUNT_TYPES: [BankAccountType; 2] =
     [BankAccountType::Credit, BankAccountType::Debit];
 

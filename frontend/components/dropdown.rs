@@ -111,6 +111,16 @@ fn styled(theme: Theme, text_color: Color) -> impl Fn(&IcedTheme, Status) -> Sty
     }
 }
 
+/// `base` as option strings, plus `current` when it is not blank and not
+/// already among them, so a saved value is always selectable.
+pub fn options_with<'a>(base: impl IntoIterator<Item = &'a str>, current: &str) -> Vec<String> {
+    let mut options: Vec<String> = base.into_iter().map(str::to_string).collect();
+    if !current.trim().is_empty() && !options.iter().any(|option| option == current) {
+        options.push(current.to_string());
+    }
+    options
+}
+
 /// A toolbar filter dropdown over options built at run time (names read
 /// from the database), sized like [`counted_filter`]. For a fixed list
 /// of `'static` labels with counts, use [`counted_filter`].
@@ -135,6 +145,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn options_always_include_the_current_value_once() {
+        let base = ["A", "B"];
+        assert_eq!(options_with(base, "A"), ["A", "B"]);
+        assert_eq!(options_with(base, "Z"), ["A", "B", "Z"]);
+        assert_eq!(options_with(base, "  "), ["A", "B"]);
+        assert_eq!(options_with([], "Z"), ["Z"]);
+    }
 
     #[test]
     fn the_filter_dropdown_builds_with_and_without_a_selection() {

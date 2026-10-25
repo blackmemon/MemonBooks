@@ -4,7 +4,8 @@
 //! panel that wants the same "floating card" treatment.
 
 use iced::widget::text::IntoFragment;
-use iced::widget::{column, container, row, stack, text, Space};
+use iced::widget::text::Wrapping;
+use iced::widget::{column, container, row, stack, text, Space, Text};
 use iced::{Alignment, Background, Element, Length, Theme as IcedTheme};
 
 use crate::frontend::components::badges::{self, BadgeTone};
@@ -101,6 +102,8 @@ pub struct CardFace<'a> {
     pub line: String,
     pub bottom_left: &'a str,
     pub bottom_right: &'a str,
+    /// Fixed when the tile sits above something, `Fill` beside it.
+    pub height: Length,
 }
 
 /// The tinted fill of a [`card_face`]: `tone`'s own background, so two
@@ -119,13 +122,13 @@ pub fn card_face_style(theme: Theme, tone: BadgeTone) -> impl Fn(&IcedTheme) -> 
 pub fn card_face<'a, M: 'a>(theme: Theme, tone: BadgeTone, face: CardFace<'a>) -> Element<'a, M> {
     let circle = || {
         icons::icon(icons::LOGO_CIRCLE)
-            .size(typography::panel_title())
+            .size(typography::emphasis())
             .color(badges::tone_colors(theme, tone).1)
     };
     let logo = stack![
         circle(),
         container(circle()).padding(iced::Padding {
-            left: spacing::SPACE_12,
+            left: spacing::SPACE_8,
             ..iced::Padding::ZERO
         }),
     ];
@@ -137,26 +140,39 @@ pub fn card_face<'a, M: 'a>(theme: Theme, tone: BadgeTone, face: CardFace<'a>) -
             .color(theme.neutral_front()),
     ]
     .align_y(Alignment::Center);
+    let clipped = |value: Text<'a>| {
+        container(value.wrapping(Wrapping::None))
+            .width(Length::Fill)
+            .clip(true)
+    };
     let bottom = row![
-        labels::strong(theme, face.bottom_left, typography::body()).width(Length::Fill),
-        labels::strong(theme, face.bottom_right, typography::body()),
+        clipped(labels::strong(
+            theme,
+            face.bottom_left,
+            typography::caption()
+        )),
+        labels::strong(theme, face.bottom_right, typography::caption()).wrapping(Wrapping::None),
     ]
     .spacing(spacing::SPACE_8);
     container(
         column![
             top,
-            Space::with_height(Length::Fixed(spacing::SPACE_8)),
             labels::muted(theme, face.caption, typography::caption()),
-            labels::amount(theme, face.figure, tone, typography::subtitle()),
+            clipped(labels::amount(
+                theme,
+                face.figure,
+                tone,
+                typography::panel_title()
+            )),
             Space::with_height(Length::Fill),
-            labels::muted(theme, face.line, typography::emphasis()),
+            clipped(labels::muted(theme, face.line, typography::caption())),
             bottom,
         ]
-        .spacing(spacing::SPACE_4),
+        .spacing(spacing::SPACE_2),
     )
-    .padding(spacing::MD)
+    .padding(spacing::SPACE_10)
     .width(Length::Fill)
-    .height(Length::Fill)
+    .height(face.height)
     .style(card_face_style(theme, tone))
     .into()
 }
@@ -254,6 +270,7 @@ mod tests {
                         line: "•••• 1234".into(),
                         bottom_left: "Bank",
                         bottom_right: "Debit",
+                        height: Length::Fill,
                     },
                 );
             }

@@ -13,6 +13,7 @@ use crate::backend::accounting::chart_of_accounts::Account;
 use crate::backend::banking::bank_accounts::BankAccount;
 use crate::backend::banking::bank_ledger::BankLedger;
 use crate::backend::core::errors::AppResult;
+use crate::backend::organization::companies::Company;
 use crate::backend::repositories::accounting_repository::AccountingRepository;
 use crate::backend::repositories::banking_repository::{BankingRepository, Removal};
 use crate::backend::repositories::organization_repository::OrganizationRepository;
@@ -70,6 +71,11 @@ impl BankingService {
 
     pub fn list_gl_accounts(&self, company_id: i64) -> AppResult<Vec<Account>> {
         self.accounting_repo.list_accounts_for_company(company_id)
+    }
+
+    /// Every company, for the company pickers.
+    pub fn list_companies(&self) -> AppResult<Vec<Company>> {
+        self.organization_repo.list_companies()
     }
 
     /// The company's base currency, which new bank accounts default to.

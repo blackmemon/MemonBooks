@@ -154,29 +154,8 @@ pub fn view<'a, M: Clone + 'a>(
     available: f32,
     on_scroll: impl Fn(Scroll) -> M + Copy + 'a,
 ) -> Element<'a, M> {
-    view_sized(
-        state,
-        theme,
-        cells,
-        columns,
-        available,
-        spacing::card_height(),
-        on_scroll,
-    )
-}
-
-/// [`view`] with rows of `base_height` instead of the standard card
-/// height -- for cards that are taller at some widths.
-pub fn view_sized<'a, M: Clone + 'a>(
-    state: &RowSnap,
-    theme: Theme,
-    cells: Vec<Element<'a, M>>,
-    columns: usize,
-    available: f32,
-    base_height: f32,
-    on_scroll: impl Fn(Scroll) -> M + Copy + 'a,
-) -> Element<'a, M> {
     let columns = columns.max(1);
+    let base_height = spacing::card_height();
     let gap = spacing::ROW_GAP;
     let total_rows = cells.len().div_ceil(columns);
     let visible = visible_rows(available, base_height, gap);

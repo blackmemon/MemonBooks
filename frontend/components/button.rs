@@ -68,10 +68,46 @@ pub fn icon_tool<'a, M: Clone + 'a>(
     on_press: M,
     bordered: bool,
 ) -> Element<'a, M> {
+    tool(
+        theme,
+        glyph,
+        tip,
+        on_press,
+        bordered,
+        (typography::emphasis(), spacing::icon_button_size()),
+    )
+}
+
+/// [`icon_tool`] in a compact size, for dense rows such as a card's.
+pub fn icon_tool_compact<'a, M: Clone + 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    tip: &'a str,
+    on_press: M,
+) -> Element<'a, M> {
+    tool(
+        theme,
+        glyph,
+        tip,
+        on_press,
+        false,
+        (typography::label(), spacing::icon_compact_size()),
+    )
+}
+
+/// An icon button of `(glyph size, side)` with a hover tooltip.
+fn tool<'a, M: Clone + 'a>(
+    theme: Theme,
+    glyph: &'static str,
+    tip: &'a str,
+    on_press: M,
+    bordered: bool,
+    (glyph_size, side): (f32, f32),
+) -> Element<'a, M> {
     tooltip(
-        button_widget(icons::icon(glyph).size(typography::emphasis()).center())
-            .width(Length::Fixed(spacing::icon_button_size()))
-            .height(Length::Fixed(spacing::icon_button_size()))
+        button_widget(icons::icon(glyph).size(glyph_size).center())
+            .width(Length::Fixed(side))
+            .height(Length::Fixed(side))
             .style(outlined_or_plain(theme, bordered, false))
             .on_press(on_press),
         container(text(tip).size(typography::caption()))
@@ -525,6 +561,13 @@ mod tests {
             assert!(dimmed.text_color.a < plain.text_color.a);
             assert_eq!(selected.border.color, theme.primary());
             let _: Element<'_, ()> = grid_cell(theme, "12", BadgeTone::Negative, false, true, ());
+        }
+    }
+
+    #[test]
+    fn the_compact_tool_builds_in_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let _: Element<'_, ()> = icon_tool_compact(theme, icons::EYE, "Show", ());
         }
     }
 

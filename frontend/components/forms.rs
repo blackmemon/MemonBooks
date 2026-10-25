@@ -1,6 +1,6 @@
 use super::{
     badges, borders, button as button_style, colors::Theme, fonts, icons, inputs, labels, panels,
-    spacing, states, tabs, typography,
+    spacing, states, table, tabs, typography,
 };
 use iced::widget::text::IntoFragment;
 use iced::widget::{
@@ -345,7 +345,7 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
     active: usize,
     on_select: impl Fn(usize) -> Message + 'a,
 ) -> Element<'a, Message> {
-    const TABS_PER_PAGE: usize = 3;
+    const TABS_PER_PAGE: usize = 5;
     let page = active / TABS_PER_PAGE;
     let start = page * TABS_PER_PAGE;
     let end = (start + TABS_PER_PAGE).min(labels.len());
@@ -399,40 +399,16 @@ pub fn tab_bar<'a, Message: Clone + 'a>(
     tab_row.width(Length::Fill).into()
 }
 
-/// An icon-labelled value card (two fit side by side), echoing the
-/// "vitals" style field layout: a small icon chip, a muted label above
+/// A labelled value card (two fit side by side), with a muted label above
 /// the value.
 pub fn field_box<'a, Message: 'a>(
     theme: Theme,
-    icon: &'static str,
     label: &'a str,
     value: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let chip = container(
-        icons::icon(icon)
-            .size(typography::body())
-            .color(theme.primary()),
-    )
-    .padding(spacing::SPACE_8)
-    .style(move |_iced_theme: &iced::Theme| container::Style {
-        background: Some(Background::Color(
-            theme.primary_tint(states::SELECTED_ALPHA),
-        )),
-        border: iced::Border {
-            radius: states::RADIUS_SM.into(),
-            ..iced::Border::default()
-        },
-        ..container::Style::default()
-    });
     container(
-        row![
-            chip,
-            column![labels::muted(theme, label, typography::caption()), value,]
-                .spacing(spacing::SPACE_2)
-                .width(Length::Fill),
-        ]
-        .spacing(spacing::XS)
-        .align_y(Alignment::Center)
+        column![labels::muted(theme, label, typography::caption()), value,]
+        .spacing(spacing::SPACE_2)
         .width(Length::Fill),
     )
     .padding(spacing::XS)
@@ -516,6 +492,7 @@ pub fn detail_panel<'a, Message: Clone + 'a, Select: Fn(usize) -> Message + 'a>(
     }
     body = body
         .push(tab_bar(theme, tab_labels, active_tab, on_select_tab))
+        .push(table::divider_line(theme))
         .push(
             scrollable(
                 container(content)

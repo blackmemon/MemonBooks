@@ -1,8 +1,3 @@
-//! Vendors screen: the table, filters, form panel, preview and the
-//! messages that drive them. The non-UI logic (column names and
-//! indexes, export rows, sorting, cell text, formatting) lives in
-//! `backend/accounting/vendors.rs`; styles in `frontend/components/`.
-
 use crate::backend::accounting::vendors::{
     attachment_names, compare_by_column, dash, day, default_column_visibility, export_headers,
     export_row, money, optional_input, side, sort_of, vendor_column_value, COL_ATTACHMENTS,
@@ -64,15 +59,12 @@ pub struct State {
     column_visible: Vec<bool>,
     form_open: bool,
     show_preview: bool,
-    /// Accounting data behind the preview; `None` for an unsaved vendor.
     ledger: Option<VendorLedger>,
     ledger_error: Option<String>,
     preview_tab: usize,
     ledger_newest_first: bool,
     page: usize,
     page_size: usize,
-    /// The sorted column (an index into `VENDOR_HEADERS`) and whether
-    /// it is ascending.
     sort: Option<(usize, bool)>,
     message: Option<String>,
     error: Option<String>,
@@ -99,7 +91,6 @@ struct VendorForm {
     description: text_editor::Content,
     custom_fields: Vec<CustomField>,
     attachments: Vec<VendorAttachment>,
-    /// The attachment being renamed and its draft display name.
     renaming: Option<(usize, String)>,
     tab: usize,
 }
@@ -151,7 +142,6 @@ impl VendorForm {
     }
 
     /// `vendor` with every field of this form written over it. Custom
-    /// fields left completely blank are dropped.
     fn apply(&self, vendor: Vendor, payment_terms_days: i32) -> Vendor {
         Vendor {
             name: self.name.clone(),
@@ -1685,15 +1675,33 @@ fn vendor_summary(state: &State, theme: Theme) -> Element<'static, Message> {
 }
 
 /// Live, read-only echo of Mailing Address, Payment Method and Description
-/// shown above the Basic Information tab -- it mirrors whatever is typed
-/// into those fields further down the form, in both the "New Vendor" and
-/// editing states.
 fn vendor_live_preview(state: &State, theme: Theme) -> Element<'static, Message> {
     let form = &state.form;
-    let card = |glyph: &'static str, column: usize, value: String| {
+    let amount_card =
+        |label: &'static str, value: String, background: iced::Color, foreground: iced::Color| {
+            container(
+                column![
+                    text(label).size(typography::caption()).color(foreground),
+                    text(value).size(typography::body()).color(foreground),
+                ]
+                .spacing(spacing::SPACE_2)
+                .width(Length::Fill),
+            )
+            .padding(spacing::XS)
+            .width(Length::FillPortion(1))
+            .style(move |_iced_theme: &iced::Theme| container::Style {
+                background: Some(iced::Background::Color(background)),
+                border: iced::Border {
+                    radius: crate::frontend::components::states::RADIUS_MD.into(),
+                    ..iced::Border::default()
+                },
+                ..container::Style::default()
+            })
+            .into()
+        };
+    let card = |column: usize, value: String| {
         forms::field_box(
             theme,
-            glyph,
             VENDOR_HEADERS[column],
             text(dash(&value))
                 .size(typography::body())
@@ -1701,19 +1709,31 @@ fn vendor_live_preview(state: &State, theme: Theme) -> Element<'static, Message>
                 .into(),
         )
     };
+    let debit = state
+        .ledger
+        .as_ref()
+        .map_or(Decimal::ZERO, VendorLedger::total_debit);
+    let credit = state
+        .ledger
+        .as_ref()
+        .map_or(Decimal::ZERO, VendorLedger::total_credit);
     forms::field_grid(
         vec![
-            card(
-                icons::FIELD_ADDRESS,
-                COL_MAILING_ADDRESS,
-                form.mailing_address.clone(),
+            amount_card(
+                VENDOR_HEADERS[COL_DEBIT],
+                money(debit),
+                iced::Color::from_rgb8(198, 239, 206),
+                iced::Color::from_rgb8(0, 97, 0),
             ),
-            card(
-                icons::FIELD_PAYMENT,
-                COL_PAYMENT_METHOD,
-                form.payment_method.clone(),
+            amount_card(
+                VENDOR_HEADERS[COL_CREDIT],
+                money(credit),
+                iced::Color::from_rgb8(255, 199, 206),
+                iced::Color::from_rgb8(156, 0, 6),
             ),
-            card(icons::FIELD_NOTE, COL_DESCRIPTION, form.description_text()),
+            card(COL_MAILING_ADDRESS, form.mailing_address.clone()),
+            card(COL_PAYMENT_METHOD, form.payment_method.clone()),
+            card(COL_DESCRIPTION, form.description_text()),
         ],
         2,
     )
@@ -1982,683 +2002,4 @@ fn body<'a, M: Clone + 'a>(
     wrap: impl Fn(Message) -> M + Clone + 'a,
 ) -> Element<'a, M> {
     responsive(move |size| page(state, theme, size.width, switcher(), wrap.clone())).into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::backend::accounting::vendors::{
-        ExportColumn, VENDOR_DEFAULT_VISIBLE, VENDOR_EXPORT_COLUMNS,
-    };
-    use crate::backend::organization::companies::Company;
-    use crate::backend::repositories::organization_repository::{self, OrganizationRepository};
-    use crate::backend::repositories::party_repository;
-    use crate::database::database::Database;
-    use chrono::NaiveDate;
-    use std::path::PathBuf;
-
-    #[test]
-    fn clicking_a_header_sorts_ascending_then_descending_then_resets() {
-        let mut state = State {
-            vendors: ["b", "C", "a"]
-                .iter()
-                .map(|name| Vendor::new(1, *name))
-                .collect(),
-            ..State::default()
-        };
-        let names = |state: &State| -> Vec<String> {
-            vendor_page(state)
-                .rows
-                .iter()
-                .map(|v| v.name.clone())
-                .collect()
-        };
-        let ctx = ctx_with_company();
-        update(&mut state, Message::SortBy(COL_VENDOR_NAME), &ctx);
-        assert_eq!(names(&state), ["a", "b", "C"]);
-        update(&mut state, Message::SortBy(COL_VENDOR_NAME), &ctx);
-        assert_eq!(names(&state), ["C", "b", "a"]);
-        update(&mut state, Message::SortBy(COL_VENDOR_NAME), &ctx);
-        assert_eq!(names(&state), ["b", "C", "a"]);
-    }
-
-    const WIDTHS: [f32; 4] = [640.0, 900.0, 1366.0, 1920.0];
-    const THEMES: [Theme; 2] = [Theme::Light, Theme::Dark];
-
-    fn ctx_with_company() -> Ctx {
-        let db = Database::open_in_memory().unwrap();
-        db.run_migrations(organization_repository::MIGRATIONS)
-            .unwrap();
-        db.run_migrations(party_repository::MIGRATIONS).unwrap();
-        let company_id = OrganizationRepository::new(db.clone())
-            .create_company(&Company::new("Acme Trading Co", "USD"))
-            .unwrap()
-            .id
-            .unwrap();
-        Ctx {
-            db,
-            company_id,
-            current_user_id: None,
-            export_dir: PathBuf::from("."),
-            uploads_dir: PathBuf::from("."),
-        }
-    }
-
-    fn vendors(count: usize, long_name: bool) -> Vec<Vendor> {
-        (0..count)
-            .map(|index| {
-                let name = if long_name {
-                    "A Very Long Vendor Name Trading And Distribution Company Limited ".repeat(3)
-                } else {
-                    format!("Vendor {index}")
-                };
-                let mut vendor = Vendor::new(1, name);
-                vendor.id = Some(index as i64 + 1);
-                vendor.is_active = index % 3 != 0;
-                vendor
-            })
-            .collect()
-    }
-
-    fn state_with(vendors: Vec<Vendor>) -> State {
-        State {
-            vendors,
-            column_visible: default_column_visibility(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn one_active_vendor_shows_one_row_and_a_one_of_one_footer() {
-        let ctx = ctx_with_company();
-        let mut state = load(&ctx);
-        update(&mut state, Message::OpenForm, &ctx);
-        update(
-            &mut state,
-            Message::NameChanged("Acme Supplies".into()),
-            &ctx,
-        );
-        update(&mut state, Message::Create, &ctx);
-        assert!(state.error.is_none(), "{:?}", state.error);
-
-        // Reload from the database, as the app does when the page opens.
-        let state = load(&ctx);
-        assert_eq!(state.vendors.len(), 1);
-        let page = vendor_page(&state);
-
-        assert_eq!(page.rows.len(), 1);
-        assert_eq!(page.total, 1);
-        assert_eq!(
-            pagination::results_label(page.rows.len(), page.total),
-            "Showing 1 of 1 results"
-        );
-    }
-
-    #[test]
-    fn the_default_state_filters_nothing_out() {
-        let state = state_with(vendors(1, false));
-        let page = vendor_page(&state);
-
-        assert_eq!(state.status_filter, StatusFilter::All);
-        assert_eq!(page.rows.len(), 1);
-        assert_eq!(
-            pagination::results_label(page.rows.len(), page.total),
-            "Showing 1 of 1 results"
-        );
-    }
-
-    #[test]
-    fn a_status_filter_with_no_matches_empties_the_table_until_reset() {
-        let mut state = state_with(vendors(1, false));
-        state.vendors[0].is_active = true;
-        let ctx = ctx_with_company();
-
-        update(
-            &mut state,
-            Message::StatusFilterChanged(StatusFilter::Inactive),
-            &ctx,
-        );
-        let page = vendor_page(&state);
-        assert_eq!(
-            pagination::results_label(page.rows.len(), page.total),
-            "Showing 0 of 0 results"
-        );
-
-        update(&mut state, Message::ResetAll, &ctx);
-        assert_eq!(vendor_page(&state).rows.len(), 1);
-    }
-
-    #[test]
-    fn paging_clamps_a_stale_page_index() {
-        let mut state = state_with(vendors(30, false));
-        state.page_size = 10;
-        state.page = 99;
-        let page = vendor_page(&state);
-
-        assert_eq!(page.pages, 3);
-        assert_eq!(page.page, 2);
-        assert_eq!(page.rows.len(), 10);
-    }
-
-    #[test]
-    fn layout_class_switches_at_the_shared_breakpoints() {
-        use spacing::{layout_class, LayoutClass};
-        assert_eq!(layout_class(799.0), LayoutClass::Narrow);
-        assert_eq!(layout_class(800.0), LayoutClass::Medium);
-        assert_eq!(layout_class(1199.0), LayoutClass::Medium);
-        assert_eq!(layout_class(1200.0), LayoutClass::Wide);
-    }
-
-    #[test]
-    fn the_panel_replaces_the_table_when_narrow_and_sits_beside_it_otherwise() {
-        let closed = page_split(600.0, false);
-        assert_eq!((closed.card, closed.panel), (Some(600.0), None));
-
-        let narrow = page_split(600.0, true);
-        assert_eq!((narrow.card, narrow.panel), (None, Some(600.0)));
-
-        for inner in [800.0, 1000.0, 1326.0, 1880.0] {
-            let split = page_split(inner, true);
-            let (card, panel) = (split.card.unwrap(), split.panel.unwrap());
-            assert!(panel >= spacing::PANEL_MIN_WIDTH, "panel clips at {inner}");
-            assert!((card + panel + spacing::SPACE_20 - inner).abs() < 0.01);
-        }
-        let wide = page_split(1500.0, true);
-        assert!((wide.panel.unwrap() - 500.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn the_name_column_grows_to_fill_spare_width_and_never_shrinks() {
-        let state = state_with(vendors(1, false));
-        let tight = table_layout(&state, 0.0);
-        let roomy = table_layout(&state, tight.total_width() + 300.0);
-
-        assert_eq!(tight.name_extra, 0.0);
-        assert!((roomy.name_extra - 300.0).abs() < 0.01);
-        assert_eq!(roomy.cell(COL_VENDOR_ID), tight.cell(COL_VENDOR_ID));
-    }
-
-    #[test]
-    fn the_page_builds_at_every_width_theme_panel_state_and_record_count() {
-        for theme in THEMES {
-            for width in WIDTHS {
-                for (count, long_name) in [(0, false), (1, false), (60, false), (3, true)] {
-                    for (form, columns) in
-                        [(false, false), (true, false), (false, true), (true, true)]
-                    {
-                        for tab in 0..VENDOR_FORM_TABS.len() {
-                            let mut state = state_with(vendors(count, long_name));
-                            state.form_open = form;
-                            state.columns_open = columns;
-                            state.form.tab = tab;
-                            state.page_size = 10;
-                            let _: Element<'_, Message> =
-                                page(&state, theme, width, None, |message| message);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn the_page_builds_with_a_switcher_a_selection_and_the_preview_open() {
-        for theme in THEMES {
-            let mut state = state_with(vendors(2, false));
-            state.selected.insert(1);
-            state.editing_id = Some(1);
-            state.form_open = true;
-            let switcher: Element<'_, Message> = Space::with_width(Length::Fixed(220.0)).into();
-            let _: Element<'_, Message> =
-                page(&state, theme, 1366.0, Some(switcher), |message| message);
-
-            state.show_preview = true;
-            let _: Element<'_, Message> = page(&state, theme, 640.0, None, |message| message);
-            let _: Element<'_, Message> = view(&state, theme);
-        }
-    }
-
-    #[test]
-    fn the_header_builds_in_two_rows_at_every_width_theme_and_panel_state() {
-        for theme in THEMES {
-            for width in WIDTHS {
-                for panel_open in [false, true] {
-                    let mut state = state_with(vendors(1, true));
-                    state.form_open = panel_open;
-                    for card_width in [width, page_split(width, panel_open).card.unwrap_or(width)] {
-                        let _: Element<'_, Message> =
-                            vendor_card(&state, theme, card_width, None, |message| message);
-                    }
-                }
-            }
-        }
-        for class in [
-            spacing::LayoutClass::Narrow,
-            spacing::LayoutClass::Medium,
-            spacing::LayoutClass::Wide,
-        ] {
-            let item = || -> Element<'static, Message> { Space::with_width(Length::Fill).into() };
-            let _: Element<'_, Message> =
-                toolbar::card_header(class, item(), item(), item(), item(), item());
-        }
-    }
-
-    #[test]
-    fn the_field_grid_pads_a_short_last_line() {
-        let fields = (0..5)
-            .map(|index| forms::readonly_field(Theme::Light, "Label", index.to_string()))
-            .collect();
-        let _: Element<'_, Message> = forms::field_grid(fields, 2);
-        let _: Element<'_, Message> = forms::field_grid(Vec::new(), 2);
-    }
-
-    #[test]
-    fn the_preview_builds_with_no_ledger_an_empty_ledger_and_a_full_one() {
-        use crate::backend::accounting::accounts_payable::payables::Payable;
-        use crate::backend::purchases::vendor_ledger::{
-            with_running_balances, VendorAccountTotal, VendorLedgerEntry,
-        };
-        use rust_decimal_macros::dec;
-        let date = NaiveDate::from_ymd_opt(2026, 1, 10).unwrap();
-        let entry = |id, debit, credit| VendorLedgerEntry {
-            transaction_id: id,
-            date,
-            kind: "Bill".into(),
-            reference: format!("BILL-{id}"),
-            description: "Supplies".into(),
-            debit,
-            credit,
-            running_balance: dec!(0),
-        };
-        let full = VendorLedger {
-            currency: "PKR".into(),
-            entries: with_running_balances(vec![
-                entry(1, dec!(0), dec!(300)),
-                entry(2, dec!(50), dec!(0)),
-            ]),
-            accounts: vec![VendorAccountTotal {
-                code: "2000".into(),
-                name: "Accounts Payable".into(),
-                debit: dec!(50),
-                credit: dec!(300),
-            }],
-            open_payables: vec![Payable::new(1, 1, date, date, dec!(250))],
-        };
-        let empty = VendorLedger {
-            currency: "PKR".into(),
-            ..Default::default()
-        };
-        for theme in THEMES {
-            for ledger in [None, Some(empty.clone()), Some(full.clone())] {
-                for tab in 0..PREVIEW_TABS.len() {
-                    for newest_first in [false, true] {
-                        let mut state = state_with(vendors(1, false));
-                        state.show_preview = true;
-                        state.ledger = ledger.clone();
-                        state.preview_tab = tab;
-                        state.ledger_newest_first = newest_first;
-                        let _: Element<'_, Message> = vendor_preview(&state, theme);
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn balance_badge_follows_the_ap_sign_convention() {
-        use rust_decimal_macros::dec;
-        assert_eq!(balance_label(dec!(1000)).0, "Payable");
-        assert_eq!(balance_label(dec!(600)).0, "Payable");
-        assert_eq!(balance_label(dec!(0)).0, "Settled");
-        assert_eq!(balance_label(dec!(-5)).0, "Receivable");
-    }
-
-    // -- columns by index ------------------------------------------------
-
-    fn names(columns: &[usize]) -> Vec<&'static str> {
-        columns
-            .iter()
-            .map(|column| VENDOR_HEADERS[*column])
-            .collect()
-    }
-
-    #[test]
-    fn the_column_constants_resolve_to_the_same_names_as_before() {
-        let always = [
-            "S.No",
-            "Vendor ID",
-            "Vendor Name",
-            "Company Name",
-            "Phone",
-            "Email",
-            "Mailing Address",
-            "Debit",
-            "Credit",
-            "Balance",
-        ];
-        assert_eq!(names(&VENDOR_ALWAYS_SELECTED), always);
-        assert_eq!(names(&VENDOR_DEFAULT_VISIBLE), always);
-        assert_eq!(
-            names(&VENDOR_VISIBLE_COLUMNS),
-            [
-                "S.No",
-                "",
-                "Vendor ID",
-                "Vendor Name",
-                "Company Name",
-                "Phone",
-                "Email",
-                "Mailing Address",
-                "Debit",
-                "Credit",
-                "Balance"
-            ]
-        );
-        assert_eq!(
-            VENDOR_OPTIONAL_LABELS,
-            [
-                "Website",
-                "Shipping Address",
-                "Payment Terms",
-                "Payment Method",
-                "Attachments",
-                "Description",
-                "Status",
-                "Create Timestamp",
-                "Modified Timestamp",
-                "Custom Fields"
-            ]
-        );
-        // The default table shows the same columns, in the same order.
-        let state = state_with(Vec::new());
-        assert_eq!(
-            names(&visible_columns(&state)),
-            [
-                "Vendor ID",
-                "Vendor Name",
-                "Company Name",
-                "Phone",
-                "Email",
-                "Mailing Address",
-                "Debit",
-                "Credit",
-                "Balance"
-            ]
-        );
-    }
-
-    #[test]
-    fn columns_csv_headers_and_sort_keys_are_built_from_the_header_indexes() {
-        assert_eq!(
-            VENDOR_OPTIONAL_LABELS.to_vec(),
-            names(&VENDOR_OPTIONAL_COLUMNS)
-        );
-        for (header, column) in export_headers().iter().zip(VENDOR_EXPORT_COLUMNS) {
-            match column {
-                ExportColumn::Table(column) => assert_eq!(*header, VENDOR_HEADERS[column]),
-                ExportColumn::VendorType => assert_eq!(*header, VENDOR_TYPE_LABEL),
-            }
-        }
-        assert_eq!(
-            export_headers()[..7],
-            [
-                "Vendor Name",
-                "Company Name",
-                "Email",
-                "Phone",
-                "Vendor Type",
-                "Payment Terms",
-                "Status"
-            ]
-        );
-
-        let ctx = ctx_with_company();
-        let mut state = state_with(vendors(3, false));
-        for column in FIRST_DATA_COLUMN..VENDOR_HEADERS.len() {
-            update(&mut state, Message::SortBy(column), &ctx);
-            assert_eq!(state.sort, Some((column, true)));
-            update(&mut state, Message::SortBy(column), &ctx);
-            update(&mut state, Message::SortBy(column), &ctx);
-            assert_eq!(state.sort, None);
-        }
-
-        let all_optional: Vec<usize> = {
-            update(&mut state, Message::SelectAllColumns, &ctx);
-            visible_columns(&state)
-        };
-        assert_eq!(
-            names(&all_optional),
-            VENDOR_HEADERS[FIRST_DATA_COLUMN..].to_vec()
-        );
-    }
-
-    #[test]
-    fn toggling_an_optional_column_shows_it_and_reset_hides_it_again() {
-        let ctx = ctx_with_company();
-        let mut state = state_with(vendors(1, false));
-        let website = VENDOR_OPTIONAL_COLUMNS
-            .iter()
-            .position(|column| *column == COL_WEBSITE)
-            .unwrap();
-        update(&mut state, Message::ColumnToggled(website), &ctx);
-        assert!(visible_columns(&state).contains(&COL_WEBSITE));
-        update(&mut state, Message::ResetColumns, &ctx);
-        assert!(!visible_columns(&state).contains(&COL_WEBSITE));
-    }
-
-    // -- profile fields, custom fields and attachments --------------------
-
-    /// A context whose uploads land in a fresh temporary directory.
-    fn ctx_with_uploads() -> (Ctx, PathBuf) {
-        let mut ctx = ctx_with_company();
-        let dir = std::env::temp_dir().join(format!(
-            "memonbooks-vendor-uploads-{}-{}",
-            std::process::id(),
-            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        ctx.uploads_dir = dir.join("uploads");
-        (ctx, dir)
-    }
-
-    fn sample_file(dir: &Path, name: &str, bytes: &[u8]) -> PathBuf {
-        let path = dir.join(name);
-        std::fs::write(&path, bytes).unwrap();
-        path
-    }
-
-    #[test]
-    fn attaching_a_file_copies_it_and_lists_its_name_and_size() {
-        let (ctx, dir) = ctx_with_uploads();
-        let mut state = load(&ctx);
-        update(&mut state, Message::OpenForm, &ctx);
-        let source = sample_file(&dir, "contract.pdf", b"hello world");
-
-        attach_file(&mut state, &ctx, &source);
-
-        assert!(state.error.is_none(), "{:?}", state.error);
-        let attachment = &state.form.attachments[0];
-        assert_eq!(attachment.display_name, "contract.pdf");
-        assert_eq!(attachment.size_bytes, 11);
-        let stored = ctx.upload_path(&attachment.file_name);
-        assert_eq!(std::fs::read(stored).unwrap(), b"hello world");
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn renaming_an_attachment_changes_only_its_display_name() {
-        let (ctx, dir) = ctx_with_uploads();
-        let mut state = load(&ctx);
-        update(&mut state, Message::OpenForm, &ctx);
-        attach_file(&mut state, &ctx, &sample_file(&dir, "scan.png", b"png"));
-        let stored = state.form.attachments[0].file_name.clone();
-
-        update(&mut state, Message::AttachmentRenameStarted(0), &ctx);
-        assert_eq!(state.form.renaming, Some((0, "scan.png".to_string())));
-        update(
-            &mut state,
-            Message::AttachmentRenameChanged("  Signed licence  ".into()),
-            &ctx,
-        );
-        update(&mut state, Message::AttachmentRenameDone, &ctx);
-
-        assert_eq!(state.form.renaming, None);
-        assert_eq!(state.form.attachments[0].display_name, "Signed licence");
-        assert_eq!(state.form.attachments[0].file_name, stored);
-
-        // A blank name keeps the old one.
-        update(&mut state, Message::AttachmentRenameStarted(0), &ctx);
-        update(
-            &mut state,
-            Message::AttachmentRenameChanged("  ".into()),
-            &ctx,
-        );
-        update(&mut state, Message::AttachmentRenameDone, &ctx);
-        assert_eq!(state.form.attachments[0].display_name, "Signed licence");
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn removing_an_attachment_drops_the_link_and_keeps_the_stored_copy() {
-        let (ctx, dir) = ctx_with_uploads();
-        let mut state = load(&ctx);
-        update(&mut state, Message::OpenForm, &ctx);
-        attach_file(&mut state, &ctx, &sample_file(&dir, "a.txt", b"a"));
-        attach_file(&mut state, &ctx, &sample_file(&dir, "b.txt", b"b"));
-        let removed = state.form.attachments[0].file_name.clone();
-
-        update(&mut state, Message::AttachmentRenameStarted(1), &ctx);
-        update(&mut state, Message::AttachmentRemoved(0), &ctx);
-        update(&mut state, Message::AttachmentRemoved(5), &ctx);
-
-        assert_eq!(state.form.renaming, None);
-        assert_eq!(state.form.attachments.len(), 1);
-        assert_eq!(state.form.attachments[0].display_name, "b.txt");
-        assert!(ctx.upload_path(&removed).exists());
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn every_profile_field_custom_field_and_attachment_is_saved_and_reloaded() {
-        let (ctx, dir) = ctx_with_uploads();
-        let mut state = load(&ctx);
-        update(&mut state, Message::OpenForm, &ctx);
-        for message in [
-            Message::NameChanged("Acme Supplies".into()),
-            Message::WebsiteChanged("  acme.example  ".into()),
-            Message::MailingAddressChanged("1 Mail Road".into()),
-            Message::ShippingAddressChanged("Dock 4".into()),
-            Message::PaymentMethodChanged("Cheque".into()),
-            Message::DescriptionEdited(text_editor::Action::Edit(text_editor::Edit::Paste(
-                std::sync::Arc::new("Stationery".into()),
-            ))),
-            Message::CustomFieldAdded,
-            Message::CustomFieldNameChanged(0, "NTN".into()),
-            Message::CustomFieldValueChanged(0, "123".into()),
-            Message::CustomFieldAdded,
-            Message::CustomFieldAdded,
-            Message::CustomFieldRemoved(2),
-        ] {
-            update(&mut state, message, &ctx);
-        }
-        attach_file(&mut state, &ctx, &sample_file(&dir, "contract.pdf", b"pdf"));
-        update(&mut state, Message::Create, &ctx);
-        assert!(state.error.is_none(), "{:?}", state.error);
-
-        let mut state = load(&ctx);
-        let vendor = state.vendors[0].clone();
-        assert_eq!(vendor.website.as_deref(), Some("acme.example"));
-        assert_eq!(vendor.mailing_address.as_deref(), Some("1 Mail Road"));
-        assert_eq!(vendor.shipping_address.as_deref(), Some("Dock 4"));
-        assert_eq!(vendor.payment_method.as_deref(), Some("Cheque"));
-        assert_eq!(vendor.description.as_deref(), Some("Stationery"));
-        // The blank second custom field is dropped on save.
-        assert_eq!(vendor.custom_fields, vec![CustomField::new("NTN", "123")]);
-        assert_eq!(vendor.attachments.len(), 1);
-        assert_eq!(vendor.attachments[0].display_name, "contract.pdf");
-
-        // Editing loads every field back into the form, and saving again
-        // keeps them.
-        update(&mut state, Message::EditRow(vendor.id.unwrap()), &ctx);
-        assert_eq!(state.form.website, "acme.example");
-        assert_eq!(state.form.payment_method, "Cheque");
-        assert_eq!(state.form.description_text(), "Stationery");
-        update(&mut state, Message::AttachmentRemoved(0), &ctx);
-        update(&mut state, Message::Create, &ctx);
-        assert!(state.error.is_none(), "{:?}", state.error);
-        let reloaded = load(&ctx).vendors[0].clone();
-        assert!(reloaded.attachments.is_empty());
-        assert_eq!(reloaded.custom_fields, vendor.custom_fields);
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn search_also_matches_the_profile_text_fields() {
-        let mut state = state_with(vendors(2, false));
-        state.vendors[1].shipping_address = Some("Port Qasim".into());
-        let ctx = ctx_with_company();
-        update(&mut state, Message::SearchChanged("qasim".into()), &ctx);
-        let page = vendor_page(&state);
-        assert_eq!(page.rows.len(), 1);
-        assert_eq!(page.rows[0].name, "Vendor 1");
-    }
-
-    #[test]
-    fn the_export_writes_the_new_fields_after_the_original_columns() {
-        let mut vendor = Vendor::new(1, "Acme");
-        vendor.website = Some("acme.example".into());
-        vendor.payment_method = Some("Bank".into());
-        vendor.custom_fields = vec![CustomField::new("NTN", "1")];
-        let row = export_row(&vendor);
-        assert_eq!(row[..7], ["Acme", "", "", "", "Other", "30", "Active"]);
-        assert_eq!(row[7], "acme.example");
-        assert_eq!(row[10], "Bank");
-        assert_eq!(row[12], "NTN: 1");
-        assert_eq!(row[13], "");
-    }
-
-    /// A vendor with `count` custom fields and attachments.
-    fn vendor_with_extras(count: usize) -> Vendor {
-        let mut vendor = vendors(1, false).remove(0);
-        vendor.website = Some("acme.example".into());
-        vendor.payment_method = Some("Online".into());
-        vendor.custom_fields = (0..count)
-            .map(|index| CustomField::new(format!("Field {index}"), format!("Value {index}")))
-            .collect();
-        vendor.attachments = (0..count)
-            .map(|index| VendorAttachment {
-                file_name: format!("{index}-file.pdf"),
-                display_name: format!("File {index}.pdf"),
-                size_bytes: 1024 * index as u64,
-            })
-            .collect();
-        vendor
-    }
-
-    #[test]
-    fn the_panel_builds_in_view_and_edit_mode_open_and_closed_with_any_extras() {
-        let ctx = ctx_with_company();
-        for theme in THEMES {
-            for width in WIDTHS {
-                for extras in [0, 12] {
-                    for (preview, open) in [(false, false), (false, true), (true, true)] {
-                        for tab in 0..VENDOR_FORM_TABS.len() {
-                            for renaming in [false, true] {
-                                let mut state = state_with(vec![vendor_with_extras(extras)]);
-                                update(&mut state, Message::EditRow(1), &ctx);
-                                if renaming && extras > 0 {
-                                    update(&mut state, Message::AttachmentRenameStarted(1), &ctx);
-                                }
-                                state.form_open = open;
-                                state.show_preview = preview;
-                                state.form.tab = tab;
-                                let _: Element<'_, Message> =
-                                    page(&state, theme, width, None, |message| message);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

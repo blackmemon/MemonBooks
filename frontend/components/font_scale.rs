@@ -126,14 +126,14 @@ pub fn scaled(base: f32) -> f32 {
     base * current().multiplier() * width_factor(window_width())
 }
 
+/// `CURRENT` and the window width are process-global, so tests that
+/// mutate either must hold this lock.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // `CURRENT` is process-global, so tests that mutate it must not run
-    // concurrently with each other.
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn medium_is_the_default_and_leaves_sizes_unscaled() {

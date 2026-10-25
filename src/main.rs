@@ -33,7 +33,7 @@ use memonbooks::frontend::components::button as button_style;
 use memonbooks::frontend::components::colors::Theme;
 use memonbooks::frontend::components::font_scale::{self, FontScale};
 use memonbooks::frontend::components::sidebar::{self, NavEntry};
-use memonbooks::frontend::components::{dropdown, fonts, spacing, states, typography};
+use memonbooks::frontend::components::{dropdown, fonts, icons, spacing, states, typography};
 use memonbooks::frontend::views::accounting::ledger_view;
 use memonbooks::frontend::views::accounting::maintain::maintain_view;
 use memonbooks::frontend::views::accounting::{
@@ -257,25 +257,41 @@ enum Route {
     Users,
 }
 
-const NAV_ITEMS: &[(Route, &str)] = &[
-    (Route::Dashboard, "Home"),
-    (Route::Accounting, "Accounting"),
-    (Route::Maintain, "Maintain"),
-    (Route::JournalEntry, "New Journal Entry"),
-    (Route::JournalEntries, "Journal Entries"),
-    (Route::TrialBalance, "Trial Balance"),
-    (Route::FixedAssets, "Fixed Assets"),
-    (Route::TaxRates, "Tax Rates"),
-    (Route::Transactions, "Ledger Invoices / Bills"),
-    (Route::Products, "Products"),
-    (Route::Employees, "Employees"),
-    (Route::Expenses, "Expenses"),
-    (Route::Pos, "Point of Sale"),
-    (Route::Reports, "Reports"),
-    (Route::Settings, "Settings"),
-    (Route::Companies, "Companies"),
-    (Route::SwitchUser, "Switch User"),
-    (Route::Users, "Users"),
+const NAV_ITEMS: &[(Route, &str, &str)] = &[
+    (Route::Dashboard, "Home", icons::NAV_HOME),
+    (Route::Accounting, "Accounting", icons::NAV_ACCOUNTING),
+    (Route::Maintain, "Maintain", icons::NAV_MAINTAIN),
+    (
+        Route::JournalEntry,
+        "New Journal Entry",
+        icons::NAV_JOURNAL_NEW,
+    ),
+    (
+        Route::JournalEntries,
+        "Journal Entries",
+        icons::NAV_JOURNAL_ENTRIES,
+    ),
+    (
+        Route::TrialBalance,
+        "Trial Balance",
+        icons::NAV_TRIAL_BALANCE,
+    ),
+    (Route::FixedAssets, "Fixed Assets", icons::NAV_FIXED_ASSETS),
+    (Route::TaxRates, "Tax Rates", icons::NAV_TAX_RATES),
+    (
+        Route::Transactions,
+        "Ledger Invoices / Bills",
+        icons::NAV_LEDGER_DOCUMENTS,
+    ),
+    (Route::Products, "Products", icons::NAV_PRODUCTS),
+    (Route::Employees, "Employees", icons::NAV_EMPLOYEES),
+    (Route::Expenses, "Expenses", icons::NAV_EXPENSES),
+    (Route::Pos, "Point of Sale", icons::NAV_POINT_OF_SALE),
+    (Route::Reports, "Reports", icons::NAV_REPORTS),
+    (Route::Settings, "Settings", icons::NAV_SETTINGS),
+    (Route::Companies, "Companies", icons::NAV_COMPANIES),
+    (Route::SwitchUser, "Switch User", icons::NAV_SWITCH_USER),
+    (Route::Users, "Users", icons::NAV_USERS),
 ];
 
 /// Which side of the ledger the sidebar's "Transactions" screen is
@@ -672,45 +688,52 @@ impl MemonBooks {
                 .map(Message::PasswordChange);
         }
 
-        let primary_routes: Vec<(Route, &str)> = NAV_ITEMS
+        let primary_routes: Vec<(Route, &str, &str)> = NAV_ITEMS
             .iter()
             .copied()
-            .filter(|(route, _)| !is_secondary_route(*route))
+            .filter(|(route, _, _)| !is_secondary_route(*route))
             .collect();
-        let secondary_routes: Vec<(Route, &str)> = NAV_ITEMS
+        let secondary_routes: Vec<(Route, &str, &str)> = NAV_ITEMS
             .iter()
             .copied()
-            .filter(|(route, _)| {
+            .filter(|(route, _, _)| {
                 is_secondary_route(*route) && (*route != Route::Users || self.can_manage_users)
             })
             .collect();
 
         let primary_entries: Vec<NavEntry> = primary_routes
             .iter()
-            .map(|(route, label)| NavEntry::new(label, *route == self.route))
+            .map(|(route, label, icon)| NavEntry::new(label, icon, *route == self.route))
             .collect();
         let secondary_entries: Vec<NavEntry> = secondary_routes
             .iter()
-            .map(|(route, label)| NavEntry::new(label, *route == self.route))
+            .map(|(route, label, icon)| NavEntry::new(label, icon, *route == self.route))
             .collect();
 
-        let primary_targets: Vec<Route> = primary_routes.iter().map(|(route, _)| *route).collect();
-        let secondary_targets: Vec<Route> =
-            secondary_routes.iter().map(|(route, _)| *route).collect();
+        let primary_targets: Vec<Route> =
+            primary_routes.iter().map(|(route, _, _)| *route).collect();
+        let secondary_targets: Vec<Route> = secondary_routes
+            .iter()
+            .map(|(route, _, _)| *route)
+            .collect();
 
         let sidebar = sidebar::view(
             self.theme,
-            "MemonBooks",
-            self.sidebar_collapsed,
-            Message::ToggleSidebar,
-            primary_entries,
-            move |index| Message::Navigate(primary_targets[index]),
-            secondary_entries,
-            move |index| Message::Navigate(secondary_targets[index]),
-            &user.display_name,
-            "Signed in",
-            Message::Logout,
-            Message::ToggleTheme,
+            sidebar::Props {
+                app_name: "MemonBooks",
+                collapsed: self.sidebar_collapsed,
+                on_toggle_collapse: Message::ToggleSidebar,
+                primary_items: primary_entries,
+                on_select_primary: Box::new(move |index| Message::Navigate(primary_targets[index])),
+                secondary_items: secondary_entries,
+                on_select_secondary: Box::new(move |index| {
+                    Message::Navigate(secondary_targets[index])
+                }),
+                user_name: &user.display_name,
+                user_subtitle: "Signed in",
+                on_user_click: Message::Logout,
+                on_toggle_theme: Message::ToggleTheme,
+            },
         );
 
         // `responsive` (not a manually-tracked window-resize subscription)
@@ -719,11 +742,7 @@ impl MemonBooks {
         // `sidebar`, that size is already "window size minus the sidebar's
         // current width" with no manual subtraction needed, and stays
         // correct across resizes and sidebar collapse/expand alike.
-        let sidebar_width = if self.sidebar_collapsed {
-            memonbooks::frontend::components::sidebar::COLLAPSED_WIDTH
-        } else {
-            memonbooks::frontend::components::sidebar::EXPANDED_WIDTH
-        };
+        let sidebar_width = sidebar::width(self.sidebar_collapsed);
         let content_area: Element<'_, Message> = iced::widget::responsive(move |size| {
             font_scale::set_window_width(size.width + sidebar_width);
             let margin = iced::Padding {
@@ -876,4 +895,29 @@ fn transaction_side_button<'a, Message: Clone + 'a>(
         btn.style(button_style::secondary(theme))
     }
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_menu_item_has_its_own_icon_from_the_bundled_font() {
+        let face = ttf_parser::Face::parse(fonts::ICONS_TTF, 0).expect("icon font parses");
+        let mut seen = std::collections::HashSet::new();
+        for (_, label, glyph) in NAV_ITEMS {
+            let mut chars = glyph.chars();
+            let (Some(ch), None) = (chars.next(), chars.next()) else {
+                panic!("{label}: icon is not a single character");
+            };
+            assert!(
+                face.glyph_index(ch).is_some(),
+                "{label}: icon missing from lucide.ttf"
+            );
+            assert!(
+                seen.insert(*glyph),
+                "{label}: icon is shared with another menu item"
+            );
+        }
+    }
 }

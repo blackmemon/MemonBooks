@@ -33,6 +33,54 @@ impl Theme {
         }
     }
 
+    // ---- Sidebar tokens -------------------------------------------
+    // The sidebar is black in both themes, so these ignore `self`: one
+    // value per token, defined once here. They are methods (not free
+    // constants) only so a caller holding a `Theme` reads them like every
+    // other token.
+
+    /// Sidebar panel: pure black.
+    pub fn sidebar_bg(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0x00, 0x00, 0x00),
+        }
+    }
+
+    /// Hovered sidebar row or button: a step lighter than the panel.
+    pub fn sidebar_hover(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0x1C, 0x1C, 0x1C),
+        }
+    }
+
+    /// Active sidebar row: lighter again, so it stays distinct from hover.
+    pub fn sidebar_active(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0x2B, 0x2B, 0x2B),
+        }
+    }
+
+    /// Sidebar labels and icons.
+    pub fn sidebar_text(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0xFF, 0xFF, 0xFF),
+        }
+    }
+
+    /// Sidebar secondary text (the "Signed in" line).
+    pub fn sidebar_muted(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0xA8, 0xA8, 0xA8),
+        }
+    }
+
+    /// Hairline between the sidebar's two nav groups.
+    pub fn sidebar_divider(&self) -> Color {
+        match self {
+            Theme::Light | Theme::Dark => rgb8(0x33, 0x33, 0x33),
+        }
+    }
+
     pub fn page_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(255, 255, 255),
@@ -195,7 +243,7 @@ impl Theme {
         }
     }
 
-        /// Header background.
+    /// Header background.
     pub fn header_bg(&self) -> Color {
         match self {
             Theme::Light => rgb8(0xFF, 0xC8, 0xCE),
@@ -281,6 +329,64 @@ impl Theme {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// WCAG 2.x relative luminance of an opaque colour.
+    fn luminance(color: Color) -> f32 {
+        let linear = |channel: f32| {
+            if channel <= 0.03928 {
+                channel / 12.92
+            } else {
+                ((channel + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b)
+    }
+
+    fn contrast_ratio(a: Color, b: Color) -> f32 {
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    #[test]
+    fn sidebar_tokens_are_identical_in_light_and_dark() {
+        let (l, d) = (Theme::Light, Theme::Dark);
+        assert_eq!(l.sidebar_bg(), d.sidebar_bg());
+        assert_eq!(l.sidebar_hover(), d.sidebar_hover());
+        assert_eq!(l.sidebar_active(), d.sidebar_active());
+        assert_eq!(l.sidebar_text(), d.sidebar_text());
+        assert_eq!(l.sidebar_muted(), d.sidebar_muted());
+        assert_eq!(l.sidebar_divider(), d.sidebar_divider());
+        assert_eq!(l.sidebar_bg(), Color::BLACK);
+    }
+
+    #[test]
+    fn sidebar_text_and_icons_have_at_least_4_5_to_1_contrast_on_every_sidebar_surface() {
+        for theme in [Theme::Light, Theme::Dark] {
+            for surface in [
+                theme.sidebar_bg(),
+                theme.sidebar_hover(),
+                theme.sidebar_active(),
+            ] {
+                for (name, front) in [
+                    ("text", theme.sidebar_text()),
+                    ("muted", theme.sidebar_muted()),
+                ] {
+                    let ratio = contrast_ratio(front, surface);
+                    assert!(
+                        ratio >= 4.5,
+                        "sidebar {name} on {surface:?} is only {ratio:.2}:1"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sidebar_hover_and_active_are_distinct_steps_above_the_panel() {
+        let t = Theme::Light;
+        assert!(luminance(t.sidebar_hover()) > luminance(t.sidebar_bg()));
+        assert!(luminance(t.sidebar_active()) > luminance(t.sidebar_hover()));
+    }
 
     // The light palette stays aligned with the White Theme in PROJECT_SPEC.md.
     #[test]

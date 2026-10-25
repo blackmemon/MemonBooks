@@ -89,6 +89,39 @@ pub const EYE: &str = "\u{e0be}";
 pub const EYE_OFF: &str = "\u{e0bf}";
 /// An outlined circle; two overlapped make a logo mark.
 pub const LOGO_CIRCLE: &str = "\u{e07a}";
+/// Sidebar menu glyphs, one per menu item (see `NAV_ITEMS` in `main.rs`).
+pub const NAV_HOME: &str = "\u{e0f8}";
+pub const NAV_ACCOUNTING: &str = "\u{e1bb}";
+pub const NAV_MAINTAIN: &str = "\u{e1b0}";
+pub const NAV_JOURNAL_NEW: &str = "\u{e0cd}";
+pub const NAV_JOURNAL_ENTRIES: &str = "\u{e063}";
+pub const NAV_TRIAL_BALANCE: &str = "\u{e211}";
+pub const NAV_FIXED_ASSETS: &str = "\u{e1cb}";
+pub const NAV_TAX_RATES: &str = "\u{e135}";
+/// Ledger invoices and bills: a receipt.
+pub const NAV_LEDGER_DOCUMENTS: &str = "\u{e3d6}";
+pub const NAV_PRODUCTS: &str = "\u{e12c}";
+pub const NAV_EMPLOYEES: &str = "\u{e1a3}";
+pub const NAV_EXPENSES: &str = "\u{e203}";
+pub const NAV_POINT_OF_SALE: &str = "\u{e15f}";
+pub const NAV_REPORTS: &str = "\u{e2a2}";
+pub const NAV_SETTINGS: &str = "\u{e157}";
+pub const NAV_COMPANIES: &str = "\u{e28f}";
+pub const NAV_SWITCH_USER: &str = "\u{e149}";
+pub const NAV_USERS: &str = "\u{e46e}";
+/// Menu glyphs for screens the menu does not list yet.
+pub const NAV_TRIPS: &str = "\u{e1dd}";
+pub const NAV_PAYROLL: &str = "\u{e056}";
+pub const NAV_EXPENSE_CLAIMS: &str = "\u{e08a}";
+pub const NAV_ADVANCED_MASTERS: &str = "\u{e52d}";
+/// Sidebar logo mark: a book with a bookmark.
+pub const LOGO_BOOK: &str = "\u{e3f5}";
+/// Signed-in user avatar and the sign-out arrow beside it.
+pub const USER: &str = "\u{e46c}";
+pub const LOGOUT: &str = "\u{e111}";
+/// Sidebar collapse / expand (double chevrons).
+pub const CHEVRONS_LEFT: &str = "\u{e076}";
+pub const CHEVRONS_RIGHT: &str = "\u{e077}";
 
 #[cfg(test)]
 mod tests {
@@ -142,6 +175,33 @@ mod tests {
         ("EYE", EYE),
         ("EYE_OFF", EYE_OFF),
         ("LOGO_CIRCLE", LOGO_CIRCLE),
+        ("NAV_HOME", NAV_HOME),
+        ("NAV_ACCOUNTING", NAV_ACCOUNTING),
+        ("NAV_MAINTAIN", NAV_MAINTAIN),
+        ("NAV_JOURNAL_NEW", NAV_JOURNAL_NEW),
+        ("NAV_JOURNAL_ENTRIES", NAV_JOURNAL_ENTRIES),
+        ("NAV_TRIAL_BALANCE", NAV_TRIAL_BALANCE),
+        ("NAV_FIXED_ASSETS", NAV_FIXED_ASSETS),
+        ("NAV_TAX_RATES", NAV_TAX_RATES),
+        ("NAV_LEDGER_DOCUMENTS", NAV_LEDGER_DOCUMENTS),
+        ("NAV_PRODUCTS", NAV_PRODUCTS),
+        ("NAV_EMPLOYEES", NAV_EMPLOYEES),
+        ("NAV_EXPENSES", NAV_EXPENSES),
+        ("NAV_POINT_OF_SALE", NAV_POINT_OF_SALE),
+        ("NAV_REPORTS", NAV_REPORTS),
+        ("NAV_SETTINGS", NAV_SETTINGS),
+        ("NAV_COMPANIES", NAV_COMPANIES),
+        ("NAV_SWITCH_USER", NAV_SWITCH_USER),
+        ("NAV_USERS", NAV_USERS),
+        ("NAV_TRIPS", NAV_TRIPS),
+        ("NAV_PAYROLL", NAV_PAYROLL),
+        ("NAV_EXPENSE_CLAIMS", NAV_EXPENSE_CLAIMS),
+        ("NAV_ADVANCED_MASTERS", NAV_ADVANCED_MASTERS),
+        ("LOGO_BOOK", LOGO_BOOK),
+        ("USER", USER),
+        ("LOGOUT", LOGOUT),
+        ("CHEVRONS_LEFT", CHEVRONS_LEFT),
+        ("CHEVRONS_RIGHT", CHEVRONS_RIGHT),
     ];
 
     #[test]

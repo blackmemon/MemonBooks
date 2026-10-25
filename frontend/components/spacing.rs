@@ -154,6 +154,28 @@ pub fn grown(base: f32) -> f32 {
         / crate::frontend::components::typography::BASE_BODY
 }
 
+/// Sidebar widths at the base type scale, margin included; see
+/// [`sidebar_width`] for the scaled value the layout uses.
+pub const SIDEBAR_WIDTH: f32 = 252.0;
+pub const SIDEBAR_COLLAPSED_WIDTH: f32 = 76.0;
+/// Corner radius of the black sidebar panel.
+pub const SIDEBAR_RADIUS: f32 = 22.0;
+/// Width of the icon slot in a sidebar row, so labels line up.
+pub const SIDEBAR_ICON_SLOT: f32 = 22.0;
+
+/// Sidebar width grown with the type scale so labels never clip.
+pub fn sidebar_width(collapsed: bool) -> f32 {
+    grown(if collapsed {
+        SIDEBAR_COLLAPSED_WIDTH
+    } else {
+        SIDEBAR_WIDTH
+    })
+}
+
+pub fn sidebar_icon_slot() -> f32 {
+    grown(SIDEBAR_ICON_SLOT)
+}
+
 pub fn card_height() -> f32 {
     grown(CARD_HEIGHT)
 }

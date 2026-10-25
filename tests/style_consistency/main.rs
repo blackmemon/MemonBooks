@@ -278,20 +278,26 @@ fn only_fonts_rs_names_a_font_family() {
 /// Where the vendor table's columns are named, and the files that work
 /// with vendor columns.
 const VENDOR_VIEW: &str = "frontend/views/accounting/maintain/vendors_view.rs";
+/// Where `VENDOR_HEADERS` is written.
+const VENDOR_HEADERS_FILE: &str = "backend/accounting/vendors.rs";
 const VENDOR_CODE: &[&str] = &[
     VENDOR_VIEW,
+    VENDOR_HEADERS_FILE,
     "backend/parties/vendors.rs",
     "backend/repositories/party_repository.rs",
 ];
 
-/// The names written in `vendors_view.rs`'s `VENDOR_HEADERS` array, and
+/// The names written in `backend/accounting/vendors.rs`'s `VENDOR_HEADERS` array, and
 /// the (zero-based) lines the array spans.
 fn vendor_headers(content: &str) -> (Vec<String>, std::ops::Range<usize>) {
     let lines: Vec<&str> = content.lines().collect();
     let start = lines
         .iter()
-        .position(|line| line.starts_with("const VENDOR_HEADERS"))
-        .expect("vendors_view.rs defines VENDOR_HEADERS");
+        .position(|line| {
+            line.trim_start_matches("pub(crate) ")
+                .starts_with("const VENDOR_HEADERS")
+        })
+        .expect("backend/accounting/vendors.rs defines VENDOR_HEADERS");
     let end = start
         + lines[start..]
             .iter()
@@ -309,8 +315,9 @@ fn vendor_headers(content: &str) -> (Vec<String>, std::ops::Range<usize>) {
 #[test]
 fn vendor_column_names_are_written_only_in_vendor_headers() {
     let root = crate_root();
-    let view = fs::read_to_string(root.join(VENDOR_VIEW)).expect("vendors_view.rs is readable");
-    let (names, header_lines) = vendor_headers(&view);
+    let headers_file = fs::read_to_string(root.join(VENDOR_HEADERS_FILE))
+        .expect("backend/accounting/vendors.rs is readable");
+    let (names, header_lines) = vendor_headers(&headers_file);
     assert!(
         names.len() > 10,
         "expected to read VENDOR_HEADERS' names, got {names:?}"
@@ -321,7 +328,7 @@ fn vendor_column_names_are_written_only_in_vendor_headers() {
         let content = fs::read_to_string(root.join(path))
             .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
         for (index, line) in production_source(&content).lines().enumerate() {
-            if *path == VENDOR_VIEW && header_lines.contains(&index) {
+            if *path == VENDOR_HEADERS_FILE && header_lines.contains(&index) {
                 continue;
             }
             if line.trim_start().starts_with("//") {

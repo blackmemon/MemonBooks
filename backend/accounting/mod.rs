@@ -8,3 +8,4 @@ pub mod journal_entries;
 pub mod opening_balances;
 pub mod period_closing;
 pub mod trial_balance;
+pub mod vendors;
